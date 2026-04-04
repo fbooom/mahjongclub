@@ -112,8 +112,23 @@ export default function App() {
   const [gid, setGid] = useState(null);
   const [gmid, setGmid] = useState(null);
   const [toast, setToast] = useState(null);
-  const [showWelcome, setShowWelcome] = useState(true);
-  const [user, setUser] = useState({ name: "Your Name", avatar: "🐼", email: "you@email.com" });
+  const [authUser, setAuthUser] = useState(() => {
+    try { const s = localStorage.getItem("mahjongclub_user"); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
+  const [user, setUser] = useState(() => {
+    try { const s = localStorage.getItem("mahjongclub_user"); return s ? JSON.parse(s) : { name: "Your Name", avatar: "🐼", email: "you@email.com" }; } catch { return { name: "Your Name", avatar: "🐼", email: "you@email.com" }; }
+  });
+
+  const handleSignIn = (userData) => {
+    localStorage.setItem("mahjongclub_user", JSON.stringify(userData));
+    setAuthUser(userData);
+    setUser(userData);
+  };
+  const handleSignOut = () => {
+    localStorage.removeItem("mahjongclub_user");
+    setAuthUser(null);
+    setUser({ name: "Your Name", avatar: "🐼", email: "you@email.com" });
+  };
 
   const group = groups.find((g) => g.id === gid) || null;
   const game = group ? group.games.find((g) => g.id === gmid) || null : null;
@@ -122,6 +137,14 @@ export default function App() {
   const flash = (msg, icon) => { setToast({ msg, icon: icon || "✅" }); setTimeout(() => setToast(null), 2600); };
   const mutG = (id, fn) => setGroups((prev) => prev.map((g) => g.id === id ? fn(g) : g));
 
+  if (!authUser) {
+    return (
+      <div className="app-shell">
+        <AuthScreen onSignIn={handleSignIn} />
+      </div>
+    );
+  }
+
   const NAV_ITEMS = [
     { id: "home",    icon: "🀄", label: "Home"    },
     { id: "account", icon: "👤", label: "Account" },
@@ -129,9 +152,6 @@ export default function App() {
 
   return (
     <div className="app-shell">
-
-      {/* Welcome popup */}
-      {showWelcome && <WelcomeModal onClose={() => setShowWelcome(false)} />}
 
       {/* Toast */}
       {toast && (
@@ -147,7 +167,7 @@ export default function App() {
       {/* Page content */}
       <div style={{ paddingBottom: 74 }}>
         {page === "home" && <Home groups={groups} go={go} user={user} />}
-        {page === "account" && <Account user={user} setUser={setUser} groups={groups} flash={flash} go={go} />}
+        {page === "account" && <Account user={user} setUser={setUser} groups={groups} flash={flash} go={go} onSignOut={handleSignOut} />}
         {page === "newGroup" && (
           <NewGroup onBack={() => go("home")}
             onSave={(g) => { setGroups((p) => [g, ...p]); go("group", g.id); flash("Group created!", "🎉"); }} />
@@ -321,8 +341,237 @@ function WelcomeModal({ onClose }) {
   );
 }
 
+/* ── AUTH SCREEN ── */
+const AUTH_AVATARS = [
+  "🐼","🌸","🦋","🍀","🌹","🦚","🎋","🌿","🦩","🌺","🎍","🐝",
+  "🦊","🐱","🐰","🦁","🐨","🦄","🐸","🦜","🌙","⭐","🌊","🍵",
+  "🎀","🍄","🌻","🪷","🦢","🐞","🍒","🫧","🌈","🪸","🫶","🎐",
+];
+const randAvatar = () => AUTH_AVATARS[Math.floor(Math.random() * AUTH_AVATARS.length)];
+
+function AuthScreen({ onSignIn }) {
+  const [mode, setMode] = useState("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [avatar, setAvatar] = useState(null);
+  const [error, setError] = useState("");
+
+  const switchMode = (m) => { setMode(m); setError(""); };
+
+  const handleLogin = () => {
+    setError("");
+    if (!email.trim() || !password.trim()) { setError("Please enter your email and password."); return; }
+    const users = JSON.parse(localStorage.getItem("mahjongclub_users") || "[]");
+    const found = users.find((u) => u.email === email.trim().toLowerCase());
+    if (!found) { setError("No account found with that email."); return; }
+    if (found.password !== password) { setError("Incorrect password."); return; }
+    onSignIn({ name: found.name, email: found.email, avatar: found.avatar, phone: found.phone || "" });
+  };
+
+  const handleSignUp = () => {
+    setError("");
+    if (!firstName.trim()) { setError("First name is required."); return; }
+    if (!lastName.trim()) { setError("Last name is required."); return; }
+    if (!email.trim()) { setError("Email is required."); return; }
+    if (!/\S+@\S+\.\S+/.test(email.trim())) { setError("Please enter a valid email."); return; }
+    if (!password.trim() || password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    const users = JSON.parse(localStorage.getItem("mahjongclub_users") || "[]");
+    if (users.find((u) => u.email === email.trim().toLowerCase())) { setError("An account with that email already exists."); return; }
+    const chosenAvatar = avatar || randAvatar();
+    const newUser = {
+      name: `${firstName.trim()} ${lastName.trim()}`,
+      email: email.trim().toLowerCase(),
+      password,
+      phone: phone.trim(),
+      avatar: chosenAvatar,
+    };
+    users.push(newUser);
+    localStorage.setItem("mahjongclub_users", JSON.stringify(users));
+    onSignIn({ name: newUser.name, email: newUser.email, avatar: newUser.avatar, phone: newUser.phone });
+  };
+
+  const handleGoogle = () => setError("Google Auth coming soon — requires Firebase setup! 🔥");
+
+  const TILES = ["🀄","🀅","🀆","🀇","🀙","🀃","🀈","🀆"];
+  const TILE_POS = [
+    { top: "4%",  left: "3%",   a: "f0", d: "0s",    s: 30 },
+    { top: "7%",  right: "4%",  a: "f1", d: "0.4s",  s: 24 },
+    { top: "20%", left: "6%",   a: "f2", d: "0.8s",  s: 20 },
+    { top: "24%", right: "8%",  a: "f0", d: "1.1s",  s: 22 },
+    { bottom: "32%", left: "2%",  a: "f1", d: "1.4s", s: 26 },
+    { bottom: "30%", right: "3%", a: "f2", d: "0.2s", s: 20 },
+    { bottom: "16%", left: "10%", a: "f0", d: "0.6s", s: 18 },
+    { bottom: "13%", right: "7%", a: "f1", d: "1.0s", s: 24 },
+  ];
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "linear-gradient(150deg,rgba(168,66,107,0.95) 0%,rgba(201,96,122,0.9) 50%,rgba(155,110,168,0.9) 100%)",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      padding: "24px 20px", position: "relative", overflow: "hidden",
+    }}>
+      {/* Shimmer overlay */}
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.12) 0%,transparent 60%)", pointerEvents: "none" }} />
+
+      {/* Animated tiles */}
+      {TILE_POS.map((p, i) => (
+        <div key={i} style={{
+          position: "absolute", fontSize: p.s, opacity: 0.18, pointerEvents: "none",
+          top: p.top, bottom: p.bottom, left: p.left, right: p.right,
+          animation: `${p.a} ${2.4 + i * 0.3}s ${p.d} ease-in-out infinite`, filter: "blur(0.5px)",
+        }}>{TILES[i]}</div>
+      ))}
+
+      {/* Logo */}
+      <div style={{ textAlign: "center", marginBottom: 24, position: "relative" }}>
+        <div style={{ fontSize: 54, filter: "drop-shadow(0 6px 18px rgba(0,0,0,.3))", marginBottom: 10 }}>🀄</div>
+        <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 30, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
+        <p style={{ color: "rgba(255,255,255,.72)", fontSize: 12, fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 1, marginTop: 5 }}>Schedule · Play · Enjoy</p>
+      </div>
+
+      {/* Card */}
+      <div className="bIn" style={{
+        background: "linear-gradient(160deg,rgba(255,255,255,0.97) 0%,rgba(255,235,245,0.97) 100%)",
+        borderRadius: 28, padding: "26px 22px 22px", maxWidth: 420, width: "100%",
+        boxShadow: "0 28px 72px rgba(100,30,60,0.38), inset 0 1px 0 rgba(255,255,255,1)",
+        border: "1px solid rgba(255,200,220,0.5)", position: "relative",
+      }}>
+        {/* Tab toggle */}
+        <div style={{ display: "flex", background: "rgba(240,217,227,0.55)", borderRadius: 999, padding: 4, marginBottom: 20 }}>
+          {[["login","Sign In"],["signup","Create Account"]].map(([m, label]) => (
+            <button key={m} onClick={() => switchMode(m)} style={{
+              flex: 1, padding: "9px 0", borderRadius: 999, fontSize: 13, fontWeight: 700,
+              fontFamily: "'Noto Sans JP',sans-serif", border: "none", cursor: "pointer", transition: "all .2s",
+              background: mode === m ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "transparent",
+              color: mode === m ? "#fff" : "#c0899e",
+              boxShadow: mode === m ? "0 3px 12px rgba(168,66,107,0.3)" : "none",
+            }}>{label}</button>
+          ))}
+        </div>
+
+        {mode === "login" ? (
+          <>
+            <AInput label="Email" type="email" value={email} set={setEmail} placeholder="you@email.com" />
+            <AInput label="Password" type="password" value={password} set={setPassword} placeholder="••••••••" />
+            {error && <ErrMsg msg={error} />}
+            <ABtn onClick={handleLogin}>Sign In 🀄</ABtn>
+            <Divider />
+            <GoogleSignInBtn onClick={handleGoogle} />
+          </>
+        ) : (
+          <>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1 }}><AInput label="First Name" value={firstName} set={setFirstName} placeholder="Jane" /></div>
+              <div style={{ flex: 1 }}><AInput label="Last Name" value={lastName} set={setLastName} placeholder="Smith" /></div>
+            </div>
+            <AInput label="Email" type="email" value={email} set={setEmail} placeholder="you@email.com" />
+            <AInput label="Password" type="password" value={password} set={setPassword} placeholder="Min. 6 characters" />
+            <AInput label="Phone (optional)" type="tel" value={phone} set={setPhone} placeholder="+1 (555) 000-0000" />
+
+            {/* Avatar picker */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#c0899e", marginBottom: 7, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                Avatar <span style={{ fontWeight: 400, color: "#d4a5c9", textTransform: "none", letterSpacing: 0, fontSize: 11 }}>— auto-selected if skipped</span>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                {AUTH_AVATARS.map((a) => (
+                  <div key={a} onClick={() => setAvatar(avatar === a ? null : a)} style={{
+                    fontSize: 22, padding: 6, borderRadius: 11, cursor: "pointer",
+                    background: avatar === a ? "#fce4ee" : "rgba(255,255,255,0.7)",
+                    border: `2px solid ${avatar === a ? "#c9607a" : "transparent"}`,
+                    transition: "all .14s",
+                    boxShadow: avatar === a ? "0 2px 8px rgba(201,96,122,0.25)" : "none",
+                  }}>{a}</div>
+                ))}
+              </div>
+            </div>
+
+            {error && <ErrMsg msg={error} />}
+            <ABtn onClick={handleSignUp}>Create Account ✨</ABtn>
+            <Divider />
+            <GoogleSignInBtn onClick={handleGoogle} />
+          </>
+        )}
+
+        <p style={{ fontSize: 11, color: "#c0a0b0", textAlign: "center", marginTop: 14, fontFamily: "'Noto Sans JP',sans-serif" }}>
+          {mode === "login" ? "Don't have an account? " : "Already have an account? "}
+          <span onClick={() => switchMode(mode === "login" ? "signup" : "login")} style={{ color: "#c9607a", fontWeight: 700, cursor: "pointer" }}>
+            {mode === "login" ? "Create one" : "Sign in"}
+          </span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function AInput({ label, type = "text", value, set, placeholder }) {
+  return (
+    <div style={{ marginBottom: 11 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#c0899e", marginBottom: 5, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Noto Sans JP',sans-serif" }}>{label}</div>
+      <input type={type} value={value} onChange={(e) => set(e.target.value)} placeholder={placeholder}
+        style={{ ...inputSt, marginBottom: 0 }} />
+    </div>
+  );
+}
+function ABtn({ children, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      width: "100%", padding: "14px", borderRadius: 999,
+      background: "linear-gradient(135deg,#c9607a,#9b6ea8)", color: "#fff",
+      fontSize: 15, fontWeight: 700, border: "none", cursor: "pointer",
+      fontFamily: "'Noto Sans JP',sans-serif", boxShadow: "0 6px 20px rgba(168,66,107,0.38)",
+      letterSpacing: 0.3, transition: "transform .15s",
+    }}
+      onMouseDown={(e) => e.currentTarget.style.transform = "scale(.97)"}
+      onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+      onTouchStart={(e) => e.currentTarget.style.transform = "scale(.97)"}
+      onTouchEnd={(e) => e.currentTarget.style.transform = "scale(1)"}
+    >{children}</button>
+  );
+}
+function GoogleSignInBtn({ onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      width: "100%", padding: "13px", borderRadius: 999,
+      background: "#fff", color: "#3c3c3c", fontSize: 14, fontWeight: 600,
+      border: "2px solid #e8e0e4", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif",
+      display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+      boxShadow: "0 2px 10px rgba(0,0,0,0.08)", transition: "all .15s",
+    }}
+      onMouseDown={(e) => e.currentTarget.style.transform = "scale(.97)"}
+      onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+      onTouchStart={(e) => e.currentTarget.style.transform = "scale(.97)"}
+      onTouchEnd={(e) => e.currentTarget.style.transform = "scale(1)"}
+    >
+      <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+        <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908C16.657 14.013 17.64 11.71 17.64 9.2z" fill="#4285F4"/>
+        <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+        <path d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z" fill="#FBBC05"/>
+        <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 6.293C4.672 4.166 6.656 3.58 9 3.58z" fill="#EA4335"/>
+      </svg>
+      Continue with Google
+    </button>
+  );
+}
+function ErrMsg({ msg }) {
+  return <div style={{ color: "#c9607a", fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: "center", fontFamily: "'Noto Sans JP',sans-serif", background: "rgba(201,96,122,0.08)", borderRadius: 10, padding: "8px 12px" }}>{msg}</div>;
+}
+function Divider() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0" }}>
+      <div style={{ flex: 1, height: 1, background: "linear-gradient(90deg,transparent,#f0c0d0,transparent)" }} />
+      <span style={{ fontSize: 12, color: "#d4a5c9", fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 600 }}>or</span>
+      <div style={{ flex: 1, height: 1, background: "linear-gradient(90deg,transparent,#f0c0d0,transparent)" }} />
+    </div>
+  );
+}
+
 /* ── ACCOUNT PAGE ── */
-function Account({ user, setUser, groups, flash, go }) {
+function Account({ user, setUser, groups, flash, go, onSignOut }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
@@ -459,6 +708,22 @@ function Account({ user, setUser, groups, flash, go }) {
           <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 14, color: "#9b5070", fontWeight: 600 }}>Mahjong Club</div>
           <div style={{ fontSize: 11, color: "#c0a0b0", marginTop: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Version 1.0 · Made with ❤️</div>
         </div>
+
+        {/* Sign Out */}
+        <button onClick={onSignOut} style={{
+          width: "100%", padding: "13px", marginTop: 6, borderRadius: 999,
+          background: "transparent", border: "2px solid rgba(201,96,122,0.35)",
+          color: "#c9607a", fontSize: 14, fontWeight: 700,
+          fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer",
+          transition: "all .18s", letterSpacing: 0.3,
+        }}
+          onMouseDown={(e) => e.currentTarget.style.transform = "scale(.97)"}
+          onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+          onTouchStart={(e) => e.currentTarget.style.transform = "scale(.97)"}
+          onTouchEnd={(e) => e.currentTarget.style.transform = "scale(1)"}
+        >
+          Sign Out 👋
+        </button>
       </div>
     </div>
   );
