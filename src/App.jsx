@@ -129,17 +129,21 @@ export default function App() {
   // ── Firebase auth state listener ──
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
+      console.log("[Auth State]", fbUser ? `signed in — ${fbUser.email} (${fbUser.uid})` : "signed out");
       if (fbUser) {
         try {
           const snap = await getDoc(doc(db, "users", fbUser.uid));
+          console.log("[Auth State] Firestore profile exists:", snap.exists());
           if (snap.exists()) {
             setUser({ uid: fbUser.uid, ...snap.data() });
           } else {
             const profile = { name: fbUser.displayName || fbUser.email.split("@")[0], email: fbUser.email, avatar: randAvatar(), phone: "" };
+            console.log("[Auth State] Creating new Firestore profile:", profile);
             await setDoc(doc(db, "users", fbUser.uid), profile);
             setUser({ uid: fbUser.uid, ...profile });
           }
-        } catch {
+        } catch (e) {
+          console.error("[Auth State] Firestore error:", e);
           setUser({ uid: fbUser.uid, name: fbUser.displayName || "Player", email: fbUser.email || "", avatar: "🐼", phone: "" });
         }
         setPage("home");
@@ -548,11 +552,20 @@ function AuthScreen() {
   const handleGoogle = async () => {
     setError("");
     setLoading(true);
+    console.log("[Google Auth] Starting signInWithPopup...");
+    console.log("[Google Auth] auth object:", auth);
+    console.log("[Google Auth] googleProvider:", googleProvider);
+    console.log("[Google Auth] current domain:", window.location.hostname);
     try {
-      await signInWithPopup(auth, googleProvider);
-      // onAuthStateChanged in App handles profile creation + state update
+      const result = await signInWithPopup(auth, googleProvider);
+      console.log("[Google Auth] SUCCESS — user:", result.user.email, "uid:", result.user.uid);
     } catch (e) {
-      setError(fmtFirebaseError(e.code));
+      console.error("[Google Auth] FAILED");
+      console.error("  code   :", e.code);
+      console.error("  message:", e.message);
+      console.error("  full   :", e);
+      const friendly = fmtFirebaseError(e.code);
+      setError(`${friendly} (code: ${e.code})`);
     } finally {
       setLoading(false);
     }
