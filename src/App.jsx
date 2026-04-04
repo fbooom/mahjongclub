@@ -1,4 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import {
+  onAuthStateChanged, createUserWithEmailAndPassword,
+  signInWithEmailAndPassword, signInWithPopup, signOut,
+} from "firebase/auth";
+import {
+  collection, doc, setDoc, getDoc, updateDoc, deleteDoc,
+  onSnapshot, query, where, arrayUnion, arrayRemove, runTransaction,
+} from "firebase/firestore";
+import { auth, db, googleProvider } from "./firebase";
 
 const uid = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 const fmt = (ts) => new Date(ts).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -107,43 +116,117 @@ export default function App() {
     return () => document.head.removeChild(el);
   }, []);
 
-  const [groups, setGroups] = useState(SEED);
+  const [groups, setGroups] = useState([]);
   const [page, setPage] = useState("home");
   const [gid, setGid] = useState(null);
   const [gmid, setGmid] = useState(null);
   const [toast, setToast] = useState(null);
-  const [authUser, setAuthUser] = useState(() => {
-    try { const s = localStorage.getItem("mahjongclub_user"); return s ? JSON.parse(s) : null; } catch { return null; }
-  });
-  const [user, setUser] = useState(() => {
-    try { const s = localStorage.getItem("mahjongclub_user"); return s ? JSON.parse(s) : { name: "Your Name", avatar: "🐼", email: "you@email.com" }; } catch { return { name: "Your Name", avatar: "🐼", email: "you@email.com" }; }
-  });
+  const [authUser, setAuthUser] = useState(undefined); // undefined = checking, null = logged out
+  const [user, setUser] = useState(null);
+  const gamesUnsubs = useRef({});
+  const groupMeta = useRef({});
 
-  const handleSignIn = (userData) => {
-    localStorage.setItem("mahjongclub_user", JSON.stringify(userData));
-    setAuthUser(userData);
-    setUser(userData);
-  };
-  const handleSignOut = () => {
-    localStorage.removeItem("mahjongclub_user");
-    setAuthUser(null);
-    setUser({ name: "Your Name", avatar: "🐼", email: "you@email.com" });
-  };
+  // ── Firebase auth state listener ──
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        try {
+          const snap = await getDoc(doc(db, "users", fbUser.uid));
+          if (snap.exists()) {
+            setUser({ uid: fbUser.uid, ...snap.data() });
+          } else {
+            const profile = { name: fbUser.displayName || fbUser.email.split("@")[0], email: fbUser.email, avatar: randAvatar(), phone: "" };
+            await setDoc(doc(db, "users", fbUser.uid), profile);
+            setUser({ uid: fbUser.uid, ...profile });
+          }
+        } catch {
+          setUser({ uid: fbUser.uid, name: fbUser.displayName || "Player", email: fbUser.email || "", avatar: "🐼", phone: "" });
+        }
+        setAuthUser(fbUser);
+      } else {
+        setAuthUser(null);
+        setUser(null);
+        setGroups([]);
+      }
+    });
+    return unsub;
+  }, []);
+
+  // ── Firestore real-time listeners for groups + games ──
+  useEffect(() => {
+    if (!authUser?.uid) return;
+    const uid = authUser.uid;
+    const q = query(collection(db, "groups"), where("memberIds", "array-contains", uid));
+
+    const groupsUnsub = onSnapshot(q, (snap) => {
+      const currentIds = new Set(snap.docs.map((d) => d.id));
+
+      // Clean up listeners for groups no longer visible
+      Object.keys(gamesUnsubs.current).forEach((id) => {
+        if (!currentIds.has(id)) {
+          gamesUnsubs.current[id]();
+          delete gamesUnsubs.current[id];
+          delete groupMeta.current[id];
+        }
+      });
+
+      snap.docs.forEach((d) => { groupMeta.current[d.id] = { ...d.data(), id: d.id }; });
+
+      if (snap.empty) { setGroups([]); return; }
+
+      snap.docs.forEach((groupDoc) => {
+        if (gamesUnsubs.current[groupDoc.id]) return;
+        gamesUnsubs.current[groupDoc.id] = onSnapshot(
+          collection(db, "groups", groupDoc.id, "games"),
+          (gamesSnap) => {
+            const games = gamesSnap.docs.map((d) => ({ ...d.data(), id: d.id }));
+            setGroups((prev) => {
+              const meta = groupMeta.current[groupDoc.id] || {};
+              const updated = { ...meta, id: groupDoc.id, games };
+              const idx = prev.findIndex((g) => g.id === groupDoc.id);
+              return idx >= 0
+                ? prev.map((g, i) => (i === idx ? updated : g))
+                : [...prev, updated];
+            });
+          }
+        );
+      });
+    });
+
+    return () => {
+      groupsUnsub();
+      Object.values(gamesUnsubs.current).forEach((u) => u());
+      gamesUnsubs.current = {};
+      groupMeta.current = {};
+    };
+  }, [authUser?.uid]);
+
+  const handleSignOut = async () => { await signOut(auth); };
 
   const group = groups.find((g) => g.id === gid) || null;
   const game = group ? group.games.find((g) => g.id === gmid) || null : null;
 
   const go = (p, g, gm) => { setPage(p); if (g !== undefined) setGid(g); if (gm !== undefined) setGmid(gm || null); };
   const flash = (msg, icon) => { setToast({ msg, icon: icon || "✅" }); setTimeout(() => setToast(null), 2600); };
-  const mutG = (id, fn) => setGroups((prev) => prev.map((g) => g.id === id ? fn(g) : g));
 
-  if (!authUser) {
+  // ── Loading / auth gate ──
+  if (authUser === undefined) {
     return (
-      <div className="app-shell">
-        <AuthScreen onSignIn={handleSignIn} />
+      <div className="app-shell" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", flexDirection: "column", gap: 16 }}>
+        <div style={{ fontSize: 54, filter: "drop-shadow(0 6px 18px rgba(168,66,107,.3))" }}>🀄</div>
+        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#9b5070" }}>Loading…</div>
       </div>
     );
   }
+  if (!authUser) {
+    return (
+      <div className="app-shell">
+        <AuthScreen />
+      </div>
+    );
+  }
+
+  const uid = authUser.uid;
 
   const NAV_ITEMS = [
     { id: "home",    icon: "🀄", label: "Home"    },
@@ -167,63 +250,107 @@ export default function App() {
       {/* Page content */}
       <div style={{ paddingBottom: 74 }}>
         {page === "home" && <Home groups={groups} go={go} user={user} />}
-        {page === "account" && <Account user={user} setUser={setUser} groups={groups} flash={flash} go={go} onSignOut={handleSignOut} />}
+        {page === "account" && <Account uid={uid} user={user} setUser={setUser} groups={groups} flash={flash} go={go} onSignOut={handleSignOut} />}
         {page === "newGroup" && (
           <NewGroup onBack={() => go("home")}
-            onSave={(g) => { setGroups((p) => [g, ...p]); go("group", g.id); flash("Group created!", "🎉"); }} />
+            onSave={async (g) => {
+              try {
+                const groupData = { ...g, members: [{ id: uid, name: user.name, avatar: user.avatar, host: true }], memberIds: [uid] };
+                await setDoc(doc(db, "groups", g.id), groupData);
+                go("group", g.id); flash("Group created!", "🎉");
+              } catch { flash("Error creating group", "❌"); }
+            }} />
         )}
         {page === "joinGroup" && (
-          <JoinGroup groups={groups} onBack={() => go("home")}
-            onJoin={(id) => { mutG(id, (g) => ({ ...g, members: g.members.some((m) => m.id === "me") ? g.members : [...g.members, { id: "me", name: "You", avatar: "🐼" }] })); go("group", id); flash("Joined!", "🎊"); }} />
+          <JoinGroup uid={uid} groups={groups} onBack={() => go("home")}
+            onJoin={async (id) => {
+              try {
+                await runTransaction(db, async (tx) => {
+                  const ref = doc(db, "groups", id);
+                  const snap = await tx.get(ref);
+                  const data = snap.data();
+                  if ((data.memberIds || []).includes(uid)) return;
+                  tx.update(ref, {
+                    memberIds: [...(data.memberIds || []), uid],
+                    members: [...(data.members || []), { id: uid, name: user.name, avatar: user.avatar }],
+                  });
+                });
+                go("group", id); flash("Joined!", "🎊");
+              } catch { flash("Error joining group", "❌"); }
+            }} />
         )}
         {page === "group" && group && (
-          <Group group={group} go={go} flash={flash}
-            onLeave={() => { setGroups((p) => p.filter((g) => g.id !== group.id)); go("home"); flash("Left group"); }} />
+          <Group uid={uid} group={group} go={go} flash={flash}
+            onLeave={async () => {
+              try {
+                await runTransaction(db, async (tx) => {
+                  const ref = doc(db, "groups", group.id);
+                  const snap = await tx.get(ref);
+                  const data = snap.data();
+                  tx.update(ref, {
+                    memberIds: (data.memberIds || []).filter((id) => id !== uid),
+                    members: (data.members || []).filter((m) => m.id !== uid),
+                  });
+                });
+                go("home"); flash("Left group");
+              } catch { flash("Error leaving group", "❌"); }
+            }} />
         )}
         {page === "newGame" && group && (
-          <NewGame group={group} onBack={() => go("group", group.id)}
-            onSave={(games) => {
-              const arr = Array.isArray(games) ? games : [games];
-              mutG(group.id, (g) => ({ ...g, games: [...arr, ...g.games] }));
-              if (arr.length === 1) { go("game", group.id, arr[0].id); flash("Game scheduled!", "🀄"); }
-              else { go("group", group.id); flash(`${arr.length} games scheduled! 🀄`); }
+          <NewGame uid={uid} user={user} group={group} onBack={() => go("group", group.id)}
+            onSave={async (games) => {
+              try {
+                const arr = Array.isArray(games) ? games : [games];
+                await Promise.all(arr.map((gm) => setDoc(doc(db, "groups", group.id, "games", gm.id), gm)));
+                if (arr.length === 1) { go("game", group.id, arr[0].id); flash("Game scheduled!", "🀄"); }
+                else { go("group", group.id); flash(`${arr.length} games scheduled! 🀄`); }
+              } catch { flash("Error scheduling game", "❌"); }
             }} />
         )}
         {page === "game" && game && group && (
-          <Game game={game} group={group} go={go}
-            onRsvp={(ans) => { mutG(group.id, (g) => ({ ...g, games: g.games.map((gm) => gm.id === game.id ? { ...gm, rsvps: { ...gm.rsvps, me: ans } } : gm) })); flash(ans === "yes" ? "You're in!" : "Got it", ans === "yes" ? "🎉" : "👍"); }}
-            onWaitlist={(action) => {
-              mutG(group.id, (g) => ({
-                ...g, games: g.games.map((gm) => {
-                  if (gm.id !== game.id) return gm;
-                  const wl = gm.waitlist || [];
-                  const onList = wl.includes("me");
-                  return { ...gm, waitlist: onList ? wl.filter((id) => id !== "me") : [...wl, "me"] };
-                })
-              }));
-              flash(action === "join" ? "Added to waitlist!" : "Removed from waitlist", action === "join" ? "⏳" : "👋");
+          <Game uid={uid} game={game} group={group} go={go}
+            onRsvp={async (ans) => {
+              try {
+                await updateDoc(doc(db, "groups", group.id, "games", game.id), { [`rsvps.${uid}`]: ans });
+                flash(ans === "yes" ? "You're in!" : "Got it", ans === "yes" ? "🎉" : "👍");
+              } catch { flash("Error updating RSVP", "❌"); }
             }}
-            onDelete={() => { mutG(group.id, (g) => ({ ...g, games: g.games.filter((gm) => gm.id !== game.id) })); go("group", group.id); flash("Deleted"); }} />
+            onWaitlist={async (action) => {
+              try {
+                await updateDoc(doc(db, "groups", group.id, "games", game.id), {
+                  waitlist: action === "join" ? arrayUnion(uid) : arrayRemove(uid),
+                });
+                flash(action === "join" ? "Added to waitlist!" : "Removed from waitlist", action === "join" ? "⏳" : "👋");
+              } catch { flash("Error updating waitlist", "❌"); }
+            }}
+            onDelete={async () => {
+              try {
+                await deleteDoc(doc(db, "groups", group.id, "games", game.id));
+                go("group", group.id); flash("Deleted");
+              } catch { flash("Error deleting game", "❌"); }
+            }} />
         )}
         {page === "editGame" && game && group && (
-          <EditGame game={game} group={group} onBack={() => go("game", group.id, game.id)}
-            onSave={(updated) => {
-              mutG(group.id, (g) => ({ ...g, games: g.games.map((gm) => gm.id === updated.id ? updated : gm) }));
-              go("game", group.id, updated.id);
-              flash("Game updated!", "✨");
+          <EditGame uid={uid} game={game} group={group} onBack={() => go("game", group.id, game.id)}
+            onSave={async (updated) => {
+              try {
+                const { id: gameId, ...data } = updated;
+                await updateDoc(doc(db, "groups", group.id, "games", gameId), data);
+                go("game", group.id, gameId); flash("Game updated!", "✨");
+              } catch { flash("Error updating game", "❌"); }
             }}
-            onTransferHost={(newHostId) => {
-              const newHostMember = group.members.find((m) => m.id === newHostId);
-              if (!newHostMember) return;
-              mutG(group.id, (g) => ({
-                ...g,
-                games: g.games.map((gm) => {
-                  if (gm.id !== game.id) return gm;
-                  return { ...gm, host: newHostMember.name, hostId: newHostId, rsvps: { ...gm.rsvps, [newHostId]: "yes", me: gm.rsvps?.me || "yes" } };
-                }),
-              }));
-              go("game", group.id, game.id);
-              flash(`${newHostMember.name} is now the host! 🎯`);
+            onTransferHost={async (newHostId) => {
+              try {
+                const newHostMember = group.members.find((m) => m.id === newHostId);
+                if (!newHostMember) return;
+                await updateDoc(doc(db, "groups", group.id, "games", game.id), {
+                  host: newHostMember.name, hostId: newHostId,
+                  [`rsvps.${newHostId}`]: "yes",
+                  [`rsvps.${uid}`]: game.rsvps?.[uid] || "yes",
+                });
+                go("game", group.id, game.id);
+                flash(`${newHostMember.name} is now the host! 🎯`);
+              } catch { flash("Error transferring host", "❌"); }
             }}
           />
         )}
@@ -349,7 +476,7 @@ const AUTH_AVATARS = [
 ];
 const randAvatar = () => AUTH_AVATARS[Math.floor(Math.random() * AUTH_AVATARS.length)];
 
-function AuthScreen({ onSignIn }) {
+function AuthScreen() {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -358,42 +485,76 @@ function AuthScreen({ onSignIn }) {
   const [phone, setPhone] = useState("");
   const [avatar, setAvatar] = useState(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const switchMode = (m) => { setMode(m); setError(""); };
 
-  const handleLogin = () => {
-    setError("");
-    if (!email.trim() || !password.trim()) { setError("Please enter your email and password."); return; }
-    const users = JSON.parse(localStorage.getItem("mahjongclub_users") || "[]");
-    const found = users.find((u) => u.email === email.trim().toLowerCase());
-    if (!found) { setError("No account found with that email."); return; }
-    if (found.password !== password) { setError("Incorrect password."); return; }
-    onSignIn({ name: found.name, email: found.email, avatar: found.avatar, phone: found.phone || "" });
+  const fmtFirebaseError = (code) => {
+    const map = {
+      "auth/user-not-found": "No account found with that email.",
+      "auth/wrong-password": "Incorrect password.",
+      "auth/invalid-credential": "Incorrect email or password.",
+      "auth/email-already-in-use": "An account with that email already exists.",
+      "auth/weak-password": "Password must be at least 6 characters.",
+      "auth/invalid-email": "Please enter a valid email address.",
+      "auth/too-many-requests": "Too many attempts. Please try again later.",
+      "auth/popup-closed-by-user": "Sign-in popup was closed.",
+    };
+    return map[code] || "Something went wrong. Please try again.";
   };
 
-  const handleSignUp = () => {
+  const handleLogin = async () => {
+    setError("");
+    if (!email.trim() || !password.trim()) { setError("Please enter your email and password."); return; }
+    setLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      // onAuthStateChanged in App handles the rest
+    } catch (e) {
+      setError(fmtFirebaseError(e.code));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignUp = async () => {
     setError("");
     if (!firstName.trim()) { setError("First name is required."); return; }
     if (!lastName.trim()) { setError("Last name is required."); return; }
     if (!email.trim()) { setError("Email is required."); return; }
     if (!/\S+@\S+\.\S+/.test(email.trim())) { setError("Please enter a valid email."); return; }
     if (!password.trim() || password.length < 6) { setError("Password must be at least 6 characters."); return; }
-    const users = JSON.parse(localStorage.getItem("mahjongclub_users") || "[]");
-    if (users.find((u) => u.email === email.trim().toLowerCase())) { setError("An account with that email already exists."); return; }
-    const chosenAvatar = avatar || randAvatar();
-    const newUser = {
-      name: `${firstName.trim()} ${lastName.trim()}`,
-      email: email.trim().toLowerCase(),
-      password,
-      phone: phone.trim(),
-      avatar: chosenAvatar,
-    };
-    users.push(newUser);
-    localStorage.setItem("mahjongclub_users", JSON.stringify(users));
-    onSignIn({ name: newUser.name, email: newUser.email, avatar: newUser.avatar, phone: newUser.phone });
+    setLoading(true);
+    try {
+      const { user: fbUser } = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const chosenAvatar = avatar || randAvatar();
+      const profile = {
+        name: `${firstName.trim()} ${lastName.trim()}`,
+        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
+        avatar: chosenAvatar,
+      };
+      await setDoc(doc(db, "users", fbUser.uid), profile);
+      // onAuthStateChanged in App handles the rest
+    } catch (e) {
+      setError(fmtFirebaseError(e.code));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleGoogle = () => setError("Google Auth coming soon — requires Firebase setup! 🔥");
+  const handleGoogle = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      await signInWithPopup(auth, googleProvider);
+      // onAuthStateChanged in App handles profile creation + state update
+    } catch (e) {
+      setError(fmtFirebaseError(e.code));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const TILES = ["🀄","🀅","🀆","🀇","🀙","🀃","🀈","🀆"];
   const TILE_POS = [
@@ -458,9 +619,9 @@ function AuthScreen({ onSignIn }) {
             <AInput label="Email" type="email" value={email} set={setEmail} placeholder="you@email.com" />
             <AInput label="Password" type="password" value={password} set={setPassword} placeholder="••••••••" />
             {error && <ErrMsg msg={error} />}
-            <ABtn onClick={handleLogin}>Sign In 🀄</ABtn>
+            <ABtn onClick={handleLogin} disabled={loading}>{loading ? "Signing in…" : "Sign In 🀄"}</ABtn>
             <Divider />
-            <GoogleSignInBtn onClick={handleGoogle} />
+            <GoogleSignInBtn onClick={handleGoogle} disabled={loading} />
           </>
         ) : (
           <>
@@ -491,9 +652,9 @@ function AuthScreen({ onSignIn }) {
             </div>
 
             {error && <ErrMsg msg={error} />}
-            <ABtn onClick={handleSignUp}>Create Account ✨</ABtn>
+            <ABtn onClick={handleSignUp} disabled={loading}>{loading ? "Creating account…" : "Create Account ✨"}</ABtn>
             <Divider />
-            <GoogleSignInBtn onClick={handleGoogle} />
+            <GoogleSignInBtn onClick={handleGoogle} disabled={loading} />
           </>
         )}
 
@@ -517,34 +678,34 @@ function AInput({ label, type = "text", value, set, placeholder }) {
     </div>
   );
 }
-function ABtn({ children, onClick }) {
+function ABtn({ children, onClick, disabled }) {
   return (
-    <button onClick={onClick} style={{
+    <button onClick={onClick} disabled={disabled} style={{
       width: "100%", padding: "14px", borderRadius: 999,
-      background: "linear-gradient(135deg,#c9607a,#9b6ea8)", color: "#fff",
-      fontSize: 15, fontWeight: 700, border: "none", cursor: "pointer",
-      fontFamily: "'Noto Sans JP',sans-serif", boxShadow: "0 6px 20px rgba(168,66,107,0.38)",
+      background: disabled ? "#e5d5dc" : "linear-gradient(135deg,#c9607a,#9b6ea8)", color: disabled ? "#bbb" : "#fff",
+      fontSize: 15, fontWeight: 700, border: "none", cursor: disabled ? "not-allowed" : "pointer",
+      fontFamily: "'Noto Sans JP',sans-serif", boxShadow: disabled ? "none" : "0 6px 20px rgba(168,66,107,0.38)",
       letterSpacing: 0.3, transition: "transform .15s",
     }}
-      onMouseDown={(e) => e.currentTarget.style.transform = "scale(.97)"}
+      onMouseDown={(e) => { if (!disabled) e.currentTarget.style.transform = "scale(.97)"; }}
       onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
-      onTouchStart={(e) => e.currentTarget.style.transform = "scale(.97)"}
+      onTouchStart={(e) => { if (!disabled) e.currentTarget.style.transform = "scale(.97)"; }}
       onTouchEnd={(e) => e.currentTarget.style.transform = "scale(1)"}
     >{children}</button>
   );
 }
-function GoogleSignInBtn({ onClick }) {
+function GoogleSignInBtn({ onClick, disabled }) {
   return (
-    <button onClick={onClick} style={{
+    <button onClick={onClick} disabled={disabled} style={{
       width: "100%", padding: "13px", borderRadius: 999,
-      background: "#fff", color: "#3c3c3c", fontSize: 14, fontWeight: 600,
-      border: "2px solid #e8e0e4", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif",
+      background: "#fff", color: disabled ? "#aaa" : "#3c3c3c", fontSize: 14, fontWeight: 600,
+      border: "2px solid #e8e0e4", cursor: disabled ? "not-allowed" : "pointer", fontFamily: "'Noto Sans JP',sans-serif",
       display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
       boxShadow: "0 2px 10px rgba(0,0,0,0.08)", transition: "all .15s",
     }}
-      onMouseDown={(e) => e.currentTarget.style.transform = "scale(.97)"}
+      onMouseDown={(e) => { if (!disabled) e.currentTarget.style.transform = "scale(.97)"; }}
       onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
-      onTouchStart={(e) => e.currentTarget.style.transform = "scale(.97)"}
+      onTouchStart={(e) => { if (!disabled) e.currentTarget.style.transform = "scale(.97)"; }}
       onTouchEnd={(e) => e.currentTarget.style.transform = "scale(1)"}
     >
       <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
@@ -571,7 +732,7 @@ function Divider() {
 }
 
 /* ── ACCOUNT PAGE ── */
-function Account({ user, setUser, groups, flash, go, onSignOut }) {
+function Account({ uid, user, setUser, groups, flash, go, onSignOut }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
@@ -582,10 +743,14 @@ function Account({ user, setUser, groups, flash, go, onSignOut }) {
   ];
   const [avatar, setAvatar] = useState(user.avatar);
 
-  const save = () => {
-    setUser({ name: name.trim() || user.name, email: email.trim() || user.email, avatar });
-    setEditing(false);
-    flash("Profile updated!", "✨");
+  const save = async () => {
+    const newName = name.trim() || user.name;
+    try {
+      await updateDoc(doc(db, "users", uid), { name: newName, avatar });
+      setUser({ ...user, name: newName, avatar });
+      setEditing(false);
+      flash("Profile updated!", "✨");
+    } catch { flash("Error saving profile", "❌"); }
   };
 
   const totalGames = groups.reduce((n, g) => n + g.games.length, 0);
@@ -940,11 +1105,11 @@ function NewGroup({ onBack, onSave }) {
 }
 
 /* JOIN GROUP */
-function JoinGroup({ groups, onBack, onJoin }) {
+function JoinGroup({ uid, groups, onBack, onJoin }) {
   const [code, setCode] = useState("");
   const clean = code.trim().toUpperCase();
   const match = groups.find((g) => g.code === clean);
-  const alreadyIn = match && match.members.some((m) => m.id === "me");
+  const alreadyIn = match && match.members.some((m) => m.id === uid);
   return (
     <Shell title="Join a Group" onBack={onBack} color="#9b6ea8">
       <div style={{ textAlign: "center", fontSize: 52, margin: "8px 0 20px" }}>🔑</div>
@@ -966,7 +1131,7 @@ function JoinGroup({ groups, onBack, onJoin }) {
 }
 
 /* GROUP DETAIL */
-function Group({ group, go, flash, onLeave }) {
+function Group({ uid, group, go, flash, onLeave }) {
   const [tab, setTab] = useState("games");
   const upcoming = group.games.filter((g) => g.date > NOW).sort((a, b) => a.date - b.date);
   const past = group.games.filter((g) => g.date <= NOW).sort((a, b) => b.date - a.date);
@@ -1028,7 +1193,7 @@ function Group({ group, go, flash, onLeave }) {
                 <div style={{ width: 42, height: 42, borderRadius: 999, background: "linear-gradient(135deg,#fce4ee,#f5d0e0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)" }}>{m.avatar}</div>
                 <div style={{ flex: 1 }}>
                   <span style={{ fontWeight: 700, color: "#4a2c3a" }}>{m.name}</span>
-                  {m.id === "me" && <span style={{ marginLeft: 7, background: "linear-gradient(135deg,#c9607a,#a8426b)", color: "#fff", borderRadius: 999, padding: "1px 8px", fontSize: 11, fontWeight: 700 }}>You</span>}
+                  {m.id === uid && <span style={{ marginLeft: 7, background: "linear-gradient(135deg,#c9607a,#a8426b)", color: "#fff", borderRadius: 999, padding: "1px 8px", fontSize: 11, fontWeight: 700 }}>You</span>}
                   {m.host && <div style={{ fontSize: 12, color: "#c4936e", fontWeight: 700, marginTop: 2 }}>⭐ Host</div>}
                 </div>
               </div>
@@ -1077,7 +1242,7 @@ function GCard({ game, color, faded }) {
 }
 
 /* NEW GAME */
-function NewGame({ group, onBack, onSave }) {
+function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("19:00");
@@ -1109,16 +1274,16 @@ function NewGame({ group, onBack, onSave }) {
     if (!ok) return;
     if (!recurring) {
       const ts = new Date(`${date}T${time}`).getTime();
-      onSave({ id: "gm" + uid(), title: title.trim(), host: "You", hostId: "me", date: ts, time, location: loc.trim(), seats, rsvps: { me: "yes" }, note, waitlist: [] });
+      onSave({ id: "gm" + uid(), title: title.trim(), host: myUser.name, hostId: myUid, date: ts, time, location: loc.trim(), seats, rsvps: { [myUid]: "yes" }, note, waitlist: [] });
     } else {
       const dates = previewDates();
       const games = dates.map((ts) => ({
         id: "gm" + uid(),
         title: title.trim(),
-        host: "You", hostId: "me",
+        host: myUser.name, hostId: myUid,
         date: ts, time,
         location: loc.trim(),
-        seats, rsvps: { me: "yes" },
+        seats, rsvps: { [myUid]: "yes" },
         note,
         waitlist: [],
         recurring: freq,
@@ -1251,15 +1416,15 @@ function NewGame({ group, onBack, onSave }) {
 }
 
 /* GAME DETAIL */
-function Game({ game, group, go, onRsvp, onWaitlist, onDelete }) {
-  const myRsvp = game.rsvps["me"] || "pending";
+function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete }) {
+  const myRsvp = game.rsvps[uid] || "pending";
   // Member RSVPs only (guests tracked separately)
   const yes = Object.values(game.rsvps).filter((v) => v === "yes").length;
   const maybe = Object.values(game.rsvps).filter((v) => v === "maybe").length;
   const no = Object.values(game.rsvps).filter((v) => v === "no").length;
   const past = game.date < NOW;
   const rawWaitlist = game.waitlist || [];   // array of IDs (member or guest)
-  const onWaitlistMe = rawWaitlist.includes("me");
+  const onWaitlistMe = rawWaitlist.includes(uid);
   const allGuests = game.guests || [];
   const confirmedGuests = allGuests.filter((g) => !rawWaitlist.includes(g.id));
   const totalSeats = game.seats || 4;
@@ -1282,7 +1447,7 @@ function Game({ game, group, go, onRsvp, onWaitlist, onDelete }) {
     <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,#fce8f0 0%,#f5d0e0 40%,#ead0e8 100%)` }}>
       <div style={{ background: `linear-gradient(135deg,${group.color},${group.color}aa)`, padding: "50px 22px 28px", position: "relative" }}>
         <button onClick={() => go("group", group.id)} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.25)", border: "none", borderRadius: 999, width: 36, height: 36, fontSize: 18, color: "#fff" }}>‹</button>
-        {game.hostId === "me" && (
+        {game.hostId === uid && (
           <button onClick={() => go("editGame", group.id, game.id)} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✏️ Edit</button>
         )}
         <div style={{ textAlign: "center" }}>
@@ -1355,7 +1520,7 @@ function Game({ game, group, go, onRsvp, onWaitlist, onDelete }) {
                     <span style={{ fontSize: 16 }}>{entry.avatar}</span>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#4a2c3a", flex: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{entry.name}</span>
                     {entry.isGuest && <span style={{ fontSize: 10, color: "#9b6ea8", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
-                    {entry.id === "me" && <span style={{ fontSize: 10, color: "#c9607a", fontWeight: 700 }}>You</span>}
+                    {entry.id === uid && <span style={{ fontSize: 10, color: "#c9607a", fontWeight: 700 }}>You</span>}
                   </div>
                 ))}
               </div>
@@ -1369,7 +1534,7 @@ function Game({ game, group, go, onRsvp, onWaitlist, onDelete }) {
             <div style={{ fontWeight: 700, color: "#4a2c3a", marginBottom: 10, fontFamily: "'Shippori Mincho',serif" }}>Your RSVP</div>
 
             {/* Host cannot change their own RSVP */}
-            {game.hostId === "me" ? (
+            {game.hostId === uid ? (
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, background: "linear-gradient(135deg,rgba(155,110,168,0.15),rgba(201,96,122,0.1))", border: "1px solid rgba(155,110,168,0.25)", marginBottom: 10 }}>
                   <span style={{ fontSize: 18 }}>⭐</span>
@@ -1407,14 +1572,14 @@ function Game({ game, group, go, onRsvp, onWaitlist, onDelete }) {
         )}
 
         <Btn full onClick={() => go("invite", group.id, game.id)} style={{ marginBottom: 10 }}>✉️ Invite Players</Btn>
-        {game.hostId === "me" && <Btn full outline danger onClick={onDelete}>🗑 Delete Game</Btn>}
+        {game.hostId === uid && <Btn full outline danger onClick={onDelete}>🗑 Delete Game</Btn>}
       </div>
     </div>
   );
 }
 
 /* EDIT GAME */
-function EditGame({ game, group, onBack, onSave, onTransferHost }) {
+function EditGame({ uid: myUid, game, group, onBack, onSave, onTransferHost }) {
   const [title, setTitle] = useState(game.title);
   const [date, setDate] = useState(new Date(game.date).toISOString().slice(0, 10));
   const [time, setTime] = useState(game.time);
@@ -1441,7 +1606,7 @@ function EditGame({ game, group, onBack, onSave, onTransferHost }) {
 const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","🦩","🌿"];
 
   const toggleMember = (id) => {
-    if (id === "me") return; // can't remove yourself as host
+    if (id === myUid) return; // can't remove yourself as host
     setInvitedIds((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
@@ -1465,11 +1630,11 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
     const newWaitlist = [...(game.waitlist || [])];
 
     // Build rsvps for members — respect capacity
-    const newRsvps = { me: game.rsvps?.me || "yes" };
+    const newRsvps = { [myUid]: game.rsvps?.[myUid] || "yes" };
     let filled = 1; // host always takes one seat
 
     group.members.forEach((m) => {
-      if (m.id === "me" || !invitedIds.has(m.id)) return;
+      if (m.id === myUid || !invitedIds.has(m.id)) return;
       const existing = game.rsvps?.[m.id];
       const prevYes = existing === "yes";
 
@@ -1587,7 +1752,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
             <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#7a3050", fontWeight: 700, marginBottom: 12 }}>Group Members</div>
             {group.members.map((m) => {
               const isIn = invitedIds.has(m.id);
-              const isMe = m.id === "me";
+              const isMe = m.id === myUid;
               return (
                 <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 10 }}>
                   <div style={{ width: 38, height: 38, borderRadius: 999, background: "linear-gradient(135deg,#fce4ee,#f5d0e0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{m.avatar}</div>
@@ -1648,7 +1813,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
           <Btn full onClick={handleSave}>Save Changes ✨</Btn>
 
           {/* Transfer Host — only shown when I am currently the host */}
-          {game.hostId === "me" && (
+          {game.hostId === myUid && (
             <div style={{ marginTop: 16 }}>
               {!transferring ? (
                 <button onClick={() => setTransferring(true)} style={{
@@ -1671,13 +1836,13 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
                   </div>
 
                   {/* Eligible members — invited, not me, not already host */}
-                  {group.members.filter((m) => m.id !== "me" && invitedIds.has(m.id)).length === 0 ? (
+                  {group.members.filter((m) => m.id !== myUid && invitedIds.has(m.id)).length === 0 ? (
                     <div style={{ fontSize: 13, color: "#c0a0b0", textAlign: "center", padding: "12px 0", fontFamily: "'Noto Sans JP',sans-serif" }}>
                       No other invited members to transfer to.
                     </div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-                      {group.members.filter((m) => m.id !== "me" && invitedIds.has(m.id)).map((m) => (
+                      {group.members.filter((m) => m.id !== myUid && invitedIds.has(m.id)).map((m) => (
                         <div key={m.id} onClick={() => setSelectedNewHost(m.id)} style={{
                           display: "flex", alignItems: "center", gap: 11, padding: "10px 12px",
                           borderRadius: 12, cursor: "pointer", transition: "all .18s",
