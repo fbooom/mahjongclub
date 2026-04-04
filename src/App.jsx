@@ -129,21 +129,17 @@ export default function App() {
   // ── Firebase auth state listener ──
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
-      console.log("[Auth State]", fbUser ? `signed in — ${fbUser.email} (${fbUser.uid})` : "signed out");
       if (fbUser) {
         try {
           const snap = await getDoc(doc(db, "users", fbUser.uid));
-          console.log("[Auth State] Firestore profile exists:", snap.exists());
           if (snap.exists()) {
             setUser({ uid: fbUser.uid, ...snap.data() });
           } else {
             const profile = { name: fbUser.displayName || fbUser.email.split("@")[0], email: fbUser.email, avatar: randAvatar(), phone: "" };
-            console.log("[Auth State] Creating new Firestore profile:", profile);
             await setDoc(doc(db, "users", fbUser.uid), profile);
             setUser({ uid: fbUser.uid, ...profile });
           }
         } catch (e) {
-          console.error("[Auth State] Firestore error:", e);
           setUser({ uid: fbUser.uid, name: fbUser.displayName || "Player", email: fbUser.email || "", avatar: "🐼", phone: "" });
         }
         setPage("home");
@@ -505,6 +501,7 @@ function AuthScreen() {
       "auth/invalid-email": "Please enter a valid email address.",
       "auth/too-many-requests": "Too many attempts. Please try again later.",
       "auth/popup-closed-by-user": "Sign-in popup was closed.",
+      "auth/unauthorized-domain": `This domain isn't authorized for Google sign-in. Add "${window.location.hostname}" to Firebase Console → Authentication → Settings → Authorized domains.`,
     };
     return map[code] || "Something went wrong. Please try again.";
   };
@@ -552,20 +549,10 @@ function AuthScreen() {
   const handleGoogle = async () => {
     setError("");
     setLoading(true);
-    console.log("[Google Auth] Starting signInWithPopup...");
-    console.log("[Google Auth] auth object:", auth);
-    console.log("[Google Auth] googleProvider:", googleProvider);
-    console.log("[Google Auth] current domain:", window.location.hostname);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      console.log("[Google Auth] SUCCESS — user:", result.user.email, "uid:", result.user.uid);
+      await signInWithPopup(auth, googleProvider);
     } catch (e) {
-      console.error("[Google Auth] FAILED");
-      console.error("  code   :", e.code);
-      console.error("  message:", e.message);
-      console.error("  full   :", e);
-      const friendly = fmtFirebaseError(e.code);
-      setError(`${friendly} (code: ${e.code})`);
+      setError(fmtFirebaseError(e.code));
     } finally {
       setLoading(false);
     }
