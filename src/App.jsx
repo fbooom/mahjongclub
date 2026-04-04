@@ -1,1 +1,1569 @@
-404: Not Found
+import { useState, useEffect } from "react";
+
+const uid = () => Math.random().toString(36).slice(2, 8).toUpperCase();
+const fmt = (ts) => new Date(ts).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+const fmtT = (t) => { const [h, m] = t.split(":").map(Number); return `${h % 12 || 12}:${m.toString().padStart(2,"0")} ${h >= 12 ? "PM" : "AM"}`; };
+const NOW = 1743500000000;
+
+const SEED = [
+  {
+    id: "G1", name: "Tuesday Tiles", code: "TUE42", emoji: "🀄", color: "#c9607a",
+    members: [
+      { id: "me", name: "You", avatar: "🐼", host: true },
+      { id: "u2", name: "Linda W.", avatar: "🦋" },
+      { id: "u3", name: "Carol M.", avatar: "🌸" },
+      { id: "u4", name: "Deb F.", avatar: "🍀" },
+    ],
+    games: [
+      { id: "gm1", title: "Weekly Game Night", host: "Linda W.", hostId: "u2",
+        date: NOW + 3 * 86400000, time: "19:00", location: "Linda's Place — 12 Oak St",
+        seats: 4, rsvps: { me: "yes", u2: "yes", u3: "maybe", u4: "yes" }, waitlist: [],
+        note: "Bring your own scorecard!" },
+      { id: "gm2", title: "Saturday Afternoon Mah", host: "You", hostId: "me",
+        date: NOW + 9 * 86400000, time: "14:00", location: "My Place — 5 Maple Ave",
+        seats: 4, rsvps: { me: "yes", u2: "yes" }, waitlist: [], note: "Snacks provided!" },
+    ],
+  },
+  {
+    id: "G2", name: "Mah Jong Mavens", code: "MAV99", emoji: "🀅", color: "#9b6ea8",
+    members: [
+      { id: "me", name: "You", avatar: "🐼" },
+      { id: "u5", name: "Rose T.", avatar: "🌹" },
+      { id: "u6", name: "Anne P.", avatar: "🦚" },
+    ],
+    games: [],
+  },
+];
+
+const EMOJIS = ["🀄","🀅","🀆","🀇","🀈","🎲","🌸","🌿","🎋","🎍"];
+const COLORS = ["#c9607a","#9b6ea8","#d4829b","#e8a0b0","#c17db8","#a0845c","#7a9e7e","#d4a5c9"];
+
+const inputSt = {
+  width: "100%", padding: "12px 14px", background: "#fff", borderRadius: 12,
+  fontSize: 15, fontWeight: 600, marginBottom: 6, border: "2px solid #f0d9e3",
+  color: "#4a2c3a", display: "block", boxSizing: "border-box",
+};
+
+const globalCSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Shippori+Mincho:wght@400;500;600;700;800&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;font-family:'Noto Sans JP',sans-serif}
+  body{background:linear-gradient(135deg,#e8d0e8 0%,#f0d4e8 50%,#d8c8e0 100%);background-attachment:fixed;min-height:100vh}
+  button{cursor:pointer;border:none;font-family:'Noto Sans JP',sans-serif}
+  input,select,textarea{font-family:'Noto Sans JP',sans-serif;outline:none}
+
+  @keyframes bIn{0%{transform:scale(.7);opacity:0}70%{transform:scale(1.06);opacity:1}100%{transform:scale(1)}}
+  @keyframes sUp{from{transform:translateY(28px);opacity:0}to{transform:translateY(0);opacity:1}}
+  @keyframes f0{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-10px) rotate(4deg)}}
+  @keyframes f1{0%,100%{transform:translateY(0) rotate(6deg)}50%{transform:translateY(-12px) rotate(-3deg)}}
+  @keyframes f2{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-8px) rotate(6deg)}}
+  .bIn{animation:bIn .4s cubic-bezier(.36,.07,.19,.97) both}
+  .sUp{animation:sUp .3s ease both}
+
+  /* App shell: mobile-first, caps at 480px, always centered */
+  .app-shell {
+    width: 100%;
+    max-width: 480px;
+    min-height: 100vh;
+    margin: 0 auto;
+    background: linear-gradient(170deg,#fce8f0 0%,#f5d0e0 40%,#ead0e8 100%);
+    position: relative;
+  }
+
+  /* On larger screens: float as a card with subtle shadow */
+  @media (min-width: 520px) {
+    .app-shell {
+      min-height: 100vh;
+      box-shadow: 0 0 60px rgba(168,66,107,0.18), 0 0 0 1px rgba(255,200,220,0.2);
+    }
+  }
+
+  /* Bottom nav always anchors to the app-shell width, not full viewport */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
+    background: rgba(255,240,248,0.88);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(255,200,220,0.5);
+    display: flex; align-items: stretch;
+    box-shadow: 0 -4px 24px rgba(168,66,107,0.12);
+    z-index: 1000;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  ::-webkit-scrollbar{width:4px}
+  ::-webkit-scrollbar-thumb{background:rgba(201,96,122,0.25);border-radius:99px}
+`;
+
+export default function App() {
+  useEffect(() => {
+    const el = document.createElement("style");
+    el.textContent = globalCSS;
+    document.head.appendChild(el);
+    return () => document.head.removeChild(el);
+  }, []);
+
+  const [groups, setGroups] = useState(SEED);
+  const [page, setPage] = useState("home");
+  const [gid, setGid] = useState(null);
+  const [gmid, setGmid] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [user, setUser] = useState({ name: "Your Name", avatar: "🐼", email: "you@email.com" });
+
+  const group = groups.find((g) => g.id === gid) || null;
+  const game = group ? group.games.find((g) => g.id === gmid) || null : null;
+
+  const go = (p, g, gm) => { setPage(p); if (g !== undefined) setGid(g); if (gm !== undefined) setGmid(gm || null); };
+  const flash = (msg, icon) => { setToast({ msg, icon: icon || "✅" }); setTimeout(() => setToast(null), 2600); };
+  const mutG = (id, fn) => setGroups((prev) => prev.map((g) => g.id === id ? fn(g) : g));
+
+  const NAV_ITEMS = [
+    { id: "home",    icon: "🀄", label: "Home"    },
+    { id: "account", icon: "👤", label: "Account" },
+  ];
+
+  return (
+    <div className="app-shell">
+
+      {/* Welcome popup */}
+      {showWelcome && <WelcomeModal onClose={() => setShowWelcome(false)} />}
+
+      {/* Toast */}
+      {toast && (
+        <div className="bIn" style={{
+          position: "fixed", top: 18, left: "50%", transform: "translateX(-50%)",
+          background: "linear-gradient(135deg,#7a3050,#c9607a)",
+          color: "#fff", borderRadius: 999, padding: "10px 22px",
+          fontWeight: 700, fontSize: 14, zIndex: 9999, whiteSpace: "nowrap",
+          boxShadow: "0 6px 24px rgba(168,66,107,0.4)",
+        }}>{toast.icon} {toast.msg}</div>
+      )}
+
+      {/* Page content */}
+      <div style={{ paddingBottom: 74 }}>
+        {page === "home" && <Home groups={groups} go={go} user={user} />}
+        {page === "account" && <Account user={user} setUser={setUser} groups={groups} flash={flash} go={go} />}
+        {page === "newGroup" && (
+          <NewGroup onBack={() => go("home")}
+            onSave={(g) => { setGroups((p) => [g, ...p]); go("group", g.id); flash("Group created!", "🎉"); }} />
+        )}
+        {page === "joinGroup" && (
+          <JoinGroup groups={groups} onBack={() => go("home")}
+            onJoin={(id) => { mutG(id, (g) => ({ ...g, members: g.members.some((m) => m.id === "me") ? g.members : [...g.members, { id: "me", name: "You", avatar: "🐼" }] })); go("group", id); flash("Joined!", "🎊"); }} />
+        )}
+        {page === "group" && group && (
+          <Group group={group} go={go} flash={flash}
+            onLeave={() => { setGroups((p) => p.filter((g) => g.id !== group.id)); go("home"); flash("Left group"); }} />
+        )}
+        {page === "newGame" && group && (
+          <NewGame group={group} onBack={() => go("group", group.id)}
+            onSave={(games) => {
+              const arr = Array.isArray(games) ? games : [games];
+              mutG(group.id, (g) => ({ ...g, games: [...arr, ...g.games] }));
+              if (arr.length === 1) { go("game", group.id, arr[0].id); flash("Game scheduled!", "🀄"); }
+              else { go("group", group.id); flash(`${arr.length} games scheduled! 🀄`); }
+            }} />
+        )}
+        {page === "game" && game && group && (
+          <Game game={game} group={group} go={go}
+            onRsvp={(ans) => { mutG(group.id, (g) => ({ ...g, games: g.games.map((gm) => gm.id === game.id ? { ...gm, rsvps: { ...gm.rsvps, me: ans } } : gm) })); flash(ans === "yes" ? "You're in!" : "Got it", ans === "yes" ? "🎉" : "👍"); }}
+            onWaitlist={(action) => {
+              mutG(group.id, (g) => ({
+                ...g, games: g.games.map((gm) => {
+                  if (gm.id !== game.id) return gm;
+                  const wl = gm.waitlist || [];
+                  const onList = wl.includes("me");
+                  return { ...gm, waitlist: onList ? wl.filter((id) => id !== "me") : [...wl, "me"] };
+                })
+              }));
+              flash(action === "join" ? "Added to waitlist!" : "Removed from waitlist", action === "join" ? "⏳" : "👋");
+            }}
+            onDelete={() => { mutG(group.id, (g) => ({ ...g, games: g.games.filter((gm) => gm.id !== game.id) })); go("group", group.id); flash("Deleted"); }} />
+        )}
+        {page === "editGame" && game && group && (
+          <EditGame game={game} group={group} onBack={() => go("game", group.id, game.id)}
+            onSave={(updated) => {
+              mutG(group.id, (g) => ({ ...g, games: g.games.map((gm) => gm.id === updated.id ? updated : gm) }));
+              go("game", group.id, updated.id);
+              flash("Game updated!", "✨");
+            }}
+            onTransferHost={(newHostId) => {
+              const newHostMember = group.members.find((m) => m.id === newHostId);
+              if (!newHostMember) return;
+              mutG(group.id, (g) => ({
+                ...g,
+                games: g.games.map((gm) => {
+                  if (gm.id !== game.id) return gm;
+                  return { ...gm, host: newHostMember.name, hostId: newHostId, rsvps: { ...gm.rsvps, [newHostId]: "yes", me: gm.rsvps?.me || "yes" } };
+                }),
+              }));
+              go("game", group.id, game.id);
+              flash(`${newHostMember.name} is now the host! 🎯`);
+            }}
+          />
+        )}
+        {page === "invite" && group && (
+          <Invite group={group} game={game} flash={flash} onBack={() => go(game ? "game" : "group", group.id, gmid)} />
+        )}
+      </div>
+
+      {/* Bottom nav */}
+      <div className="bottom-nav">
+        {NAV_ITEMS.map((item) => {
+          const active = item.id === "account" ? page === "account" : page !== "account";
+          return (
+            <button key={item.id} onClick={() => go(item.id)} style={{
+              flex: 1, padding: "10px 0 12px", background: "none", border: "none",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+              cursor: "pointer", transition: "transform .15s",
+            }}
+              onMouseDown={(e) => e.currentTarget.style.transform = "scale(.93)"}
+              onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+              onTouchStart={(e) => e.currentTarget.style.transform = "scale(.93)"}
+              onTouchEnd={(e) => e.currentTarget.style.transform = "scale(1)"}
+            >
+              <div style={{ width: 42, height: 28, borderRadius: 14, background: active ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, boxShadow: active ? "0 2px 10px rgba(168,66,107,0.35)" : "none", transition: "all .2s" }}>{item.icon}</div>
+              <span style={{ fontSize: 11, fontWeight: active ? 700 : 500, color: active ? "#c9607a" : "#c0a0b0", fontFamily: "'Noto Sans JP',sans-serif" }}>{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── WELCOME MODAL ── */
+function WelcomeModal({ onClose }) {
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 10000,
+      background: "rgba(100,30,60,0.55)",
+      backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: "24px",
+    }}>
+      <div className="bIn" style={{
+        background: "linear-gradient(160deg,rgba(255,255,255,0.96) 0%,rgba(255,235,245,0.96) 100%)",
+        borderRadius: 28,
+        padding: "32px 26px 28px",
+        maxWidth: 360, width: "100%",
+        boxShadow: "0 24px 64px rgba(168,66,107,0.3), inset 0 1px 0 rgba(255,255,255,1)",
+        border: "1px solid rgba(255,200,220,0.6)",
+        textAlign: "center",
+        position: "relative",
+      }}>
+        {/* Decorative tiles */}
+        <div style={{ fontSize: 14, letterSpacing: 6, color: "#e8a0b0", marginBottom: 16, opacity: 0.7 }}>
+          🀇 🀄 🀅 🀆 🀙
+        </div>
+
+        <div style={{ fontSize: 52, marginBottom: 12, filter: "drop-shadow(0 4px 12px rgba(168,66,107,0.25))" }}>🀄</div>
+
+        <h2 style={{
+          fontFamily: "'Shippori Mincho',serif",
+          fontSize: 24, color: "#7a3050",
+          marginBottom: 14, lineHeight: 1.3, letterSpacing: 0.5,
+          textAlign: "center",
+        }}>
+          Welcome to Mahjong Club
+          <br />
+          <span style={{ fontSize: 20 }}>✨</span>
+        </h2>
+
+        <p style={{
+          fontSize: 14, color: "#7a4a58", lineHeight: 1.8,
+          fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 400,
+          marginBottom: 10,
+        }}>
+          We know the struggle — chasing down four players, juggling schedules, 
+          and keeping track of who's in, who's out, and who's 
+          <em> definitely</em> blaming the tiles. 😄
+        </p>
+
+        <p style={{
+          fontSize: 14, color: "#7a4a58", lineHeight: 1.8,
+          fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 400,
+          marginBottom: 24,
+        }}>
+          Mahjong Club makes it simple. Create your group, schedule your games, 
+          invite your players, and let everyone RSVP in one beautiful spot. 
+          More tiles, less chaos. 🌸
+        </p>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: "linear-gradient(90deg,transparent,#f0c0d0,transparent)", marginBottom: 22 }} />
+
+        <button onClick={onClose} style={{
+          width: "100%",
+          padding: "14px 20px",
+          borderRadius: 999,
+          background: "linear-gradient(135deg,#c9607a,#9b6ea8)",
+          color: "#fff",
+          fontSize: 15, fontWeight: 700,
+          border: "none", cursor: "pointer",
+          fontFamily: "'Noto Sans JP',sans-serif",
+          boxShadow: "0 6px 20px rgba(168,66,107,0.4)",
+          letterSpacing: 0.3,
+        }}>
+          Let's Play! 🀄
+        </button>
+
+        <p style={{ fontSize: 11, color: "#c0a0b0", marginTop: 14, fontFamily: "'Noto Sans JP',sans-serif" }}>
+          Tap anywhere outside to dismiss
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ── ACCOUNT PAGE ── */
+function Account({ user, setUser, groups, flash, go }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
+  const AVATARS = [
+    "🐼","🌸","🦋","🍀","🌹","🦚","🎋","🌿","🦩","🌺","🎍","🐝",
+    "🦊","🐱","🐰","🦁","🐨","🦄","🐸","🦜","🌙","⭐","🌊","🍵",
+    "🎀","🍄","🌻","🪷","🦢","🐞","🍒","🫧","🌈","🪸","🫶","🎐",
+  ];
+  const [avatar, setAvatar] = useState(user.avatar);
+
+  const save = () => {
+    setUser({ name: name.trim() || user.name, email: email.trim() || user.email, avatar });
+    setEditing(false);
+    flash("Profile updated!", "✨");
+  };
+
+  const totalGames = groups.reduce((n, g) => n + g.games.length, 0);
+  const upcoming = groups.reduce((n, g) => n + g.games.filter((gm) => gm.date > NOW).length, 0);
+
+  return (
+    <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,#fce8f0 0%,#f5d0e0 40%,#ead0e8 100%)` }}>
+      {/* Header */}
+      <div style={{
+        background: "linear-gradient(135deg,rgba(168,66,107,0.92),rgba(155,110,168,0.88))",
+        backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+        padding: "52px 22px 30px", textAlign: "center",
+        boxShadow: "0 8px 32px rgba(168,66,107,0.25)",
+        position: "relative", overflow: "hidden",
+      }}>
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.15) 0%,transparent 55%)", pointerEvents: "none" }} />
+        {/* Avatar */}
+        <div style={{
+          width: 80, height: 80, borderRadius: 999, margin: "0 auto 12px",
+          background: "linear-gradient(135deg,rgba(255,255,255,0.35),rgba(255,255,255,0.15))",
+          backdropFilter: "blur(8px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 40, border: "3px solid rgba(255,255,255,0.55)",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+          position: "relative",
+        }}>
+          {user.avatar}
+        </div>
+        <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 22, color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,.2)", letterSpacing: 0.5 }}>{user.name}</h1>
+        <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13, marginTop: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>{user.email}</p>
+
+        {/* Stats row */}
+        <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 18 }}>
+          {[[groups.length, "Groups"],[totalGames, "Games"],[upcoming, "Upcoming"]].map(([n, lbl]) => (
+            <div key={lbl} style={{ textAlign: "center", background: "rgba(255,255,255,.18)", backdropFilter: "blur(8px)", borderRadius: 14, padding: "8px 16px", border: "1px solid rgba(255,255,255,.3)" }}>
+              <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 20, color: "#fff", fontWeight: 700 }}>{n}</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,.72)", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 1 }}>{lbl}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: "22px 16px" }}>
+        {/* Profile card */}
+        <div style={{
+          background: "linear-gradient(135deg,rgba(255,255,255,0.85),rgba(255,235,245,0.72))",
+          backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+          borderRadius: 20, padding: "20px 18px", marginBottom: 14,
+          boxShadow: "0 4px 20px rgba(168,66,107,0.09), inset 0 1px 0 rgba(255,255,255,0.85)",
+          border: "1px solid rgba(255,255,255,0.65)",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "#7a3050", fontWeight: 700 }}>My Profile</span>
+<button onClick={() => setEditing(!editing)} style={{ background: editing ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "rgba(201,96,122,0.12)", border: "none", borderRadius: 999, padding: "5px 14px", fontSize: 12, fontWeight: 700, color: editing ? "#fff" : "#c9607a", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}>
+              {editing ? "Cancel" : "Edit ✏️"}
+            </button>
+          </div>
+
+          {editing ? (
+            <>
+              <Lbl>Display Name</Lbl>
+              <input value={name} onChange={(e) => setName(e.target.value)} style={inputSt} />
+              <Lbl mt>Email</Lbl>
+              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" style={inputSt} />
+              <Lbl mt>Avatar</Lbl>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+                {AVATARS.map((a) => (
+                  <div key={a} onClick={() => setAvatar(a)} style={{ fontSize: 26, padding: 7, borderRadius: 12, cursor: "pointer", background: avatar === a ? "#fce4ee" : "rgba(255,255,255,0.6)", border: `2px solid ${avatar === a ? "#c9607a" : "transparent"}`, transition: "all .15s" }}>{a}</div>
+                ))}
+              </div>
+              <Btn full onClick={save}>Save Changes ✨</Btn>
+            </>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[["👤", "Name", user.name], ["📧", "Email", user.email], ["🎭", "Avatar", user.avatar]].map(([icon, lbl, val]) => (
+                <div key={lbl} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 16 }}>{icon}</span>
+                  <div>
+                    <div style={{ fontSize: 10, color: "#d4a5c9", fontWeight: 700, textTransform: "uppercase", letterSpacing: .5 }}>{lbl}</div>
+                    <div style={{ fontSize: 14, color: "#4a2c3a", fontWeight: 500, marginTop: 1 }}>{val}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* My groups + games */}
+        <div style={{
+          background: "linear-gradient(135deg,rgba(255,255,255,0.85),rgba(255,235,245,0.72))",
+          backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+          borderRadius: 20, padding: "20px 18px", marginBottom: 14,
+          boxShadow: "0 4px 20px rgba(168,66,107,0.09), inset 0 1px 0 rgba(255,255,255,0.85)",
+          border: "1px solid rgba(255,255,255,0.65)",
+        }}>
+          <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "#7a3050", fontWeight: 700 }}>My Groups</span>
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            {groups.map((g) => (
+              <div key={g.id} onClick={() => go("group", g.id)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 10px", borderRadius: 12, background: "rgba(255,255,255,0.5)" }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg,${g.color}33,${g.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{g.emoji}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#4a2c3a" }}>{g.name}</div>
+                  <div style={{ fontSize: 11, color: "#b08090" }}>{g.members.length} members</div>
+                </div>
+                <span style={{ color: "#d4a5c9", fontSize: 16 }}>›</span>
+              </div>
+            ))}
+          </div>
+          <AllGamesPanel groups={groups} go={go} />
+        </div>
+
+        {/* About */}
+        <div style={{
+          background: "linear-gradient(135deg,rgba(255,255,255,0.7),rgba(255,230,242,0.6))",
+          backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+          borderRadius: 20, padding: "18px", textAlign: "center",
+          border: "1px solid rgba(255,200,220,0.4)",
+        }}>
+          <div style={{ fontSize: 22, marginBottom: 6 }}>🀄</div>
+          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 14, color: "#9b5070", fontWeight: 600 }}>Mahjong Club</div>
+          <div style={{ fontSize: 11, color: "#c0a0b0", marginTop: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Version 1.0 · Made with ❤️</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── ALL GAMES PANEL (shared by Home + Account) ── */
+function AllGamesPanel({ groups, go }) {
+  const [tab, setTab] = useState("upcoming");
+
+  // Flatten all games across all groups, attach group info
+  const allGames = groups.flatMap((g) =>
+    g.games.map((gm) => ({ ...gm, groupName: g.name, groupColor: g.color, groupId: g.id, groupEmoji: g.emoji }))
+  );
+  const upcoming = allGames.filter((gm) => gm.date > NOW).sort((a, b) => a.date - b.date);
+  const history = allGames.filter((gm) => gm.date <= NOW).sort((a, b) => b.date - a.date);
+  const list = tab === "upcoming" ? upcoming : history;
+
+  return (
+    <div style={{ marginTop: 4 }}>
+      {/* Tab pills */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        {[["upcoming","📅 Upcoming"],["history","📖 History"]].map(([t, label]) => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            padding: "6px 16px", borderRadius: 999, fontSize: 12, fontWeight: 700,
+            fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", transition: "all .18s",
+            background: tab === t ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "rgba(255,255,255,0.55)",
+            color: tab === t ? "#fff" : "#b08090",
+            border: tab === t ? "none" : "1px solid rgba(201,96,122,0.2)",
+            boxShadow: tab === t ? "0 3px 12px rgba(168,66,107,0.3)" : "none",
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {list.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "22px 0", color: "#c0a0b0" }}>
+          <div style={{ fontSize: 30 }}>{tab === "upcoming" ? "📅" : "📖"}</div>
+          <p style={{ fontSize: 13, marginTop: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>
+            {tab === "upcoming" ? "No upcoming games yet — time to schedule one!" : "No past games yet."}
+          </p>
+        </div>
+      ) : list.map((gm, i) => (
+        <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.05}s`, cursor: "pointer" }}
+          onClick={() => go("game", gm.groupId, gm.id)}>
+          <div style={{
+            background: tab === "upcoming"
+              ? "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))"
+              : "rgba(245,235,242,0.55)",
+            backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+            borderRadius: 16, padding: "13px 15px", marginBottom: 10,
+            opacity: tab === "history" ? 0.75 : 1,
+            boxShadow: tab === "upcoming" ? "0 4px 16px rgba(168,66,107,0.08), inset 0 1px 0 rgba(255,255,255,0.8)" : "none",
+            border: "1px solid rgba(255,255,255,0.6)",
+            borderLeft: `4px solid ${gm.groupColor}`,
+          }}>
+            {/* Group tag */}
+            <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
+              <span style={{ fontSize: 13 }}>{gm.groupEmoji}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: gm.groupColor, fontFamily: "'Noto Sans JP',sans-serif" }}>{gm.groupName}</span>
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{gm.title}</div>
+            <div style={{ fontSize: 12, color: "#b08090", marginTop: 3 }}>📅 {fmt(gm.date)} · {fmtT(gm.time)}</div>
+            <div style={{ fontSize: 12, color: "#b08090", marginTop: 1 }}>📍 {gm.location}</div>
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              {(() => {
+                const yesCount = Object.values(gm.rsvps).filter(v => v === "yes").length;
+                const wl = gm.waitlist || [];
+                const confirmedG = (gm.guests || []).filter(g => !wl.includes(g.id)).length;
+                const filled = yesCount + confirmedG;
+                return (
+                  <>
+                    <Chip color="#9b6ea8">✅ {filled}</Chip>
+                    <Chip color="#c4936e">🤔 {Object.values(gm.rsvps).filter(v => v === "maybe").length}</Chip>
+                    <Chip color="#b08090">👤 {filled}/{gm.seats}</Chip>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* HOME */
+function Home({ groups, go, user }) {
+  // SVG mahjong tile pattern — faint bamboo/character tiles as background art
+  const bgSVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='none'/%3E%3Cg opacity='0.07' fill='%23a0456e'%3E%3Crect x='10' y='10' width='28' height='38' rx='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Crect x='14' y='16' width='20' height='4' rx='2'/%3E%3Crect x='14' y='23' width='20' height='4' rx='2'/%3E%3Crect x='14' y='30' width='20' height='4' rx='2'/%3E%3Crect x='64' y='10' width='28' height='38' rx='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Ccircle cx='78' cy='24' r='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Ccircle cx='78' cy='37' r='3'/%3E%3Crect x='10' y='68' width='28' height='38' rx='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Cpath d='M18 78 Q24 72 30 78 Q24 84 18 78Z'/%3E%3Cpath d='M18 90 Q24 84 30 90 Q24 96 18 90Z'/%3E%3Crect x='64' y='68' width='28' height='38' rx='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Crect x='70' y='75' width='16' height='18' rx='3' fill='none' stroke='%23a0456e' stroke-width='1.5'/%3E%3Cline x1='78' y1='75' x2='78' y2='93' stroke='%23a0456e' stroke-width='1.5'/%3E%3C/g%3E%3C/svg%3E")`;
+
+  const BT = ["🀄","🀇","🀅","🀙","🀃","🀆"];
+  const pos = [
+    { top: "8%", left: "4%", a: "f0" }, { top: "10%", right: "6%", a: "f1" },
+    { top: "32%", left: "1%", a: "f2" }, { top: "30%", right: "2%", a: "f0" },
+    { top: "50%", left: "6%", a: "f1" }, { top: "48%", right: "5%", a: "f2" },
+  ];
+
+  return (
+    <div style={{ minHeight: "100vh", background: `${bgSVG}, linear-gradient(170deg,#fce8f0 0%,#f5d0e0 40%,#ead0e8 100%)`, backgroundSize: "120px 120px, cover" }}>
+      {/* Hero header — glassy */}
+      <div style={{
+        background: "linear-gradient(150deg,rgba(168,66,107,0.92) 0%,rgba(201,96,122,0.88) 55%,rgba(212,130,155,0.82) 100%)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        padding: "36px 24px 28px",
+        position: "relative",
+        overflow: "hidden",
+        boxShadow: "0 8px 32px rgba(168,66,107,0.25)",
+      }}>
+        {/* Frosted shimmer overlay */}
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.12) 0%,transparent 60%)", pointerEvents: "none" }} />
+        {pos.map((p, i) => (
+          <div key={i} style={{ position: "absolute", fontSize: 22, opacity: .15, pointerEvents: "none", top: p.top, left: p.left, right: p.right, animation: `${p.a} ${2.4 + i * 0.35}s ${i * 0.4}s ease-in-out infinite`, filter: "blur(0.5px)" }}>{BT[i]}</div>
+        ))}
+        <div style={{ textAlign: "center", position: "relative", display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
+          <div style={{ fontSize: 38, filter: "drop-shadow(0 4px 10px rgba(0,0,0,.25))" }}>🀄</div>
+          <div>
+            <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 30, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
+            <p style={{ color: "rgba(255,255,255,.78)", fontWeight: 400, fontSize: 12, marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 1 }}>Schedule · Play · Enjoy</p>
+          </div>
+          {/* User avatar pill top-right */}
+          <div onClick={() => go("account")} style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,.25)", backdropFilter: "blur(8px)", borderRadius: 999, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, border: "2px solid rgba(255,255,255,.45)", cursor: "pointer" }}>
+            {user.avatar}
+          </div>
+        </div>
+      </div>
+
+      {/* Content panel — glassy frosted */}
+      <div style={{
+        background: "rgba(255,240,248,0.72)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        borderRadius: "28px 28px 0 0",
+        marginTop: -18,
+        padding: "26px 16px 40px",
+        minHeight: "68vh",
+        border: "1px solid rgba(255,255,255,0.6)",
+        borderBottom: "none",
+        boxShadow: "0 -4px 24px rgba(168,66,107,0.08)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <h2 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 22, color: "#7a3050", letterSpacing: 0.5 }}>Your Groups</h2>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Btn sm outline onClick={() => go("joinGroup")}>Join</Btn>
+            <Btn sm onClick={() => go("newGroup")}>+ New</Btn>
+          </div>
+        </div>
+
+        {groups.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "44px 0", color: "#c0899e" }}>
+            <div style={{ fontSize: 48 }}>🀆</div>
+            <p style={{ fontWeight: 700, marginTop: 10, fontSize: 16, fontFamily: "'Shippori Mincho',serif", color: "#9b5070" }}>No groups yet</p>
+            <p style={{ fontSize: 13, marginTop: 4 }}>Create or join one to get started!</p>
+          </div>
+        ) : (
+          <>
+            {groups.map((g, i) => (
+              <div key={g.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer" }} onClick={() => go("group", g.id)}>
+                <div style={{
+                  background: "linear-gradient(135deg,rgba(255,255,255,0.85) 0%,rgba(255,235,245,0.75) 100%)",
+                  backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+                  borderRadius: 20, padding: "15px 16px", marginBottom: 13,
+                  display: "flex", alignItems: "center", gap: 13,
+                  boxShadow: "0 4px 20px rgba(168,66,107,0.10), inset 0 1px 0 rgba(255,255,255,0.8)",
+                  border: "1px solid rgba(255,255,255,0.7)", borderLeft: `4px solid ${g.color}`,
+                }}>
+                  <div style={{ width: 50, height: 50, borderRadius: 15, flexShrink: 0, background: `linear-gradient(135deg,${g.color}33,${g.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.6)" }}>{g.emoji}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{g.name}</div>
+                    <div style={{ fontSize: 12, color: "#b08090", marginTop: 2 }}>{g.members.length} members · Code: <b style={{ color: g.color }}>{g.code}</b></div>
+                  </div>
+                  {g.games.filter((gm) => gm.date > NOW).length > 0 && (
+                    <div style={{ background: `linear-gradient(135deg,${g.color},${g.color}cc)`, color: "#fff", borderRadius: 999, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900, boxShadow: `0 2px 8px ${g.color}55` }}>{g.games.filter((gm) => gm.date > NOW).length}</div>
+                  )}
+                  <span style={{ color: "#d4a5c9", fontSize: 20 }}>›</span>
+                </div>
+              </div>
+            ))}
+
+            {/* All-groups games tabs */}
+            <AllGamesPanel groups={groups} go={go} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* NEW GROUP */
+function NewGroup({ onBack, onSave }) {
+  const [name, setName] = useState("");
+  const [emoji, setEmoji] = useState("🀄");
+  const [color, setColor] = useState("#e63946");
+  return (
+    <Shell title="New Group" onBack={onBack} color="#c9607a">
+      <Lbl>Group Name</Lbl>
+      <Fld value={name} set={setName} placeholder="e.g. Tuesday Tiles" />
+      <Lbl mt>Icon</Lbl>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+        {EMOJIS.map((e) => (
+          <div key={e} onClick={() => setEmoji(e)} style={{ fontSize: 26, padding: 8, borderRadius: 12, cursor: "pointer", background: emoji === e ? "#fce4ee" : "#f9f0f3", border: `2px solid ${emoji === e ? "#c9607a" : "transparent"}`, transition: "all .15s" }}>{e}</div>
+        ))}
+      </div>
+      <Lbl>Color</Lbl>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 28 }}>
+        {COLORS.map((c) => (
+          <div key={c} onClick={() => setColor(c)} style={{ width: 34, height: 34, borderRadius: 999, background: c, cursor: "pointer", boxShadow: color === c ? `0 0 0 3px #fff,0 0 0 5px ${c}` : "none", transition: "all .15s" }} />
+        ))}
+      </div>
+      <Btn full disabled={!name.trim()} onClick={() =>
+        onSave({ id: "G" + uid(), name: name.trim(), emoji, color, code: uid().slice(0, 5), members: [{ id: "me", name: "You", avatar: "🐼", host: true }], games: [] })
+      }>🎉 Create Group</Btn>
+    </Shell>
+  );
+}
+
+/* JOIN GROUP */
+function JoinGroup({ groups, onBack, onJoin }) {
+  const [code, setCode] = useState("");
+  const clean = code.trim().toUpperCase();
+  const match = groups.find((g) => g.code === clean);
+  const alreadyIn = match && match.members.some((m) => m.id === "me");
+  return (
+    <Shell title="Join a Group" onBack={onBack} color="#9b6ea8">
+      <div style={{ textAlign: "center", fontSize: 52, margin: "8px 0 20px" }}>🔑</div>
+      <Lbl>Enter Group Code</Lbl>
+      <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. TUE42"
+        style={{ width: "100%", padding: "14px 16px", background: "#fff", borderRadius: 14, fontSize: 22, fontWeight: 900, textAlign: "center", letterSpacing: 6, textTransform: "uppercase", marginBottom: 14, border: "2px solid #f0d9e3", color: "#4a2c3a" }} />
+      {clean.length >= 4 && !match && <p style={{ color: "#c9607a", fontWeight: 800, fontSize: 14, marginBottom: 14 }}>No group found with that code</p>}
+      {match && !alreadyIn && (
+        <div className="bIn" style={{ background: "#fdf0f7", border: "2px solid #d4a5c933", borderRadius: 16, padding: "14px 18px", marginBottom: 18 }}>
+          <div style={{ fontSize: 28 }}>{match.emoji}</div>
+          <div style={{ fontWeight: 800, fontSize: 17, color: "#4a2c3a" }}>{match.name}</div>
+          <div style={{ fontSize: 13, color: "#b08090" }}>{match.members.length} members</div>
+        </div>
+      )}
+      {alreadyIn && <p style={{ color: "#9b6ea8", fontWeight: 800, fontSize: 14, marginBottom: 14 }}>You're already in this group!</p>}
+      <Btn full disabled={!match || !!alreadyIn} onClick={() => onJoin(match.id)}>Join Group</Btn>
+    </Shell>
+  );
+}
+
+/* GROUP DETAIL */
+function Group({ group, go, flash, onLeave }) {
+  const [tab, setTab] = useState("games");
+  const upcoming = group.games.filter((g) => g.date > NOW).sort((a, b) => a.date - b.date);
+  const past = group.games.filter((g) => g.date <= NOW).sort((a, b) => b.date - a.date);
+  return (
+    <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,#fce8f0 0%,#f5d0e0 40%,#ead0e8 100%)` }}>
+      <div style={{
+        background: `linear-gradient(135deg,${group.color}f0,${group.color}bb)`,
+        backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+        padding: "50px 22px 26px", position: "relative", overflow: "hidden",
+        boxShadow: `0 8px 32px ${group.color}44`,
+      }}>
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.18) 0%,transparent 55%)", pointerEvents: "none" }} />
+        <button onClick={() => go("home")} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 18, color: "#fff", backdropFilter: "blur(8px)" }}>‹</button>
+        <button onClick={() => go("invite", group.id)} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)" }}>✉️ Invite</button>
+        <div style={{ textAlign: "center", position: "relative" }}>
+          <div style={{ fontSize: 50, marginBottom: 6 }}>{group.emoji}</div>
+          <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 26, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.25)", letterSpacing: 1 }}>{group.name}</h1>
+          <div style={{ display: "inline-block", background: "rgba(255,255,255,.22)", backdropFilter: "blur(8px)", borderRadius: 999, padding: "3px 14px", marginTop: 7, fontSize: 12, fontWeight: 700, color: "#fff", border: "1px solid rgba(255,255,255,.35)" }}>Code: {group.code}</div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "center", gap: 7, marginTop: 14, flexWrap: "wrap" }}>
+          {group.members.map((m) => (
+            <div key={m.id} title={m.name} style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(255,255,255,.28)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, border: "2px solid rgba(255,255,255,.55)" }}>{m.avatar}</div>
+          ))}
+          <div onClick={() => go("invite", group.id)} style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(255,255,255,.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, border: "2px dashed rgba(255,255,255,.5)", cursor: "pointer", color: "#fff" }}>+</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", background: "rgba(255,240,248,0.75)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "1px solid rgba(255,200,220,.4)" }}>
+        {[["games","🀀 Games"],["members","👥 Members"]].map(([t, label]) => (
+          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "13px 0", fontSize: 14, fontWeight: 700, background: "none", border: "none", cursor: "pointer", color: tab === t ? group.color : "#d4a5c9", borderBottom: `3px solid ${tab === t ? group.color : "transparent"}`, fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}>{label}</button>
+        ))}
+      </div>
+
+      <div style={{ padding: "18px 16px" }}>
+        {tab === "games" && (
+          <>
+            <Btn full onClick={() => go("newGame", group.id)} style={{ marginBottom: 18 }}>🀄 Schedule a Game</Btn>
+            {upcoming.length === 0 && past.length === 0 && (
+              <div style={{ textAlign: "center", color: "#c0899e", padding: "36px 0" }}>
+                <div style={{ fontSize: 40 }}>📅</div>
+                <p style={{ fontWeight: 700, marginTop: 8, fontFamily: "'Shippori Mincho',serif", color: "#9b5070" }}>No games yet!</p>
+                <p style={{ fontSize: 13, marginTop: 4 }}>Be the first to schedule one.</p>
+              </div>
+            )}
+            {upcoming.length > 0 && <>
+              <SecLbl>Upcoming</SecLbl>
+              {upcoming.map((gm, i) => <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer" }} onClick={() => go("game", group.id, gm.id)}><GCard game={gm} color={group.color} /></div>)}
+            </>}
+            {past.length > 0 && <>
+              <SecLbl>Past</SecLbl>
+              {past.map((gm) => <div key={gm.id} style={{ cursor: "pointer" }} onClick={() => go("game", group.id, gm.id)}><GCard game={gm} color="#c0a8b8" faded /></div>)}
+            </>}
+          </>
+        )}
+        {tab === "members" && (
+          <>
+            {group.members.map((m) => (
+              <div key={m.id} style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.85),rgba(255,235,245,0.7))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, padding: "13px 15px", marginBottom: 10, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 4px 16px rgba(168,66,107,0.09)", border: "1px solid rgba(255,255,255,0.7)" }}>
+                <div style={{ width: 42, height: 42, borderRadius: 999, background: "linear-gradient(135deg,#fce4ee,#f5d0e0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)" }}>{m.avatar}</div>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontWeight: 700, color: "#4a2c3a" }}>{m.name}</span>
+                  {m.id === "me" && <span style={{ marginLeft: 7, background: "linear-gradient(135deg,#c9607a,#a8426b)", color: "#fff", borderRadius: 999, padding: "1px 8px", fontSize: 11, fontWeight: 700 }}>You</span>}
+                  {m.host && <div style={{ fontSize: 12, color: "#c4936e", fontWeight: 700, marginTop: 2 }}>⭐ Host</div>}
+                </div>
+              </div>
+            ))}
+            <div style={{ marginTop: 18 }}>
+              <Btn full outline danger onClick={onLeave}>Leave Group</Btn>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GCard({ game, color, faded }) {
+  const yes = Object.values(game.rsvps).filter((v) => v === "yes").length;
+  const maybe = Object.values(game.rsvps).filter((v) => v === "maybe").length;
+  return (
+<div style={{
+      background: faded ? "rgba(245,235,240,0.6)" : "linear-gradient(135deg,rgba(255,255,255,0.88),rgba(255,235,245,0.75))",
+      backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+      borderRadius: 18, padding: "15px 16px", marginBottom: 11,
+      opacity: faded ? 0.65 : 1,
+      boxShadow: faded ? "none" : "0 4px 18px rgba(168,66,107,0.10), inset 0 1px 0 rgba(255,255,255,0.8)",
+      border: faded ? "1px solid rgba(200,180,190,0.3)" : "1px solid rgba(255,255,255,0.7)",
+      borderLeft: `4px solid ${color}`,
+    }}>
+      <div style={{ fontWeight: 700, fontSize: 15, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{game.title}</div>
+      <div style={{ fontSize: 13, color: "#b08090", marginTop: 3 }}>📅 {fmt(game.date)} · {fmtT(game.time)}</div>
+      <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>📍 {game.location}</div>
+      {(() => {
+        const yesCount = Object.values(game.rsvps).filter((v) => v === "yes").length;
+        const wl = game.waitlist || [];
+        const confirmedG = (game.guests || []).filter(g => !wl.includes(g.id)).length;
+        const filled = yesCount + confirmedG;
+        return (
+          <div style={{ display: "flex", gap: 7, marginTop: 10 }}>
+            <Chip color="#9b6ea8">✅ {filled}</Chip>
+            <Chip color="#c4936e">🤔 {Object.values(game.rsvps).filter((v) => v === "maybe").length}</Chip>
+            <Chip color="#b08090">👤 {filled}/{game.seats}</Chip>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+/* NEW GAME */
+function NewGame({ group, onBack, onSave }) {
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("19:00");
+  const [loc, setLoc] = useState("");
+  const [note, setNote] = useState("");
+  const [seats, setSeats] = useState(4);
+  const [recurring, setRecurring] = useState(false);
+  const [freq, setFreq] = useState("weekly");
+  const [occurrences, setOccurrences] = useState(4);
+
+  const FREQS = [
+    { id: "weekly",    label: "Weekly",     icon: "7️⃣",  days: 7   },
+    { id: "biweekly",  label: "Every 2 Wks",icon: "2️⃣",  days: 14  },
+    { id: "monthly",   label: "Monthly",    icon: "📆",  days: 30  },
+  ];
+
+  // Build preview dates for recurring
+  const previewDates = () => {
+    if (!date) return [];
+    const chosen = FREQS.find((f) => f.id === freq);
+    const ms = chosen.days * 86400000;
+    const base = new Date(`${date}T${time}`).getTime();
+    return Array.from({ length: occurrences }, (_, i) => base + i * ms);
+  };
+
+  const ok = title.trim() && date && time && loc.trim();
+
+  const handleSave = () => {
+    if (!ok) return;
+    if (!recurring) {
+      const ts = new Date(`${date}T${time}`).getTime();
+      onSave({ id: "gm" + uid(), title: title.trim(), host: "You", hostId: "me", date: ts, time, location: loc.trim(), seats, rsvps: { me: "yes" }, note, waitlist: [] });
+    } else {
+      const dates = previewDates();
+      const games = dates.map((ts) => ({
+        id: "gm" + uid(),
+        title: title.trim(),
+        host: "You", hostId: "me",
+        date: ts, time,
+        location: loc.trim(),
+        seats, rsvps: { me: "yes" },
+        note,
+        waitlist: [],
+        recurring: freq,
+      }));
+      onSave(games);
+    }
+  };
+
+  return (
+    <Shell title="Schedule a Game" onBack={onBack} color={group.color}>
+      <Lbl>Game Title</Lbl>
+      <Fld value={title} set={setTitle} placeholder="e.g. Weekly Game Night" />
+      <Lbl mt>Date</Lbl>
+      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputSt} />
+      <Lbl mt>Time</Lbl>
+      <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={inputSt} />
+      <Lbl mt>Location</Lbl>
+      <Fld value={loc} set={setLoc} placeholder="e.g. 12 Oak Street" />
+      <Lbl mt>Seats</Lbl>
+      <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+        {[4, 8, 12, 16].map((n) => (
+          <div key={n} onClick={() => setSeats(n)} style={{
+            flex: 1, height: 46, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", fontWeight: 700, fontSize: 15, transition: "all .18s",
+            fontFamily: "'Noto Sans JP',sans-serif",
+            background: seats === n ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(255,255,255,0.65)",
+            color: seats === n ? "#fff" : "#7a4a58",
+            border: seats === n ? "none" : "1px solid rgba(201,96,122,0.2)",
+            boxShadow: seats === n ? `0 4px 12px ${group.color}44` : "none",
+          }}>{n}</div>
+        ))}
+      </div>
+      <Lbl mt>Host Notes (optional)</Lbl>
+      <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Style of play, what to bring, house rules..." rows={3} style={{ ...inputSt, resize: "none", height: "auto", padding: "12px 14px" }} />
+
+      {/* Recurring toggle */}
+      <div style={{ height: 10 }} />
+      <div style={{
+        background: "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))",
+        backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+        borderRadius: 16, padding: "16px", marginBottom: 16,
+        border: "1px solid rgba(255,200,220,0.4)",
+        boxShadow: "0 4px 16px rgba(168,66,107,0.07), inset 0 1px 0 rgba(255,255,255,0.8)",
+      }}>
+        {/* Toggle row */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>🔁 Recurring Game</div>
+            <div style={{ fontSize: 12, color: "#b08090", marginTop: 2, fontFamily: "'Noto Sans JP',sans-serif" }}>Automatically schedule repeating sessions</div>
+          </div>
+          {/* Toggle switch */}
+          <div onClick={() => setRecurring(!recurring)} style={{
+            width: 48, height: 27, borderRadius: 999, cursor: "pointer",
+            background: recurring ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "rgba(200,180,190,0.4)",
+            position: "relative", transition: "background .25s",
+            boxShadow: recurring ? "0 2px 10px rgba(168,66,107,0.35)" : "none",
+            border: "1px solid rgba(255,255,255,0.5)",
+            flexShrink: 0,
+          }}>
+            <div style={{
+              width: 21, height: 21, borderRadius: 999,
+              background: "#fff",
+              position: "absolute", top: 2,
+              left: recurring ? 24 : 3,
+              transition: "left .22s cubic-bezier(.4,0,.2,1)",
+              boxShadow: "0 1px 4px rgba(0,0,0,.2)",
+            }} />
+          </div>
+        </div>
+
+        {/* Recurring options — animated expand */}
+        {recurring && (
+          <div className="sUp" style={{ marginTop: 16 }}>
+            <Lbl>Frequency</Lbl>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+              {FREQS.map((f) => (
+                <div key={f.id} onClick={() => setFreq(f.id)} style={{
+                  flex: 1, minWidth: 90, padding: "10px 8px", borderRadius: 12,
+                  textAlign: "center", cursor: "pointer", transition: "all .18s",
+                  background: freq === f.id ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(255,255,255,0.65)",
+                  color: freq === f.id ? "#fff" : "#7a4a58",
+                  border: freq === f.id ? "none" : "1px solid rgba(201,96,122,0.2)",
+                  boxShadow: freq === f.id ? `0 4px 14px ${group.color}44` : "none",
+                }}>
+                  <div style={{ fontSize: 18, marginBottom: 3 }}>{f.icon}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif" }}>{f.label}</div>
+                </div>
+              ))}
+            </div>
+
+            <Lbl>Number of Sessions</Lbl>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+              {[2, 4, 6, 8, 12].map((n) => (
+                <div key={n} onClick={() => setOccurrences(n)} style={{
+                  width: 44, height: 44, borderRadius: 12,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", fontWeight: 700, fontSize: 14, transition: "all .18s",
+                  background: occurrences === n ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(255,255,255,0.65)",
+                  color: occurrences === n ? "#fff" : "#7a4a58",
+                  border: occurrences === n ? "none" : "1px solid rgba(201,96,122,0.2)",
+                  boxShadow: occurrences === n ? `0 4px 12px ${group.color}44` : "none",
+                  fontFamily: "'Noto Sans JP',sans-serif",
+                }}>{n}</div>
+              ))}
+            </div>
+
+            {/* Preview dates */}
+            {date && (
+              <div style={{ background: "rgba(255,255,255,0.55)", borderRadius: 12, padding: "12px 14px", border: "1px solid rgba(255,200,220,0.4)" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#d4a5c9", textTransform: "uppercase", letterSpacing: .5, marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  Preview — {occurrences} sessions
+                </div>
+                {previewDates().map((ts, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: i < occurrences - 1 ? 6 : 0 }}>
+                    <div style={{ width: 20, height: 20, borderRadius: 999, background: `linear-gradient(135deg,${group.color}44,${group.color}22)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: group.color, flexShrink: 0, fontFamily: "'Noto Sans JP',sans-serif" }}>{i + 1}</div>
+                    <span style={{ fontSize: 13, color: "#4a2c3a", fontFamily: "'Noto Sans JP',sans-serif" }}>{fmt(ts)} · {fmtT(time)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <Btn full disabled={!ok} onClick={handleSave}>
+        {recurring ? `🔁 Schedule ${occurrences} Games` : "🀄 Schedule Game"}
+      </Btn>
+    </Shell>
+  );
+}
+
+/* GAME DETAIL */
+function Game({ game, group, go, onRsvp, onWaitlist, onDelete }) {
+  const myRsvp = game.rsvps["me"] || "pending";
+  // Member RSVPs only (guests tracked separately)
+  const yes = Object.values(game.rsvps).filter((v) => v === "yes").length;
+  const maybe = Object.values(game.rsvps).filter((v) => v === "maybe").length;
+  const no = Object.values(game.rsvps).filter((v) => v === "no").length;
+  const past = game.date < NOW;
+  const rawWaitlist = game.waitlist || [];   // array of IDs (member or guest)
+  const onWaitlistMe = rawWaitlist.includes("me");
+  const allGuests = game.guests || [];
+  const confirmedGuests = allGuests.filter((g) => !rawWaitlist.includes(g.id));
+  const totalSeats = game.seats || 4;
+  // filled = yes member RSVPs + confirmed (non-waitlisted) guests
+  const filledSeats = yes + confirmedGuests.length;
+  const isFull = filledSeats >= totalSeats;
+  const seatsLeft = Math.max(0, totalSeats - filledSeats);
+
+  // Build a single unified waitlist display list with name + avatar for everyone
+  const unifiedWaitlist = rawWaitlist.map((id) => {
+    // Is it a guest?
+    const guest = allGuests.find((g) => g.id === id);
+    if (guest) return { id, name: guest.name, avatar: guest.avatar, isGuest: true };
+    // Is it a group member?
+    const member = group.members.find((m) => m.id === id);
+    if (member) return { id, name: member.name, avatar: member.avatar, isGuest: false };
+    return { id, name: "Unknown", avatar: "👤", isGuest: false };
+  });
+  return (
+    <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,#fce8f0 0%,#f5d0e0 40%,#ead0e8 100%)` }}>
+      <div style={{ background: `linear-gradient(135deg,${group.color},${group.color}aa)`, padding: "50px 22px 28px", position: "relative" }}>
+        <button onClick={() => go("group", group.id)} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.25)", border: "none", borderRadius: 999, width: 36, height: 36, fontSize: 18, color: "#fff" }}>‹</button>
+        {game.hostId === "me" && (
+          <button onClick={() => go("editGame", group.id, game.id)} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✏️ Edit</button>
+        )}
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{group.name}</div>
+          <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 24, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.2)" }}>{game.title}</h1>
+        </div>
+      </div>
+      <div style={{ padding: "18px 16px" }}>
+        <IRow icon="📅" label="Date & Time" val={`${fmt(game.date)} · ${fmtT(game.time)}`} />
+        <IRow icon="📍" label="Location" val={game.location} />
+        <IRow icon="🎯" label="Host" val={game.host} />
+        <IRow icon="👥" label="Seats" val={`${filledSeats} / ${totalSeats} filled${seatsLeft > 0 ? ` · ${seatsLeft} open` : " · Full"}`} />
+        {game.recurring && <IRow icon="🔁" label="Recurring" val={{ weekly: "Weekly", biweekly: "Every 2 Weeks", monthly: "Monthly" }[game.recurring] || game.recurring} />}
+        {game.note && <IRow icon="📝" label="Host Notes" val={game.note} />}
+
+        {/* Capacity bar */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ height: 8, background: "rgba(201,96,122,0.15)", borderRadius: 999, overflow: "hidden" }}>
+            <div style={{
+              height: "100%", borderRadius: 999,
+              width: `${Math.min(100, (filledSeats / totalSeats) * 100)}%`,
+              background: isFull
+                ? "linear-gradient(90deg,#c9607a,#a8426b)"
+                : "linear-gradient(90deg,#9b6ea8,#c9607a)",
+              transition: "width .4s ease",
+            }} />
+          </div>
+          {isFull && (
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#c9607a", marginTop: 4, textAlign: "center", fontFamily: "'Noto Sans JP',sans-serif" }}>
+              🀄 Game is full — {unifiedWaitlist.length} on waitlist
+            </div>
+          )}
+        </div>
+
+        {/* RSVPs card */}
+        <div style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, padding: "15px 16px", marginBottom: 12, boxShadow: "0 4px 16px rgba(168,66,107,0.08), inset 0 1px 0 rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.65)" }}>
+          <div style={{ fontWeight: 700, color: "#4a2c3a", marginBottom: 10, fontFamily: "'Shippori Mincho',serif" }}>RSVPs</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Chip big color="#9b6ea8">✅ Going: {yes}</Chip>
+            <Chip big color="#c4936e">🤔 Maybe: {maybe}</Chip>
+            <Chip big color="#c9607a">❌ No: {no}</Chip>
+          </div>
+
+          {/* Confirmed guests */}
+          {confirmedGuests.length > 0 && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(212,165,201,0.25)" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#d4a5c9", textTransform: "uppercase", letterSpacing: .5, marginBottom: 7, fontFamily: "'Noto Sans JP',sans-serif" }}>Guests</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                {confirmedGuests.map((g) => (
+                  <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "3px 10px 3px 5px", border: "1px solid rgba(155,110,168,0.2)" }}>
+                    <span style={{ fontSize: 14 }}>{g.avatar}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#4a2c3a", fontFamily: "'Noto Sans JP',sans-serif" }}>{g.name}</span>
+                    <span style={{ fontSize: 10, color: "#9b6ea8", fontWeight: 700, marginLeft: 2 }}>Guest</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Unified waitlist */}
+          {unifiedWaitlist.length > 0 && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(212,165,201,0.25)" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#d4a5c9", textTransform: "uppercase", letterSpacing: .5, marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                ⏳ Waitlist ({unifiedWaitlist.length})
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {unifiedWaitlist.map((entry, i) => (
+                  <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: 999, background: "rgba(201,96,122,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#c9607a", flexShrink: 0, fontFamily: "'Noto Sans JP',sans-serif" }}>{i + 1}</div>
+                    <span style={{ fontSize: 16 }}>{entry.avatar}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#4a2c3a", flex: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{entry.name}</span>
+                    {entry.isGuest && <span style={{ fontSize: 10, color: "#9b6ea8", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
+                    {entry.id === "me" && <span style={{ fontSize: 10, color: "#c9607a", fontWeight: 700 }}>You</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Your RSVP / Waitlist */}
+        {!past && (
+          <div style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, padding: "15px 16px", marginBottom: 12, boxShadow: "0 4px 16px rgba(168,66,107,0.08), inset 0 1px 0 rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.65)" }}>
+            <div style={{ fontWeight: 700, color: "#4a2c3a", marginBottom: 10, fontFamily: "'Shippori Mincho',serif" }}>Your RSVP</div>
+
+            {/* Host cannot change their own RSVP */}
+            {game.hostId === "me" ? (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, background: "linear-gradient(135deg,rgba(155,110,168,0.15),rgba(201,96,122,0.1))", border: "1px solid rgba(155,110,168,0.25)", marginBottom: 10 }}>
+                  <span style={{ fontSize: 18 }}>⭐</span>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "#4a2c3a", fontFamily: "'Noto Sans JP',sans-serif" }}>You're the host — you're always going!</div>
+                    <div style={{ fontSize: 11, color: "#b08090", marginTop: 2, fontFamily: "'Noto Sans JP',sans-serif" }}>To step down, transfer host in Edit → Players</div>
+                  </div>
+                </div>
+              </div>
+            ) : isFull && myRsvp !== "yes" ? (
+              /* Full game waitlist */
+              <div>
+                <div style={{ fontSize: 13, color: "#7a4a58", marginBottom: 12, fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1.6 }}>
+                  This game is full. {onWaitlistMe ? "You're on the waitlist — we'll let you know if a spot opens up! 🌸" : "Join the waitlist and you'll be notified if a spot opens up."}
+                </div>
+                <button onClick={() => onWaitlist(onWaitlistMe ? "leave" : "join")} style={{
+                  width: "100%", padding: "11px 0", borderRadius: 12, fontSize: 13, fontWeight: 700,
+                  cursor: "pointer", transition: "all .2s", fontFamily: "'Noto Sans JP',sans-serif", border: "none",
+                  background: onWaitlistMe ? "rgba(201,96,122,0.12)" : "linear-gradient(135deg,rgba(155,110,168,0.85),rgba(201,96,122,0.85))",
+                  color: onWaitlistMe ? "#c9607a" : "#fff",
+                  boxShadow: onWaitlistMe ? "none" : "0 4px 14px rgba(168,66,107,0.3)",
+                }}>
+                  {onWaitlistMe ? "✕ Leave Waitlist" : "⏳ Join Waitlist"}
+                </button>
+              </div>
+            ) : (
+              /* Normal RSVP buttons */
+              <div style={{ display: "flex", gap: 8 }}>
+                {[["yes","✅ Going","#9b6ea8"],["maybe","🤔 Maybe","#c4936e"],["no","❌ Can't","#c9607a"]].map(([v, label, col]) => (
+                  <button key={v} onClick={() => onRsvp(v)} style={{ flex: 1, padding: "10px 4px", borderRadius: 12, fontSize: 12, fontWeight: 700, background: myRsvp === v ? col : "#f7eef2", color: myRsvp === v ? "#fff" : "#c0a0ac", border: "none", cursor: "pointer", transition: "all .18s", fontFamily: "'Noto Sans JP',sans-serif" }}>{label}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <Btn full onClick={() => go("invite", group.id, game.id)} style={{ marginBottom: 10 }}>✉️ Invite Players</Btn>
+        {game.hostId === "me" && <Btn full outline danger onClick={onDelete}>🗑 Delete Game</Btn>}
+      </div>
+    </div>
+  );
+}
+
+/* EDIT GAME */
+function EditGame({ game, group, onBack, onSave, onTransferHost }) {
+  const [title, setTitle] = useState(game.title);
+  const [date, setDate] = useState(new Date(game.date).toISOString().slice(0, 10));
+  const [time, setTime] = useState(game.time);
+  const [loc, setLoc] = useState(game.location);
+  const [note, setNote] = useState(game.note || "");
+  const [seats, setSeats] = useState(() => {
+    const s = game.seats || 4;
+    const valid = [4, 8, 12, 16];
+    return valid.includes(s) ? s : valid.reduce((a, b) => Math.abs(b - s) < Math.abs(a - s) ? b : a);
+  });
+
+  // Invited members: start with group members, track who's invited to this specific game
+  const [invitedIds, setInvitedIds] = useState(() => {
+    const existing = Object.keys(game.rsvps || {});
+    return new Set(existing.length ? existing : group.members.map((m) => m.id));
+  });
+
+  // Guests: people outside the group
+  const [guests, setGuests] = useState(game.guests || []);
+  const [guestName, setGuestName] = useState("");
+  const [tab, setTab] = useState("details");
+  const [transferring, setTransferring] = useState(false);
+  const [selectedNewHost, setSelectedNewHost] = useState(null);
+const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","🦩","🌿"];
+
+  const toggleMember = (id) => {
+    if (id === "me") return; // can't remove yourself as host
+    setInvitedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const addGuest = () => {
+    const name = guestName.trim();
+    if (!name) return;
+    const avatar = GUEST_AVATARS[guests.length % GUEST_AVATARS.length];
+    setGuests((prev) => [...prev, { id: "guest_" + uid(), name, avatar, isGuest: true }]);
+    setGuestName("");
+  };
+
+  const removeGuest = (id) => setGuests((prev) => prev.filter((g) => g.id !== id));
+
+  const handleSave = () => {
+    const ts = new Date(`${date}T${time}`).getTime();
+    const totalSeats = seats;
+    const newWaitlist = [...(game.waitlist || [])];
+
+    // Build rsvps for members — respect capacity
+    const newRsvps = { me: game.rsvps?.me || "yes" };
+    let filled = 1; // host always takes one seat
+
+    group.members.forEach((m) => {
+      if (m.id === "me" || !invitedIds.has(m.id)) return;
+      const existing = game.rsvps?.[m.id];
+      const prevYes = existing === "yes";
+
+      if (prevYes) {
+        // Already confirmed — keep their seat
+        newRsvps[m.id] = "yes";
+        filled++;
+      } else if (existing && existing !== "pending") {
+        // Had a real non-yes answer — keep it, no seat consumed
+        newRsvps[m.id] = existing;
+      } else {
+        // Newly added or pending
+        if (filled < totalSeats) {
+          newRsvps[m.id] = "yes";
+          filled++;
+        } else {
+          // No room — move to waitlist
+          newRsvps[m.id] = "pending";
+          if (!newWaitlist.includes(m.id)) newWaitlist.push(m.id);
+        }
+      }
+    });
+
+    // Build guests — confirmed vs waitlisted
+    const newGuests = [];
+    guests.forEach((g) => {
+      const prevConfirmed = (game.guests || []).find((pg) => pg.id === g.id) &&
+        !(game.waitlist || []).includes(g.id);
+
+      if (prevConfirmed) {
+        // Already had a confirmed seat
+        newGuests.push(g);
+        filled++;
+      } else if (filled < totalSeats) {
+        // Room available — confirm
+        newGuests.push(g);
+        // Remove from waitlist if they were on it
+        const wIdx = newWaitlist.indexOf(g.id);
+        if (wIdx > -1) newWaitlist.splice(wIdx, 1);
+        filled++;
+      } else {
+        // Full — put on waitlist
+        newGuests.push(g);
+        if (!newWaitlist.includes(g.id)) newWaitlist.push(g.id);
+      }
+    });
+
+    onSave({ ...game, title: title.trim(), date: ts, time, location: loc.trim(), note, seats, rsvps: newRsvps, guests: newGuests, waitlist: newWaitlist });
+  };
+
+  const ok = title.trim() && date && time && loc.trim();
+
+  const glassCard = {
+    background: "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))",
+    backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+    borderRadius: 16, padding: "16px",
+    boxShadow: "0 4px 16px rgba(168,66,107,0.08), inset 0 1px 0 rgba(255,255,255,0.8)",
+    border: "1px solid rgba(255,255,255,0.65)",
+    marginBottom: 14,
+  };
+
+  return (
+    <Shell title="Edit Game" onBack={onBack} color={group.color}>
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        {[["details","📋 Details"],["players","👥 Players"]].map(([t, label]) => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            flex: 1, padding: "9px 0", borderRadius: 999, fontSize: 13, fontWeight: 700,
+            fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", transition: "all .18s",
+            background: tab === t ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(255,255,255,0.55)",
+            color: tab === t ? "#fff" : "#b08090",
+            border: tab === t ? "none" : "1px solid rgba(201,96,122,0.2)",
+            boxShadow: tab === t ? `0 3px 12px ${group.color}44` : "none",
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {/* ── DETAILS TAB ── */}
+      {tab === "details" && (
+        <div className="sUp">
+          <Lbl>Game Title</Lbl>
+          <Fld value={title} set={setTitle} placeholder="e.g. Weekly Game Night" />
+          <Lbl mt>Date</Lbl>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputSt} />
+          <Lbl mt>Time</Lbl>
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={inputSt} />
+          <Lbl mt>Location</Lbl>
+          <Fld value={loc} set={setLoc} placeholder="e.g. 12 Oak Street" />
+          <Lbl mt>Seats</Lbl>
+          <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+            {[4, 8, 12, 16].map((n) => (
+              <div key={n} onClick={() => setSeats(n)} style={{
+                flex: 1, height: 46, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", fontWeight: 700, fontSize: 15, transition: "all .18s",
+                fontFamily: "'Noto Sans JP',sans-serif",
+                background: seats === n ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(255,255,255,0.65)",
+                color: seats === n ? "#fff" : "#7a4a58",
+                border: seats === n ? "none" : "1px solid rgba(201,96,122,0.2)",
+                boxShadow: seats === n ? `0 4px 12px ${group.color}44` : "none",
+              }}>{n}</div>
+            ))}
+          </div>
+          <Lbl>Host Notes (optional)</Lbl>
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Style of play, what to bring, house rules..." rows={3} style={{ ...inputSt, resize: "none", height: "auto", padding: "12px 14px" }} />
+          <div style={{ height: 8 }} />
+          <Btn full disabled={!ok} onClick={handleSave}>Save Changes ✨</Btn>
+        </div>
+      )}
+
+      {/* ── PLAYERS TAB ── */}
+      {tab === "players" && (
+        <div className="sUp">
+          {/* Group members */}
+          <div style={glassCard}>
+            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#7a3050", fontWeight: 700, marginBottom: 12 }}>Group Members</div>
+            {group.members.map((m) => {
+              const isIn = invitedIds.has(m.id);
+              const isMe = m.id === "me";
+              return (
+                <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 10 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 999, background: "linear-gradient(135deg,#fce4ee,#f5d0e0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{m.avatar}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a" }}>{m.name}</div>
+                    {isMe && <div style={{ fontSize: 11, color: "#c9607a", fontWeight: 700 }}>Host · Always invited</div>}
+                  </div>
+                  {!isMe && (
+                    <div onClick={() => toggleMember(m.id)} style={{
+                      width: 32, height: 32, borderRadius: 999, cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15,
+                      transition: "all .18s",
+                      background: isIn ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(200,180,190,0.25)",
+                      boxShadow: isIn ? `0 2px 8px ${group.color}44` : "none",
+                      border: isIn ? "none" : "1px solid rgba(201,96,122,0.25)",
+                    }}>{isIn ? "✅" : "➕"}</div>
+                  )}
+                  {isMe && <div style={{ width: 32, height: 32, borderRadius: 999, background: `linear-gradient(135deg,${group.color},${group.color}cc)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>✅</div>}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Guests */}
+          <div style={glassCard}>
+            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#7a3050", fontWeight: 700, marginBottom: 4 }}>Guests</div>
+            <div style={{ fontSize: 12, color: "#b08090", marginBottom: 12, fontFamily: "'Noto Sans JP',sans-serif" }}>Invite someone outside the group</div>
+
+            {guests.map((g) => (
+              <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 10 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 999, background: "linear-gradient(135deg,#f0e4f8,#e8d0f0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{g.avatar}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a" }}>{g.name}</div>
+                  <div style={{ fontSize: 11, color: "#9b6ea8", fontWeight: 700 }}>Guest</div>
+                </div>
+                <div onClick={() => removeGuest(g.id)} style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, background: "rgba(201,96,122,0.12)", border: "1px solid rgba(201,96,122,0.2)" }}>✕</div>
+              </div>
+            ))}
+
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <input
+                value={guestName}
+                onChange={(e) => setGuestName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addGuest()}
+                placeholder="Guest name…"
+                style={{ ...inputSt, flex: 1, marginBottom: 0 }}
+              />
+              <button onClick={addGuest} disabled={!guestName.trim()} style={{
+                padding: "0 16px", borderRadius: 12, fontSize: 20, cursor: guestName.trim() ? "pointer" : "not-allowed",
+                background: guestName.trim() ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(200,180,190,0.3)",
+                border: "none", color: "#fff", transition: "all .18s",
+                boxShadow: guestName.trim() ? `0 3px 10px ${group.color}44` : "none",
+                flexShrink: 0,
+              }}>+</button>
+            </div>
+          </div>
+
+          <Btn full onClick={handleSave}>Save Changes ✨</Btn>
+
+          {/* Transfer Host — only shown when I am currently the host */}
+          {game.hostId === "me" && (
+            <div style={{ marginTop: 16 }}>
+              {!transferring ? (
+                <button onClick={() => setTransferring(true)} style={{
+                  width: "100%", padding: "11px 0", borderRadius: 12, fontSize: 13, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", border: "1px solid rgba(201,96,122,0.3)",
+                  background: "transparent", color: "#c9607a", transition: "all .18s",
+                }}>
+                  🔄 Transfer Host
+                </button>
+              ) : (
+                <div className="sUp" style={{
+                  background: "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))",
+                  backdropFilter: "blur(10px)", borderRadius: 16, padding: "16px",
+                  border: "1px solid rgba(255,200,220,0.5)",
+                  boxShadow: "0 4px 16px rgba(168,66,107,0.09)",
+                }}>
+                  <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#7a3050", fontWeight: 700, marginBottom: 4 }}>Transfer Host</div>
+                  <div style={{ fontSize: 12, color: "#b08090", marginBottom: 14, fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1.6 }}>
+                    Select a new host. They'll take over responsibilities and you can update your own RSVP freely.
+                  </div>
+
+                  {/* Eligible members — invited, not me, not already host */}
+                  {group.members.filter((m) => m.id !== "me" && invitedIds.has(m.id)).length === 0 ? (
+                    <div style={{ fontSize: 13, color: "#c0a0b0", textAlign: "center", padding: "12px 0", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      No other invited members to transfer to.
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+                      {group.members.filter((m) => m.id !== "me" && invitedIds.has(m.id)).map((m) => (
+                        <div key={m.id} onClick={() => setSelectedNewHost(m.id)} style={{
+                          display: "flex", alignItems: "center", gap: 11, padding: "10px 12px",
+                          borderRadius: 12, cursor: "pointer", transition: "all .18s",
+                          background: selectedNewHost === m.id ? `linear-gradient(135deg,${group.color}22,${group.color}0f)` : "rgba(255,255,255,0.5)",
+                          border: `2px solid ${selectedNewHost === m.id ? group.color : "transparent"}`,
+                        }}>
+                          <div style={{ width: 36, height: 36, borderRadius: 999, background: "linear-gradient(135deg,#fce4ee,#f5d0e0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{m.avatar}</div>
+                          <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: "#4a2c3a" }}>{m.name}</div>
+                          {selectedNewHost === m.id && <span style={{ fontSize: 16, color: group.color }}>⭐</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => { setTransferring(false); setSelectedNewHost(null); }} style={{
+                      flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 13, fontWeight: 700,
+                      cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif",
+                      background: "rgba(200,180,190,0.25)", border: "1px solid rgba(201,96,122,0.2)", color: "#b08090",
+                    }}>Cancel</button>
+                    <button onClick={() => { if (selectedNewHost) onTransferHost(selectedNewHost); }} disabled={!selectedNewHost} style={{
+                      flex: 2, padding: "10px 0", borderRadius: 12, fontSize: 13, fontWeight: 700,
+                      cursor: selectedNewHost ? "pointer" : "not-allowed", fontFamily: "'Noto Sans JP',sans-serif", border: "none",
+                      background: selectedNewHost ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(200,180,190,0.3)",
+                      color: selectedNewHost ? "#fff" : "#bbb",
+                      boxShadow: selectedNewHost ? `0 4px 14px ${group.color}44` : "none",
+                      transition: "all .2s",
+                    }}>Confirm Transfer 🎯</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </Shell>
+  );
+}
+
+/* INVITE */
+function Invite({ group, game, flash, onBack }) {
+  const txt = game
+    ? `You're invited to a Mahjong game!\n\n📅 ${fmt(game.date)} at ${fmtT(game.time)}\n📍 ${game.location}\n🎯 Host: ${game.host}\n🃏 Style: ${game.style}${game.note ? `\n📝 ${game.note}` : ""}\n\nJoin group "${group.name}" using code: ${group.code}\n\nDownload Mahjong Club to RSVP!`
+    : `Join my Mahjong group on Mahjong Club!\n\nGroup: ${group.name}\nCode: ${group.code}\n\nDownload the app and enter the code to join us!`;
+
+  const share = (method) => {
+    const enc = encodeURIComponent(txt);
+    const subj = encodeURIComponent(game ? "Join our Mahjong game!" : `Join ${group.name}!`);
+    if (method === "sms") window.open(`sms:?body=${enc}`);
+    else if (method === "email") window.open(`mailto:?subject=${subj}&body=${enc}`);
+    else if (method === "copy") {
+      try { navigator.clipboard.writeText(txt).then(() => flash("Copied!", "📋")); } catch { flash("Copied!", "📋"); }
+    } else if (method === "share") {
+      if (navigator.share) navigator.share({ title: "Mahjong Club", text: txt }).catch(() => {});
+      else { try { navigator.clipboard.writeText(txt).then(() => flash("Copied!", "📋")); } catch { flash("Copied!", "📋"); } }
+    }
+  };
+
+  return (
+    <Shell title={game ? "Invite to Game" : "Invite to Group"} onBack={onBack} color={group.color}>
+      <div style={{ textAlign: "center", marginBottom: 16 }}>
+        <div style={{ fontSize: 48 }}>✉️</div>
+        <p style={{ fontWeight: 700, color: "#4a2c3a", marginTop: 8, fontSize: 15 }}>{game ? `"${game.title}"` : `"${group.name}"`}</p>
+      </div>
+
+      <div style={{ background: "#fff", borderRadius: 16, padding: "15px 16px", marginBottom: 20, border: "2px solid #f0d9e3", fontSize: 13, color: "#6b3a4a", lineHeight: 1.75, whiteSpace: "pre-line" }}>{txt}</div>
+
+      <SecLbl>Send via</SecLbl>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 11, marginBottom: 22 }}>
+        {[
+          ["💬","Text Message","Opens SMS app","#9b6ea8","sms"],
+          ["📧","Email","Opens mail app","#c9607a","email"],
+          ["📋","Copy Text","Paste anywhere","#c4936e","copy"],
+          ["📤","Share...","All options","#d4829b","share"],
+        ].map(([icon, label, sub, color, method]) => (
+          <button key={method} onClick={() => share(method)} style={{ background: "#fff", borderRadius: 16, padding: "15px 10px", cursor: "pointer", boxShadow: "0 3px 14px rgba(0,0,0,.08)", border: `2px solid ${color}33`, textAlign: "center", fontFamily: "'Noto Sans JP',sans-serif", transition: "transform .14s" }}
+            onMouseDown={(e) => { e.currentTarget.style.transform = "scale(.95)"; }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+            onTouchStart={(e) => { e.currentTarget.style.transform = "scale(.95)"; }}
+            onTouchEnd={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+          >
+            <div style={{ fontSize: 28, marginBottom: 4 }}>{icon}</div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: "#4a2c3a" }}>{label}</div>
+            <div style={{ fontSize: 11, color: "#c0a0ac", marginTop: 1 }}>{sub}</div>
+          </button>
+        ))}
+      </div>
+
+      <div style={{ textAlign: "center", background: "#fff", borderRadius: 14, padding: "14px 16px", boxShadow: "0 2px 10px rgba(0,0,0,.05)" }}>
+        <div style={{ fontSize: 11, color: "#bbb", fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>Group Join Code</div>
+        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 38, color: group.color, letterSpacing: 8, marginTop: 4 }}>{group.code}</div>
+      </div>
+    </Shell>
+  );
+}
+
+/* SHARED COMPONENTS */
+function Shell({ title, onBack, color, children }) {
+  return (
+    <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,#fce8f0 0%,#f5d0e0 40%,#ead0e8 100%)` }}>
+      <div style={{
+        background: `linear-gradient(135deg,${color}ee,${color}bb)`,
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        padding: "50px 22px 22px",
+        display: "flex", alignItems: "center", gap: 12,
+        boxShadow: `0 8px 32px ${color}44`,
+        position: "relative", overflow: "hidden",
+      }}>
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.15) 0%,transparent 60%)", pointerEvents: "none" }} />
+        <button onClick={onBack} style={{ background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 18, color: "#fff", flexShrink: 0, backdropFilter: "blur(8px)" }}>‹</button>
+        <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 23, color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,.2)", position: "relative" }}>{title}</h1>
+      </div>
+      <div style={{
+        padding: "20px 16px",
+        background: "rgba(255,240,248,0.65)",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+        minHeight: "calc(100vh - 100px)",
+      }} className="sUp">{children}</div>
+    </div>
+  );
+}
+function Lbl({ children, mt }) {
+  return <div style={{ fontSize: 12, fontWeight: 700, color: "#c0899e", marginBottom: 6, marginTop: mt ? 10 : 0, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Noto Sans JP',sans-serif" }}>{children}</div>;
+}
+function SecLbl({ children }) {
+  return <div style={{ fontSize: 11, fontWeight: 700, color: "#d4a5c9", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{children}</div>;
+}
+function Fld({ value, set, placeholder }) {
+  return <input value={value} onChange={(e) => set(e.target.value)} placeholder={placeholder} style={inputSt} />;
+}
+function Btn({ children, onClick, full, sm, outline, danger, disabled, style: sx }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{ width: full ? "100%" : "auto", padding: sm ? "7px 14px" : "13px 20px", borderRadius: 999, fontSize: sm ? 13 : 15, fontWeight: 700, background: disabled ? "#e5e5e5" : outline ? "transparent" : "#c9607a", color: disabled ? "#bbb" : outline ? (danger ? "#c9607a" : "#c9607a") : "#fff", border: outline ? `2px solid ${danger ? "#c9607a" : "#c9607a"}` : "none", cursor: disabled ? "not-allowed" : "pointer", boxShadow: disabled || outline ? "none" : "0 4px 16px #c9607a50", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .18s", ...sx }}
+      onMouseDown={(e) => { if (!disabled) e.currentTarget.style.transform = "scale(.97)"; }}
+      onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+    >{children}</button>
+  );
+}
+function Chip({ children, color, big }) {
+  return <div style={{ background: color + "18", color, borderRadius: 999, padding: big ? "5px 12px" : "2px 10px", fontSize: big ? 13 : 12, fontWeight: 700, whiteSpace: "nowrap", fontFamily: "'Noto Sans JP',sans-serif" }}>{children}</div>;
+}
+function IRow({ icon, label, val }) {
+  return (
+    <div style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 14, padding: "11px 14px", marginBottom: 9, display: "flex", gap: 11, alignItems: "flex-start", boxShadow: "0 4px 16px rgba(168,66,107,0.08), inset 0 1px 0 rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.65)" }}>
+      <span style={{ fontSize: 18, lineHeight: 1.3, flexShrink: 0 }}>{icon}</span>
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#d4a5c9", textTransform: "uppercase", letterSpacing: .5 }}>{label}</div>
+        <div style={{ fontSize: 14, fontWeight: 500, color: "#4a2c3a", marginTop: 2 }}>{val}</div>
+      </div>
+    </div>
+  );
+}
