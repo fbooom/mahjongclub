@@ -4,7 +4,7 @@ import {
   signInWithEmailAndPassword, signInWithPopup, signOut,
 } from "firebase/auth";
 import {
-  collection, doc, setDoc, getDoc, updateDoc, deleteDoc,
+  collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
   onSnapshot, query, where, arrayUnion, arrayRemove, runTransaction,
 } from "firebase/firestore";
 import { auth, db, googleProvider } from "./firebase";
@@ -142,11 +142,13 @@ export default function App() {
         } catch {
           setUser({ uid: fbUser.uid, name: fbUser.displayName || "Player", email: fbUser.email || "", avatar: "🐼", phone: "" });
         }
+        setPage("home");
         setAuthUser(fbUser);
       } else {
         setAuthUser(null);
         setUser(null);
         setGroups([]);
+        setPage("home");
       }
     });
     return unsub;
@@ -1008,10 +1010,6 @@ function Home({ groups, go, user }) {
             <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 30, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
             <p style={{ color: "rgba(255,255,255,.78)", fontWeight: 400, fontSize: 12, marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 1 }}>Schedule · Play · Enjoy</p>
           </div>
-          {/* User avatar pill top-right */}
-          <div onClick={() => go("account")} style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,.25)", backdropFilter: "blur(8px)", borderRadius: 999, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, border: "2px solid rgba(255,255,255,.45)", cursor: "pointer" }}>
-            {user.avatar}
-          </div>
         </div>
       </div>
 
@@ -1107,21 +1105,34 @@ function NewGroup({ onBack, onSave }) {
 /* JOIN GROUP */
 function JoinGroup({ uid, groups, onBack, onJoin }) {
   const [code, setCode] = useState("");
+  const [match, setMatch] = useState(null);
+  const [searching, setSearching] = useState(false);
   const clean = code.trim().toUpperCase();
-  const match = groups.find((g) => g.code === clean);
-  const alreadyIn = match && match.members.some((m) => m.id === uid);
+  const alreadyIn = match && (match.memberIds || []).includes(uid);
+
+  useEffect(() => {
+    setMatch(null);
+    if (clean.length < 4) return;
+    setSearching(true);
+    getDocs(query(collection(db, "groups"), where("code", "==", clean)))
+      .then((snap) => { setMatch(snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data(), games: [] }); })
+      .catch(() => setMatch(null))
+      .finally(() => setSearching(false));
+  }, [clean]);
+
   return (
     <Shell title="Join a Group" onBack={onBack} color="#9b6ea8">
       <div style={{ textAlign: "center", fontSize: 52, margin: "8px 0 20px" }}>🔑</div>
       <Lbl>Enter Group Code</Lbl>
       <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. TUE42"
         style={{ width: "100%", padding: "14px 16px", background: "#fff", borderRadius: 14, fontSize: 22, fontWeight: 900, textAlign: "center", letterSpacing: 6, textTransform: "uppercase", marginBottom: 14, border: "2px solid #f0d9e3", color: "#4a2c3a" }} />
-      {clean.length >= 4 && !match && <p style={{ color: "#c9607a", fontWeight: 800, fontSize: 14, marginBottom: 14 }}>No group found with that code</p>}
+      {searching && <p style={{ color: "#9b6ea8", fontWeight: 700, fontSize: 14, marginBottom: 14, textAlign: "center" }}>Searching…</p>}
+      {!searching && clean.length >= 4 && !match && <p style={{ color: "#c9607a", fontWeight: 800, fontSize: 14, marginBottom: 14 }}>No group found with that code</p>}
       {match && !alreadyIn && (
         <div className="bIn" style={{ background: "#fdf0f7", border: "2px solid #d4a5c933", borderRadius: 16, padding: "14px 18px", marginBottom: 18 }}>
           <div style={{ fontSize: 28 }}>{match.emoji}</div>
           <div style={{ fontWeight: 800, fontSize: 17, color: "#4a2c3a" }}>{match.name}</div>
-          <div style={{ fontSize: 13, color: "#b08090" }}>{match.members.length} members</div>
+          <div style={{ fontSize: 13, color: "#b08090" }}>{(match.members || []).length} members</div>
         </div>
       )}
       {alreadyIn && <p style={{ color: "#9b6ea8", fontWeight: 800, fontSize: 14, marginBottom: 14 }}>You're already in this group!</p>}
@@ -1165,7 +1176,7 @@ function Group({ uid, group, go, flash, onLeave }) {
         ))}
       </div>
 
-      <div style={{ padding: "18px 16px" }}>
+      <div style={{ padding: "18px 16px 100px" }}>
         {tab === "games" && (
           <>
             <Btn full onClick={() => go("newGame", group.id)} style={{ marginBottom: 18 }}>🀄 Schedule a Game</Btn>
@@ -1455,7 +1466,7 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete }) {
           <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 24, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.2)" }}>{game.title}</h1>
         </div>
       </div>
-      <div style={{ padding: "18px 16px" }}>
+      <div style={{ padding: "18px 16px 100px" }}>
         <IRow icon="📅" label="Date & Time" val={`${fmt(game.date)} · ${fmtT(game.time)}`} />
         <IRow icon="📍" label="Location" val={game.location} />
         <IRow icon="🎯" label="Host" val={game.host} />
@@ -1962,6 +1973,7 @@ function Shell({ title, onBack, color, children }) {
         backdropFilter: "blur(16px)",
         WebkitBackdropFilter: "blur(16px)",
         minHeight: "calc(100vh - 100px)",
+        paddingBottom: 100,
       }} className="sUp">{children}</div>
     </div>
   );
