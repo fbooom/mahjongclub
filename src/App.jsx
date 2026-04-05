@@ -301,7 +301,7 @@ export default function App() {
           <NewGroup onBack={() => go("home")}
             onSave={async (g) => {
               try {
-                const groupData = { ...g, members: [{ id: uid, name: user.name, avatar: user.avatar, host: true }], memberIds: [uid], openInvites: false };
+                const groupData = { ...g, members: [{ id: uid, name: user.name, avatar: user.avatar, host: true }], memberIds: [uid] };
                 await setDoc(doc(db, "groups", g.id), groupData);
                 go("group", g.id); flash("Group created!", "🎉");
               } catch { flash("Error creating group", "❌"); }
@@ -325,12 +325,17 @@ export default function App() {
               } catch { flash("Error joining group", "❌"); }
             }} />
         )}
+        {page === "editGroup" && group && (
+          <EditGroup group={group} onBack={() => go("group", group.id)}
+            onSave={async (updates) => {
+              try {
+                await updateDoc(doc(db, "groups", group.id), updates);
+                go("group", group.id); flash("Group updated!", "✨");
+              } catch { flash("Error updating group", "❌"); }
+            }} />
+        )}
         {page === "group" && group && (
           <Group uid={uid} group={group} go={go} flash={flash}
-            onToggleOpenInvites={async (val) => {
-              try { await updateDoc(doc(db, "groups", group.id), { openInvites: val }); }
-              catch { flash("Error updating setting", "❌"); }
-            }}
             onLeave={async () => {
               try {
                 await runTransaction(db, async (tx) => {
@@ -1127,6 +1132,7 @@ function NewGroup({ onBack, onSave }) {
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState("🀄");
   const [color, setColor] = useState("#e63946");
+  const [openInvites, setOpenInvites] = useState(false);
   return (
     <Shell title="New Group" onBack={onBack} color="#c9607a">
       <Lbl>Group Name</Lbl>
@@ -1138,15 +1144,84 @@ function NewGroup({ onBack, onSave }) {
         ))}
       </div>
       <Lbl>Color</Lbl>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 28 }}>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
         {COLORS.map((c) => (
           <div key={c} onClick={() => setColor(c)} style={{ width: 34, height: 34, borderRadius: 999, background: c, cursor: "pointer", boxShadow: color === c ? `0 0 0 3px #fff,0 0 0 5px ${c}` : "none", transition: "all .15s" }} />
         ))}
       </div>
-      <Btn full disabled={!name.trim()} onClick={() =>
-        onSave({ id: "G" + uid(), name: name.trim(), emoji, color, code: uid().slice(0, 5), members: [{ id: "me", name: "You", avatar: "🐼", host: true }], games: [] })
-      }>🎉 Create Group</Btn>
+      <OpenInvitesToggle value={openInvites} onChange={setOpenInvites} />
+      <div style={{ marginTop: 24 }}>
+        <Btn full disabled={!name.trim()} onClick={() =>
+          onSave({ id: "G" + uid(), name: name.trim(), emoji, color, code: uid().slice(0, 5), members: [{ id: "me", name: "You", avatar: "🐼", host: true }], games: [], openInvites })
+        }>🎉 Create Group</Btn>
+      </div>
     </Shell>
+  );
+}
+
+/* EDIT GROUP */
+function EditGroup({ group, onBack, onSave }) {
+  const [name, setName] = useState(group.name);
+  const [emoji, setEmoji] = useState(group.emoji);
+  const [color, setColor] = useState(group.color);
+  const [openInvites, setOpenInvites] = useState(group.openInvites ?? false);
+  return (
+    <Shell title="Edit Group" onBack={onBack} color={group.color}>
+      <Lbl>Group Name</Lbl>
+      <Fld value={name} set={setName} placeholder="e.g. Tuesday Tiles" />
+      <Lbl mt>Icon</Lbl>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+        {EMOJIS.map((e) => (
+          <div key={e} onClick={() => setEmoji(e)} style={{ fontSize: 26, padding: 8, borderRadius: 12, cursor: "pointer", background: emoji === e ? "#fce4ee" : "#f9f0f3", border: `2px solid ${emoji === e ? "#c9607a" : "transparent"}`, transition: "all .15s" }}>{e}</div>
+        ))}
+      </div>
+      <Lbl>Color</Lbl>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
+        {COLORS.map((c) => (
+          <div key={c} onClick={() => setColor(c)} style={{ width: 34, height: 34, borderRadius: 999, background: c, cursor: "pointer", boxShadow: color === c ? `0 0 0 3px #fff,0 0 0 5px ${c}` : "none", transition: "all .15s" }} />
+        ))}
+      </div>
+      <OpenInvitesToggle value={openInvites} onChange={setOpenInvites} />
+      <div style={{ marginTop: 24 }}>
+        <Btn full disabled={!name.trim()} onClick={() =>
+          onSave({ name: name.trim(), emoji, color, openInvites })
+        }>Save Changes</Btn>
+      </div>
+    </Shell>
+  );
+}
+
+function OpenInvitesToggle({ value, onChange }) {
+  return (
+    <div style={{
+      background: "linear-gradient(135deg,rgba(255,255,255,0.85),rgba(255,235,245,0.7))",
+      borderRadius: 16, padding: "14px 16px",
+      boxShadow: "0 4px 16px rgba(168,66,107,0.09)", border: "1px solid rgba(255,255,255,0.7)",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>Allow Members to Invite</div>
+          <div style={{ fontSize: 12, color: "#b08090", marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>
+            {value ? "All members can invite players to this group" : "Only you (the creator) can invite players"}
+          </div>
+        </div>
+        <div onClick={() => onChange(!value)} style={{
+          width: 48, height: 27, borderRadius: 999, cursor: "pointer", flexShrink: 0,
+          background: value ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "rgba(200,180,190,0.4)",
+          position: "relative", transition: "background .25s",
+          boxShadow: value ? "0 2px 10px rgba(168,66,107,0.35)" : "none",
+          border: "1px solid rgba(255,255,255,0.5)",
+        }}>
+          <div style={{
+            width: 21, height: 21, borderRadius: 999, background: "#fff",
+            position: "absolute", top: 2,
+            left: value ? 24 : 3,
+            transition: "left .22s cubic-bezier(.4,0,.2,1)",
+            boxShadow: "0 1px 4px rgba(0,0,0,.2)",
+          }} />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1190,7 +1265,7 @@ function JoinGroup({ uid, groups, onBack, onJoin }) {
 }
 
 /* GROUP DETAIL */
-function Group({ uid, group, go, flash, onLeave, onToggleOpenInvites }) {
+function Group({ uid, group, go, flash, onLeave }) {
   const [tab, setTab] = useState("games");
   const upcoming = group.games.filter((g) => g.date > NOW).sort((a, b) => a.date - b.date);
   const past = group.games.filter((g) => g.date <= NOW).sort((a, b) => b.date - a.date);
@@ -1206,7 +1281,10 @@ function Group({ uid, group, go, flash, onLeave, onToggleOpenInvites }) {
       }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.18) 0%,transparent 55%)", pointerEvents: "none" }} />
         <button onClick={() => go("home")} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 18, color: "#fff", backdropFilter: "blur(8px)" }}>‹</button>
-        {canInvite && <button onClick={() => go("invite", group.id)} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)" }}>✉️ Invite</button>}
+        <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 8 }}>
+          {isCreator && <button onClick={() => go("editGroup", group.id)} style={{ background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✏️ Edit</button>}
+          {canInvite && <button onClick={() => go("invite", group.id)} style={{ background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✉️ Invite</button>}
+        </div>
         <div style={{ textAlign: "center", position: "relative" }}>
           <div style={{ fontSize: 50, marginBottom: 6 }}>{group.emoji}</div>
           <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 26, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.25)", letterSpacing: 1 }}>{group.name}</h1>
@@ -1259,39 +1337,6 @@ function Group({ uid, group, go, flash, onLeave, onToggleOpenInvites }) {
                 </div>
               </div>
             ))}
-            {/* Open Invites toggle — creator only */}
-            {isCreator && (
-              <div style={{
-                background: "linear-gradient(135deg,rgba(255,255,255,0.85),rgba(255,235,245,0.7))",
-                backdropFilter: "blur(10px)", borderRadius: 16, padding: "14px 16px",
-                marginTop: 4, marginBottom: 4,
-                boxShadow: "0 4px 16px rgba(168,66,107,0.09)", border: "1px solid rgba(255,255,255,0.7)",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>Open Invites</div>
-                    <div style={{ fontSize: 12, color: "#b08090", marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>
-                      {group.openInvites ? "All members can invite others" : "Only you can invite members"}
-                    </div>
-                  </div>
-                  <div onClick={() => onToggleOpenInvites(!(group.openInvites ?? false))} style={{
-                    width: 48, height: 27, borderRadius: 999, cursor: "pointer", flexShrink: 0,
-                    background: group.openInvites ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "rgba(200,180,190,0.4)",
-                    position: "relative", transition: "background .25s",
-                    boxShadow: group.openInvites ? "0 2px 10px rgba(168,66,107,0.35)" : "none",
-                    border: "1px solid rgba(255,255,255,0.5)",
-                  }}>
-                    <div style={{
-                      width: 21, height: 21, borderRadius: 999, background: "#fff",
-                      position: "absolute", top: 2,
-                      left: group.openInvites ? 24 : 3,
-                      transition: "left .22s cubic-bezier(.4,0,.2,1)",
-                      boxShadow: "0 1px 4px rgba(0,0,0,.2)",
-                    }} />
-                  </div>
-                </div>
-              </div>
-            )}
             <div style={{ marginTop: 18 }}>
               <Btn full outline danger onClick={onLeave}>Leave Group</Btn>
             </div>
