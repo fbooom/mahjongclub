@@ -4,7 +4,7 @@ import {
   signInWithEmailAndPassword, signInWithPopup, signOut,
 } from "firebase/auth";
 import {
-  collection, collectionGroup, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
+  collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
   onSnapshot, query, where, arrayUnion, arrayRemove, runTransaction,
 } from "firebase/firestore";
 import { auth, db, googleProvider } from "./firebase";
@@ -126,6 +126,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const gamesUnsubs = useRef({});
   const groupMeta = useRef({});
+  const guestGameUnsubs = useRef({});
   const guestGroupCache = useRef({});
 
   // ── Firebase auth state listener ──
@@ -198,34 +199,60 @@ export default function App() {
       });
     });
 
-    // Listener for games where this user is a guest (not a group member)
-    const guestUnsub = onSnapshot(
-      query(collectionGroup(db, "games"), where("guestIds", "array-contains", uid)),
-      async (snap) => {
-        const results = await Promise.all(snap.docs.map(async (d) => {
-          const groupId = d.ref.parent.parent.id;
-          if (!guestGroupCache.current[groupId]) {
-            try {
-              const gs = await getDoc(doc(db, "groups", groupId));
-              guestGroupCache.current[groupId] = gs.exists()
-                ? gs.data()
-                : { name: "Unknown Group", color: "#c9607a", emoji: "🀄" };
-            } catch { guestGroupCache.current[groupId] = { name: "Unknown Group", color: "#c9607a", emoji: "🀄" }; }
-          }
-          const gm = guestGroupCache.current[groupId];
-          return { ...d.data(), id: d.id, groupId, groupName: gm.name, groupColor: gm.color, groupEmoji: gm.emoji, isGuestGame: true };
-        }));
-        setGuestGames(results);
-      },
-      () => {} // silently ignore index/permission errors
-    );
+    // Listener for guest games: watch the user doc's guestGameRefs array,
+    // then set up individual game listeners for each ref.
+    const userDocUnsub = onSnapshot(doc(db, "users", uid), (userSnap) => {
+      const refs = userSnap.data()?.guestGameRefs || [];
+      const refKeys = new Set(refs.map((r) => `${r.groupId}:${r.gameId}`));
+
+      // Clean up listeners for refs that were removed
+      Object.keys(guestGameUnsubs.current).forEach((key) => {
+        if (!refKeys.has(key)) {
+          guestGameUnsubs.current[key]();
+          delete guestGameUnsubs.current[key];
+          setGuestGames((prev) => {
+            const [gId, gmId] = key.split(":");
+            return prev.filter((g) => !(g.id === gmId && g.groupId === gId));
+          });
+        }
+      });
+
+      if (refs.length === 0) { setGuestGames([]); return; }
+
+      refs.forEach(({ groupId, gameId }) => {
+        const key = `${groupId}:${gameId}`;
+        if (guestGameUnsubs.current[key]) return;
+
+        // Fetch group metadata once, then listen to the game doc
+        getDoc(doc(db, "groups", groupId)).then((gs) => {
+          if (!gs.exists()) return;
+          const gd = gs.data();
+          guestGroupCache.current[groupId] = { name: gd.name, color: gd.color, emoji: gd.emoji };
+
+          guestGameUnsubs.current[key] = onSnapshot(
+            doc(db, "groups", groupId, "games", gameId),
+            (gameSnap) => {
+              if (!gameSnap.exists()) return;
+              const gm = guestGroupCache.current[groupId];
+              const updated = { ...gameSnap.data(), id: gameId, groupId, groupName: gm.name, groupColor: gm.color, groupEmoji: gm.emoji, isGuestGame: true };
+              setGuestGames((prev) => {
+                const filtered = prev.filter((g) => !(g.id === gameId && g.groupId === groupId));
+                return [...filtered, updated];
+              });
+            }
+          );
+        }).catch(() => {});
+      });
+    });
 
     return () => {
       groupsUnsub();
-      guestUnsub();
+      userDocUnsub();
       Object.values(gamesUnsubs.current).forEach((u) => u());
+      Object.values(guestGameUnsubs.current).forEach((u) => u());
       gamesUnsubs.current = {};
       groupMeta.current = {};
+      guestGameUnsubs.current = {};
       guestGroupCache.current = {};
     };
   }, [authUser?.uid]);
@@ -256,6 +283,10 @@ export default function App() {
             await updateDoc(doc(db, "groups", gid_, "games", gameId), {
               guestIds: arrayUnion(authUser.uid),
               [`rsvps.${authUser.uid}`]: "yes",
+            });
+            // Record the ref in the user doc so the games panel can load it
+            await updateDoc(doc(db, "users", authUser.uid), {
+              guestGameRefs: arrayUnion({ groupId: gid_, gameId }),
             });
             go_("guestGame", gid_, gameId);
             setToast({ msg: "You're in! See you at the table 🀄", icon: "🎉" }); setTimeout(() => setToast(null), 3000);
