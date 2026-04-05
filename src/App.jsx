@@ -323,7 +323,7 @@ export default function App() {
       {/* Toast */}
       {toast && (
         <div className="bIn" style={{
-          position: "fixed", top: 18, left: "50%", transform: "translateX(-50%)",
+          position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)",
           background: "linear-gradient(135deg,#7a3050,#c9607a)",
           color: "#fff", borderRadius: 999, padding: "10px 22px",
           fontWeight: 700, fontSize: 14, zIndex: 9999, whiteSpace: "nowrap",
