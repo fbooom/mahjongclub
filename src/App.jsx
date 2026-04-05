@@ -451,24 +451,8 @@ export default function App() {
         {page === "invite" && group && (
           <Invite group={group} game={game} flash={flash} onBack={() => go(game ? "game" : "group", group.id, gmid)} />
         )}
-        {page === "guestGame" && guestGame && guestGroupMeta && (
-          <Game uid={uid} game={guestGame} group={guestGroupMeta} go={go} isGuestView
-            onRsvp={async (ans) => {
-              try {
-                await updateDoc(doc(db, "groups", guestGroupMeta.id, "games", guestGame.id), { [`rsvps.${uid}`]: ans });
-                flash(ans === "yes" ? "You're in!" : "Got it", ans === "yes" ? "🎉" : "👍");
-              } catch { flash("Error updating RSVP", "❌"); }
-            }}
-            onWaitlist={async (action) => {
-              try {
-                await updateDoc(doc(db, "groups", guestGroupMeta.id, "games", guestGame.id), {
-                  waitlist: action === "join" ? arrayUnion(uid) : arrayRemove(uid),
-                });
-                flash(action === "join" ? "Added to waitlist!" : "Removed from waitlist", action === "join" ? "⏳" : "👋");
-              } catch { flash("Error updating waitlist", "❌"); }
-            }}
-            onDelete={null}
-          />
+        {page === "guestGame" && gid && gmid && (
+          <GuestGameView uid={uid} groupId={gid} gameId={gmid} go={go} flash={flash} />
         )}
       </div>
 
@@ -1611,6 +1595,53 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
         {recurring ? `🔁 Schedule ${occurrences} Games` : "🀄 Schedule Game"}
       </Btn>
     </Shell>
+  );
+}
+
+/* GUEST GAME VIEW — fetches game + group directly, no listener dependency */
+function GuestGameView({ uid, groupId, gameId, go, flash }) {
+  const [game, setGame] = useState(null);
+  const [groupMeta, setGroupMeta] = useState(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "groups", groupId, "games", gameId), async (snap) => {
+      if (!snap.exists()) return;
+      setGame({ ...snap.data(), id: snap.id });
+    });
+    getDoc(doc(db, "groups", groupId)).then((gs) => {
+      if (gs.exists()) {
+        const d = gs.data();
+        setGroupMeta({ id: groupId, name: d.name, color: d.color, emoji: d.emoji, members: [], openInvites: false, games: [] });
+      }
+    }).catch(() => {});
+    return unsub;
+  }, [groupId, gameId]);
+
+  if (!game || !groupMeta) return (
+    <div style={{ minHeight: "100vh", background: "linear-gradient(170deg,#fce8f0 0%,#f5d0e0 40%,#ead0e8 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+      <div style={{ fontSize: 40 }}>🀄</div>
+      <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "#9b5070" }}>Loading game…</div>
+    </div>
+  );
+
+  return (
+    <Game uid={uid} game={game} group={groupMeta} go={go} isGuestView
+      onRsvp={async (ans) => {
+        try {
+          await updateDoc(doc(db, "groups", groupId, "games", gameId), { [`rsvps.${uid}`]: ans });
+          flash(ans === "yes" ? "You're in!" : "Got it", ans === "yes" ? "🎉" : "👍");
+        } catch { flash("Error updating RSVP", "❌"); }
+      }}
+      onWaitlist={async (action) => {
+        try {
+          await updateDoc(doc(db, "groups", groupId, "games", gameId), {
+            waitlist: action === "join" ? arrayUnion(uid) : arrayRemove(uid),
+          });
+          flash(action === "join" ? "Added to waitlist!" : "Removed from waitlist", action === "join" ? "⏳" : "👋");
+        } catch { flash("Error updating waitlist", "❌"); }
+      }}
+      onDelete={null}
+    />
   );
 }
 
