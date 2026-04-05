@@ -14,6 +14,44 @@ const fmt = (ts) => new Date(ts).toLocaleDateString("en-US", { weekday: "short",
 const fmtT = (t) => { const [h, m] = t.split(":").map(Number); return `${h % 12 || 12}:${m.toString().padStart(2,"0")} ${h >= 12 ? "PM" : "AM"}`; };
 const NOW = Date.now();
 
+// Calendar helpers
+const calDt = (dateTs, timeStr) => {
+  const d = new Date(dateTs);
+  const [h, m] = timeStr.split(":").map(Number);
+  d.setHours(h, m, 0, 0);
+  return d;
+};
+const icsDate = (d) => d.toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
+const buildCalendarLinks = (game, groupName) => {
+  const start = calDt(game.date, game.time);
+  const end = new Date(start.getTime() + 3 * 60 * 60 * 1000); // default 3hr duration
+  const title = encodeURIComponent(`${game.title} — ${groupName}`);
+  const loc = encodeURIComponent(game.location);
+  const details = encodeURIComponent(
+    `Host: ${game.host}\nStyle: ${game.style || "Mahjong"}${game.note ? `\nNotes: ${game.note}` : ""}\n\nScheduled via Mahjong Club`
+  );
+  const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${icsDate(start)}/${icsDate(end)}&location=${loc}&details=${details}`;
+  const icsContent = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Mahjong Club//EN",
+    "BEGIN:VEVENT",
+    `DTSTART:${icsDate(start)}`,
+    `DTEND:${icsDate(end)}`,
+    `SUMMARY:${game.title} — ${groupName}`,
+    `LOCATION:${game.location}`,
+    `DESCRIPTION:Host: ${game.host}\\nStyle: ${game.style || "Mahjong"}${game.note ? `\\nNotes: ${game.note}` : ""}`,
+    "END:VEVENT", "END:VCALENDAR",
+  ].join("\r\n");
+  return { googleUrl, icsContent };
+};
+const downloadIcs = (game, groupName) => {
+  const { icsContent } = buildCalendarLinks(game, groupName);
+  const blob = new Blob([icsContent], { type: "text/calendar" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `${game.title.replace(/[^a-z0-9]/gi, "_")}.ics`; a.click();
+  URL.revokeObjectURL(url);
+};
+
 const SEED = [
   {
     id: "G1", name: "Tuesday Tiles", code: "TUE42", emoji: "🀄", color: "#c9607a",
@@ -1206,14 +1244,16 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
                 const confirmedG = (gm.guests || []).filter(g => !wl.includes(g.id)).length;
                 const filled = yesCount + confirmedG;
                 return (
-                  <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                     <Chip color="#9b6ea8">✅ {filled}</Chip>
                     <Chip color="#c4936e">🤔 {Object.values(gm.rsvps).filter(v => v === "maybe").length}</Chip>
                     <Chip color="#b08090">👤 {filled}/{gm.seats}</Chip>
-                  </>
+                    <div style={{ marginLeft: "auto" }}>
+                      <AddToCalendar game={gm} groupName={gm.groupName} compact />
+                    </div>
+                  </div>
                 );
               })()}
-            </div>
           </div>
         </div>
       ))}
@@ -1529,7 +1569,7 @@ function Group({ uid, group, go, flash, onLeave }) {
             ) : gamesList.map((gm, i) => (
               <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer" }}
                 onClick={() => go("game", group.id, gm.id)}>
-                <GCard game={gm} color={gamesTab === "upcoming" ? group.color : "#c0a8b8"} faded={gamesTab === "history"} />
+                <GCard game={gm} groupName={group.name} color={gamesTab === "upcoming" ? group.color : "#c0a8b8"} faded={gamesTab === "history"} />
               </div>
             ))}
           </>
@@ -1556,9 +1596,50 @@ function Group({ uid, group, go, flash, onLeave }) {
   );
 }
 
-function GCard({ game, color, faded }) {
-  const yes = Object.values(game.rsvps).filter((v) => v === "yes").length;
-  const maybe = Object.values(game.rsvps).filter((v) => v === "maybe").length;
+/* ADD TO CALENDAR */
+function AddToCalendar({ game, groupName, compact = false }) {
+  const [open, setOpen] = useState(false);
+  const { googleUrl } = buildCalendarLinks(game, groupName);
+
+  if (compact) {
+    // Small inline button for the game card
+    return (
+      <div style={{ position: "relative" }}>
+        <button
+          onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+          style={{ background: "rgba(201,96,122,0.1)", border: "1px solid rgba(201,96,122,0.25)", borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: "#c9607a", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
+        >📅 Add</button>
+        {open && (
+          <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", bottom: "calc(100% + 6px)", right: 0, background: "#fff", borderRadius: 14, boxShadow: "0 8px 28px rgba(168,66,107,0.18)", border: "1px solid rgba(201,96,122,0.15)", overflow: "hidden", zIndex: 100, minWidth: 180 }}>
+            <button onClick={() => { window.open(googleUrl, "_blank"); setOpen(false); }} style={calMenuBtn}>🗓 Google Calendar</button>
+            <button onClick={() => { downloadIcs(game, groupName); setOpen(false); }} style={{ ...calMenuBtn, borderTop: "1px solid rgba(201,96,122,0.1)" }}>⬇️ Download .ics</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Full card for game detail view
+  return (
+    <div style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, padding: "15px 16px", marginBottom: 12, boxShadow: "0 4px 16px rgba(168,66,107,0.08), inset 0 1px 0 rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.65)" }}>
+      <div style={{ fontWeight: 700, color: "#4a2c3a", marginBottom: 12, fontFamily: "'Shippori Mincho',serif" }}>Add to Calendar</div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <button onClick={() => window.open(googleUrl, "_blank")} style={calFullBtn("#4285f4")}>
+          <span style={{ fontSize: 18 }}>🗓</span>
+          <span>Google Calendar</span>
+        </button>
+        <button onClick={() => downloadIcs(game, groupName)} style={calFullBtn("#c9607a")}>
+          <span style={{ fontSize: 18 }}>📅</span>
+          <span>Apple / Other</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+const calMenuBtn = { display: "block", width: "100%", padding: "11px 16px", background: "none", border: "none", textAlign: "left", fontSize: 13, fontWeight: 700, color: "#4a2c3a", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" };
+const calFullBtn = (color) => ({ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "12px 8px", borderRadius: 12, background: `${color}12`, border: `1.5px solid ${color}33`, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", fontSize: 12, fontWeight: 700, color: "#4a2c3a" });
+
+function GCard({ game, groupName = "", color, faded }) {
   return (
 <div style={{
       background: faded ? "rgba(245,235,240,0.6)" : "linear-gradient(135deg,rgba(255,255,255,0.88),rgba(255,235,245,0.75))",
@@ -1578,10 +1659,13 @@ function GCard({ game, color, faded }) {
         const confirmedG = (game.guests || []).filter(g => !wl.includes(g.id)).length;
         const filled = yesCount + confirmedG;
         return (
-          <div style={{ display: "flex", gap: 7, marginTop: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 10 }}>
             <Chip color="#9b6ea8">✅ {filled}</Chip>
             <Chip color="#c4936e">🤔 {Object.values(game.rsvps).filter((v) => v === "maybe").length}</Chip>
             <Chip color="#b08090">👤 {filled}/{game.seats}</Chip>
+            <div style={{ marginLeft: "auto" }}>
+              <AddToCalendar game={game} groupName={groupName} compact />
+            </div>
           </div>
         );
       })()}
@@ -1879,6 +1963,9 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
             </div>
           )}
         </div>
+
+        {/* Add to Calendar */}
+        <AddToCalendar game={game} groupName={group.name} />
 
         {/* RSVPs card */}
         {(() => {
