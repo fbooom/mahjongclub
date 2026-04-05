@@ -1237,23 +1237,22 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
             <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{gm.title}</div>
             <div style={{ fontSize: 12, color: "#b08090", marginTop: 3 }}>📅 {fmt(gm.date)} · {fmtT(gm.time)}</div>
             <div style={{ fontSize: 12, color: "#b08090", marginTop: 1 }}>📍 {gm.location}</div>
-            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-              {(() => {
-                const yesCount = Object.values(gm.rsvps).filter(v => v === "yes").length;
-                const wl = gm.waitlist || [];
-                const confirmedG = (gm.guests || []).filter(g => !wl.includes(g.id)).length;
-                const filled = yesCount + confirmedG;
-                return (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    <Chip color="#9b6ea8">✅ {filled}</Chip>
-                    <Chip color="#c4936e">🤔 {Object.values(gm.rsvps).filter(v => v === "maybe").length}</Chip>
-                    <Chip color="#b08090">👤 {filled}/{gm.seats}</Chip>
-                    <div style={{ marginLeft: "auto" }}>
-                      <AddToCalendar game={gm} groupName={gm.groupName} compact />
-                    </div>
+            {(() => {
+              const yesCount = Object.values(gm.rsvps).filter(v => v === "yes").length;
+              const wl = gm.waitlist || [];
+              const confirmedG = (gm.guests || []).filter(g => !wl.includes(g.id)).length;
+              const filled = yesCount + confirmedG;
+              return (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                  <Chip color="#9b6ea8">✅ {filled}</Chip>
+                  <Chip color="#c4936e">🤔 {Object.values(gm.rsvps).filter(v => v === "maybe").length}</Chip>
+                  <Chip color="#b08090">👤 {filled}/{gm.seats}</Chip>
+                  <div style={{ marginLeft: "auto" }}>
+                    <AddToCalendar game={gm} groupName={gm.groupName} compact />
                   </div>
-                );
-              })()}
+                </div>
+              );
+            })()}
           </div>
         </div>
       ))}
