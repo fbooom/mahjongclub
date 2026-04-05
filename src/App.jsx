@@ -205,6 +205,50 @@ export default function App() {
 
   const handleSignOut = async () => { await signOut(auth); };
 
+  // ── Deep-link invite processing ──
+  const [pendingJoin] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    const code = p.get("joinGroup"), gameId = p.get("game");
+    if (code) window.history.replaceState({}, "", window.location.pathname);
+    return { code, gameId };
+  });
+
+  useEffect(() => {
+    if (!pendingJoin.code || !authUser || !user) return;
+    const { code, gameId } = pendingJoin;
+    const go_ = (p, g, gm) => { setPage(p); setGid(g || null); setGmid(gm || null); };
+    getDocs(query(collection(db, "groups"), where("code", "==", code)))
+      .then(async (snap) => {
+        if (snap.empty) { setToast({ msg: "Invite link is invalid or expired.", icon: "❌" }); setTimeout(() => setToast(null), 2600); return; }
+        const groupDoc = snap.docs[0];
+        const gid_ = groupDoc.id;
+        const data = groupDoc.data();
+        if (!(data.memberIds || []).includes(authUser.uid)) {
+          await runTransaction(db, async (tx) => {
+            const ref = doc(db, "groups", gid_);
+            const latest = await tx.get(ref);
+            const d = latest.data();
+            if ((d.memberIds || []).includes(authUser.uid)) return;
+            tx.update(ref, {
+              memberIds: [...(d.memberIds || []), authUser.uid],
+              members: [...(d.members || []), { id: authUser.uid, name: user.name, avatar: user.avatar }],
+            });
+          });
+          setToast({ msg: `Joined ${data.name}!`, icon: "🎊" }); setTimeout(() => setToast(null), 2600);
+        }
+        if (gameId) {
+          try {
+            await updateDoc(doc(db, "groups", gid_, "games", gameId), { [`rsvps.${authUser.uid}`]: "yes" });
+            go_("game", gid_, gameId);
+            setToast({ msg: "You're in! See you at the table 🀄", icon: "🎉" }); setTimeout(() => setToast(null), 3000);
+          } catch { go_("group", gid_); }
+        } else {
+          go_("group", gid_);
+        }
+      })
+      .catch(() => { setToast({ msg: "Error processing invite.", icon: "❌" }); setTimeout(() => setToast(null), 2600); });
+  }, [authUser?.uid, user?.uid]);
+
   const group = groups.find((g) => g.id === gid) || null;
   const game = group ? group.games.find((g) => g.id === gmid) || null : null;
 
@@ -257,7 +301,7 @@ export default function App() {
           <NewGroup onBack={() => go("home")}
             onSave={async (g) => {
               try {
-                const groupData = { ...g, members: [{ id: uid, name: user.name, avatar: user.avatar, host: true }], memberIds: [uid] };
+                const groupData = { ...g, members: [{ id: uid, name: user.name, avatar: user.avatar, host: true }], memberIds: [uid], openInvites: false };
                 await setDoc(doc(db, "groups", g.id), groupData);
                 go("group", g.id); flash("Group created!", "🎉");
               } catch { flash("Error creating group", "❌"); }
@@ -283,6 +327,10 @@ export default function App() {
         )}
         {page === "group" && group && (
           <Group uid={uid} group={group} go={go} flash={flash}
+            onToggleOpenInvites={async (val) => {
+              try { await updateDoc(doc(db, "groups", group.id), { openInvites: val }); }
+              catch { flash("Error updating setting", "❌"); }
+            }}
             onLeave={async () => {
               try {
                 await runTransaction(db, async (tx) => {
@@ -1142,10 +1190,12 @@ function JoinGroup({ uid, groups, onBack, onJoin }) {
 }
 
 /* GROUP DETAIL */
-function Group({ uid, group, go, flash, onLeave }) {
+function Group({ uid, group, go, flash, onLeave, onToggleOpenInvites }) {
   const [tab, setTab] = useState("games");
   const upcoming = group.games.filter((g) => g.date > NOW).sort((a, b) => a.date - b.date);
   const past = group.games.filter((g) => g.date <= NOW).sort((a, b) => b.date - a.date);
+  const isCreator = group.members.some((m) => m.id === uid && m.host);
+  const canInvite = isCreator || (group.openInvites ?? false);
   return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,#fce8f0 0%,#f5d0e0 40%,#ead0e8 100%)` }}>
       <div style={{
@@ -1156,7 +1206,7 @@ function Group({ uid, group, go, flash, onLeave }) {
       }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.18) 0%,transparent 55%)", pointerEvents: "none" }} />
         <button onClick={() => go("home")} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 18, color: "#fff", backdropFilter: "blur(8px)" }}>‹</button>
-        <button onClick={() => go("invite", group.id)} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)" }}>✉️ Invite</button>
+        {canInvite && <button onClick={() => go("invite", group.id)} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)" }}>✉️ Invite</button>}
         <div style={{ textAlign: "center", position: "relative" }}>
           <div style={{ fontSize: 50, marginBottom: 6 }}>{group.emoji}</div>
           <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 26, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.25)", letterSpacing: 1 }}>{group.name}</h1>
@@ -1166,7 +1216,7 @@ function Group({ uid, group, go, flash, onLeave }) {
           {group.members.map((m) => (
             <div key={m.id} title={m.name} style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(255,255,255,.28)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, border: "2px solid rgba(255,255,255,.55)" }}>{m.avatar}</div>
           ))}
-          <div onClick={() => go("invite", group.id)} style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(255,255,255,.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, border: "2px dashed rgba(255,255,255,.5)", cursor: "pointer", color: "#fff" }}>+</div>
+          {canInvite && <div onClick={() => go("invite", group.id)} style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(255,255,255,.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, border: "2px dashed rgba(255,255,255,.5)", cursor: "pointer", color: "#fff" }}>+</div>}
         </div>
       </div>
 
@@ -1209,6 +1259,39 @@ function Group({ uid, group, go, flash, onLeave }) {
                 </div>
               </div>
             ))}
+            {/* Open Invites toggle — creator only */}
+            {isCreator && (
+              <div style={{
+                background: "linear-gradient(135deg,rgba(255,255,255,0.85),rgba(255,235,245,0.7))",
+                backdropFilter: "blur(10px)", borderRadius: 16, padding: "14px 16px",
+                marginTop: 4, marginBottom: 4,
+                boxShadow: "0 4px 16px rgba(168,66,107,0.09)", border: "1px solid rgba(255,255,255,0.7)",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>Open Invites</div>
+                    <div style={{ fontSize: 12, color: "#b08090", marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      {group.openInvites ? "All members can invite others" : "Only you can invite members"}
+                    </div>
+                  </div>
+                  <div onClick={() => onToggleOpenInvites(!(group.openInvites ?? false))} style={{
+                    width: 48, height: 27, borderRadius: 999, cursor: "pointer", flexShrink: 0,
+                    background: group.openInvites ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "rgba(200,180,190,0.4)",
+                    position: "relative", transition: "background .25s",
+                    boxShadow: group.openInvites ? "0 2px 10px rgba(168,66,107,0.35)" : "none",
+                    border: "1px solid rgba(255,255,255,0.5)",
+                  }}>
+                    <div style={{
+                      width: 21, height: 21, borderRadius: 999, background: "#fff",
+                      position: "absolute", top: 2,
+                      left: group.openInvites ? 24 : 3,
+                      transition: "left .22s cubic-bezier(.4,0,.2,1)",
+                      boxShadow: "0 1px 4px rgba(0,0,0,.2)",
+                    }} />
+                  </div>
+                </div>
+              </div>
+            )}
             <div style={{ marginTop: 18 }}>
               <Btn full outline danger onClick={onLeave}>Leave Group</Btn>
             </div>
@@ -1428,6 +1511,8 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
 
 /* GAME DETAIL */
 function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete }) {
+  const isCreator = group.members.some((m) => m.id === uid && m.host);
+  const canInvite = isCreator || (group.openInvites ?? false);
   const myRsvp = game.rsvps[uid] || "pending";
   // Member RSVPs only (guests tracked separately)
   const yes = Object.values(game.rsvps).filter((v) => v === "yes").length;
@@ -1895,20 +1980,27 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
 
 /* INVITE */
 function Invite({ group, game, flash, onBack }) {
+  const base = `${window.location.origin}${window.location.pathname}`;
+  const joinUrl = game
+    ? `${base}?joinGroup=${group.code}&game=${game.id}`
+    : `${base}?joinGroup=${group.code}`;
+
   const txt = game
-    ? `You're invited to a Mahjong game!\n\n📅 ${fmt(game.date)} at ${fmtT(game.time)}\n📍 ${game.location}\n🎯 Host: ${game.host}\n🃏 Style: ${game.style}${game.note ? `\n📝 ${game.note}` : ""}\n\nJoin group "${group.name}" using code: ${group.code}\n\nDownload Mahjong Club to RSVP!`
-    : `Join my Mahjong group on Mahjong Club!\n\nGroup: ${group.name}\nCode: ${group.code}\n\nDownload the app and enter the code to join us!`;
+    ? `You're invited to a Mahjong game!\n\n📅 ${fmt(game.date)} at ${fmtT(game.time)}\n📍 ${game.location}\n🎯 Host: ${game.host}\n🃏 Style: ${game.style}${game.note ? `\n📝 ${game.note}` : ""}\n\nTap to join and RSVP:\n${joinUrl}`
+    : `Join my Mahjong group on Mahjong Club!\n\nGroup: ${group.name}\n\nTap to join:\n${joinUrl}`;
 
   const share = (method) => {
     const enc = encodeURIComponent(txt);
     const subj = encodeURIComponent(game ? "Join our Mahjong game!" : `Join ${group.name}!`);
     if (method === "sms") window.open(`sms:?body=${enc}`);
     else if (method === "email") window.open(`mailto:?subject=${subj}&body=${enc}`);
-    else if (method === "copy") {
+    else if (method === "copyLink") {
+      try { navigator.clipboard.writeText(joinUrl).then(() => flash("Link copied!", "🔗")); } catch { flash("Link copied!", "🔗"); }
+    } else if (method === "copy") {
       try { navigator.clipboard.writeText(txt).then(() => flash("Copied!", "📋")); } catch { flash("Copied!", "📋"); }
     } else if (method === "share") {
-      if (navigator.share) navigator.share({ title: "Mahjong Club", text: txt }).catch(() => {});
-      else { try { navigator.clipboard.writeText(txt).then(() => flash("Copied!", "📋")); } catch { flash("Copied!", "📋"); } }
+      if (navigator.share) navigator.share({ title: "Mahjong Club", text: txt, url: joinUrl }).catch(() => {});
+      else { try { navigator.clipboard.writeText(joinUrl).then(() => flash("Link copied!", "🔗")); } catch { flash("Link copied!", "🔗"); } }
     }
   };
 
@@ -1919,6 +2011,16 @@ function Invite({ group, game, flash, onBack }) {
         <p style={{ fontWeight: 700, color: "#4a2c3a", marginTop: 8, fontSize: 15 }}>{game ? `"${game.title}"` : `"${group.name}"`}</p>
       </div>
 
+      {/* Join link card */}
+      <div style={{ background: "#fff", borderRadius: 16, padding: "14px 16px", marginBottom: 16, border: "2px solid #c9607a44", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ fontSize: 24, flexShrink: 0 }}>🔗</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 11, color: "#bbb", fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>{game ? "Join Game Link" : "Join Group Link"}</div>
+          <div style={{ fontSize: 12, color: "#c9607a", wordBreak: "break-all", lineHeight: 1.4 }}>{joinUrl}</div>
+        </div>
+        <button onClick={() => share("copyLink")} style={{ background: "#c9607a", border: "none", borderRadius: 10, padding: "8px 12px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0, fontFamily: "'Noto Sans JP',sans-serif" }}>Copy</button>
+      </div>
+
       <div style={{ background: "#fff", borderRadius: 16, padding: "15px 16px", marginBottom: 20, border: "2px solid #f0d9e3", fontSize: 13, color: "#6b3a4a", lineHeight: 1.75, whiteSpace: "pre-line" }}>{txt}</div>
 
       <SecLbl>Send via</SecLbl>
@@ -1926,7 +2028,7 @@ function Invite({ group, game, flash, onBack }) {
         {[
           ["💬","Text Message","Opens SMS app","#9b6ea8","sms"],
           ["📧","Email","Opens mail app","#c9607a","email"],
-          ["📋","Copy Text","Paste anywhere","#c4936e","copy"],
+          ["📋","Copy Message","Paste anywhere","#c4936e","copy"],
           ["📤","Share...","All options","#d4829b","share"],
         ].map(([icon, label, sub, color, method]) => (
           <button key={method} onClick={() => share(method)} style={{ background: "#fff", borderRadius: 16, padding: "15px 10px", cursor: "pointer", boxShadow: "0 3px 14px rgba(0,0,0,.08)", border: `2px solid ${color}33`, textAlign: "center", fontFamily: "'Noto Sans JP',sans-serif", transition: "transform .14s" }}
