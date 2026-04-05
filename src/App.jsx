@@ -123,16 +123,19 @@ const globalCSS = `
   .app-shell {
     width: 100%;
     max-width: 480px;
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
     margin: 0 auto;
     background: linear-gradient(170deg,#fce8f0 0%,#f5d0e0 40%,#ead0e8 100%);
     position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   /* On larger screens: float as a card with subtle shadow */
   @media (min-width: 520px) {
     .app-shell {
-      min-height: 100vh;
       box-shadow: 0 0 60px rgba(168,66,107,0.18), 0 0 0 1px rgba(255,200,220,0.2);
     }
   }
@@ -454,7 +457,7 @@ export default function App() {
       )}
 
       {/* Page content */}
-      <div style={{ paddingBottom: 74, paddingTop: impersonating ? 52 : 0 }}>
+      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 16, paddingTop: impersonating ? 52 : 0 }}>
         {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} />}
         {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} />}
         {page === "newGroup" && (
@@ -1193,6 +1196,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
 /* ── ALL GAMES PANEL (shared by Home + Account) ── */
 function AllGamesPanel({ groups, guestGames = [], go }) {
   const [tab, setTab] = useState("upcoming");
+  const [showAll, setShowAll] = useState(false);
 
   // Flatten all member games across all groups, then merge in guest games
   const memberGames = groups.flatMap((g) =>
@@ -1201,14 +1205,15 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
   const allGames = [...memberGames, ...guestGames];
   const upcoming = allGames.filter((gm) => gm.date > NOW).sort((a, b) => a.date - b.date);
   const history = allGames.filter((gm) => gm.date <= NOW).sort((a, b) => b.date - a.date);
-  const list = tab === "upcoming" ? upcoming : history;
+  const fullList = tab === "upcoming" ? upcoming : history;
+  const list = showAll ? fullList : fullList.slice(0, 3);
 
   return (
     <div style={{ marginTop: 4 }}>
       {/* Tab pills */}
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {[["upcoming","📅 Upcoming"],["history","📖 History"]].map(([t, label]) => (
-          <button key={t} onClick={() => setTab(t)} style={{
+          <button key={t} onClick={() => { setTab(t); setShowAll(false); }} style={{
             padding: "6px 16px", borderRadius: 999, fontSize: 12, fontWeight: 700,
             fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", transition: "all .18s",
             background: tab === t ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "rgba(255,255,255,0.55)",
@@ -1226,55 +1231,69 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
             {tab === "upcoming" ? "No upcoming games yet — time to schedule one!" : "No past games yet."}
           </p>
         </div>
-      ) : list.map((gm, i) => (
-        <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.05}s`, cursor: "pointer" }}
-          onClick={() => go(gm.isGuestGame ? "guestGame" : "game", gm.groupId, gm.id)}>
-          <div style={{
-            background: tab === "upcoming"
-              ? "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))"
-              : "rgba(245,235,242,0.55)",
-            backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
-            borderRadius: 16, padding: "13px 15px", marginBottom: 10,
-            opacity: tab === "history" ? 0.75 : 1,
-            boxShadow: tab === "upcoming" ? "0 4px 16px rgba(168,66,107,0.08), inset 0 1px 0 rgba(255,255,255,0.8)" : "none",
-            border: "1px solid rgba(255,255,255,0.6)",
-            borderLeft: `4px solid ${gm.groupColor}`,
-          }}>
-            {/* Group tag + optional guest badge */}
-            <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
-              <span style={{ fontSize: 13 }}>{gm.groupEmoji}</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: gm.groupColor, fontFamily: "'Noto Sans JP',sans-serif" }}>{gm.groupName}</span>
-              {gm.isGuestGame && <span style={{ fontSize: 10, fontWeight: 800, color: "#9b6ea8", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "1px 7px", marginLeft: 2 }}>Guest</span>}
-            </div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{gm.title}</div>
-            <div style={{ fontSize: 12, color: "#b08090", marginTop: 3 }}>📅 {fmt(gm.date)}</div>
-            <div style={{ fontSize: 12, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(gm.time, gm.endTime)}</div>
-            <div style={{ fontSize: 12, color: "#b08090", marginTop: 1 }}>📍 {gm.location}</div>
-            {(() => {
-              const yesCount = Object.values(gm.rsvps).filter(v => v === "yes").length;
-              const wl = gm.waitlist || [];
-              const confirmedG = (gm.guests || []).filter(g => !wl.includes(g.id)).length;
-              const filled = yesCount + confirmedG;
-              return (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                  <Chip color="#9b6ea8">✅ {filled}</Chip>
-                  <Chip color="#c4936e">🤔 {Object.values(gm.rsvps).filter(v => v === "maybe").length}</Chip>
-                  <Chip color="#b08090">👤 {filled}/{gm.seats}</Chip>
-                  <div style={{ marginLeft: "auto" }}>
-                    <AddToCalendar game={gm} groupName={gm.groupName} compact />
-                  </div>
+      ) : (
+        <>
+          {list.map((gm, i) => (
+            <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.05}s`, cursor: "pointer" }}
+              onClick={() => go(gm.isGuestGame ? "guestGame" : "game", gm.groupId, gm.id)}>
+              <div style={{
+                background: tab === "upcoming"
+                  ? "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))"
+                  : "rgba(245,235,242,0.55)",
+                backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+                borderRadius: 16, padding: "13px 15px", marginBottom: 10,
+                opacity: tab === "history" ? 0.75 : 1,
+                boxShadow: tab === "upcoming" ? "0 4px 16px rgba(168,66,107,0.08), inset 0 1px 0 rgba(255,255,255,0.8)" : "none",
+                border: "1px solid rgba(255,255,255,0.6)",
+                borderLeft: `4px solid ${gm.groupColor}`,
+              }}>
+                {/* Group tag + optional guest badge */}
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
+                  <span style={{ fontSize: 13 }}>{gm.groupEmoji}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: gm.groupColor, fontFamily: "'Noto Sans JP',sans-serif" }}>{gm.groupName}</span>
+                  {gm.isGuestGame && <span style={{ fontSize: 10, fontWeight: 800, color: "#9b6ea8", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "1px 7px", marginLeft: 2 }}>Guest</span>}
                 </div>
-              );
-            })()}
-          </div>
-        </div>
-      ))}
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{gm.title}</div>
+                <div style={{ fontSize: 12, color: "#b08090", marginTop: 3 }}>📅 {fmt(gm.date)}</div>
+                <div style={{ fontSize: 12, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(gm.time, gm.endTime)}</div>
+                <div style={{ fontSize: 12, color: "#b08090", marginTop: 1 }}>📍 {gm.location}</div>
+                {(() => {
+                  const yesCount = Object.values(gm.rsvps).filter(v => v === "yes").length;
+                  const wl = gm.waitlist || [];
+                  const confirmedG = (gm.guests || []).filter(g => !wl.includes(g.id)).length;
+                  const filled = yesCount + confirmedG;
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                      <Chip color="#9b6ea8">✅ {filled}</Chip>
+                      <Chip color="#c4936e">🤔 {Object.values(gm.rsvps).filter(v => v === "maybe").length}</Chip>
+                      <Chip color="#b08090">👤 {filled}/{gm.seats}</Chip>
+                      <div style={{ marginLeft: "auto" }}>
+                        <AddToCalendar game={gm} groupName={gm.groupName} compact />
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          ))}
+          {fullList.length > 3 && (
+            <button onClick={() => setShowAll(v => !v)} style={{
+              width: "100%", padding: "10px 0", background: "none", border: "1px dashed rgba(201,96,122,0.3)",
+              borderRadius: 12, color: "#c9607a", fontSize: 13, fontWeight: 700,
+              fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", marginTop: 2,
+            }}>
+              {showAll ? "See less ↑" : `See ${fullList.length - 3} more ↓`}
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
 
 /* HOME */
 function Home({ groups, guestGames, go, user }) {
+  const [showAllGroups, setShowAllGroups] = useState(false);
   // SVG mahjong tile pattern — faint bamboo/character tiles as background art
   const bgSVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='none'/%3E%3Cg opacity='0.07' fill='%23a0456e'%3E%3Crect x='10' y='10' width='28' height='38' rx='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Crect x='14' y='16' width='20' height='4' rx='2'/%3E%3Crect x='14' y='23' width='20' height='4' rx='2'/%3E%3Crect x='14' y='30' width='20' height='4' rx='2'/%3E%3Crect x='64' y='10' width='28' height='38' rx='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Ccircle cx='78' cy='24' r='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Ccircle cx='78' cy='37' r='3'/%3E%3Crect x='10' y='68' width='28' height='38' rx='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Cpath d='M18 78 Q24 72 30 78 Q24 84 18 78Z'/%3E%3Cpath d='M18 90 Q24 84 30 90 Q24 96 18 90Z'/%3E%3Crect x='64' y='68' width='28' height='38' rx='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Crect x='70' y='75' width='16' height='18' rx='3' fill='none' stroke='%23a0456e' stroke-width='1.5'/%3E%3Cline x1='78' y1='75' x2='78' y2='93' stroke='%23a0456e' stroke-width='1.5'/%3E%3C/g%3E%3C/svg%3E")`;
 
@@ -1340,7 +1359,7 @@ function Home({ groups, guestGames, go, user }) {
           </div>
         ) : (
           <>
-            {groups.map((g, i) => (
+            {(showAllGroups ? groups : groups.slice(0, 3)).map((g, i) => (
               <div key={g.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer" }} onClick={() => go("group", g.id)}>
                 <div style={{
                   background: "linear-gradient(135deg,rgba(255,255,255,0.85) 0%,rgba(255,235,245,0.75) 100%)",
@@ -1362,6 +1381,15 @@ function Home({ groups, guestGames, go, user }) {
                 </div>
               </div>
             ))}
+            {groups.length > 3 && (
+              <button onClick={() => setShowAllGroups(v => !v)} style={{
+                width: "100%", padding: "10px 0", background: "none", border: "1px dashed rgba(201,96,122,0.3)",
+                borderRadius: 12, color: "#c9607a", fontSize: 13, fontWeight: 700,
+                fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", marginBottom: 16,
+              }}>
+                {showAllGroups ? "See less ↑" : `See ${groups.length - 3} more ↓`}
+              </button>
+            )}
 
             {/* All-groups games tabs */}
             <AllGamesPanel groups={groups} guestGames={guestGames} go={go} />
