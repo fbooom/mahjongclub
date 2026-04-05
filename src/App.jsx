@@ -1342,8 +1342,10 @@ function JoinGroup({ uid, groups, onBack, onJoin }) {
 /* GROUP DETAIL */
 function Group({ uid, group, go, flash, onLeave }) {
   const [tab, setTab] = useState("games");
+  const [gamesTab, setGamesTab] = useState("upcoming");
   const upcoming = group.games.filter((g) => g.date > NOW).sort((a, b) => a.date - b.date);
   const past = group.games.filter((g) => g.date <= NOW).sort((a, b) => b.date - a.date);
+  const gamesList = gamesTab === "upcoming" ? upcoming : past;
   const isCreator = group.members.some((m) => m.id === uid && m.host);
   const canInvite = isCreator || (group.openInvites ?? false);
   return (
@@ -1382,22 +1384,36 @@ function Group({ uid, group, go, flash, onLeave }) {
       <div style={{ padding: "18px 16px 100px" }}>
         {tab === "games" && (
           <>
-            <Btn full onClick={() => go("newGame", group.id)} style={{ marginBottom: 18 }}>🀄 Schedule a Game</Btn>
-            {upcoming.length === 0 && past.length === 0 && (
+            <Btn full onClick={() => go("newGame", group.id)} style={{ marginBottom: 14 }}>🀄 Schedule a Game</Btn>
+
+            {/* Upcoming / History tab pills */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {[["upcoming","📅 Upcoming"],["history","📖 History"]].map(([t, label]) => (
+                <button key={t} onClick={() => setGamesTab(t)} style={{
+                  padding: "6px 16px", borderRadius: 999, fontSize: 12, fontWeight: 700,
+                  fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", transition: "all .18s",
+                  background: gamesTab === t ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(255,255,255,0.55)",
+                  color: gamesTab === t ? "#fff" : "#b08090",
+                  border: gamesTab === t ? "none" : "1px solid rgba(201,96,122,0.2)",
+                  boxShadow: gamesTab === t ? `0 3px 12px ${group.color}55` : "none",
+                }}>{label}</button>
+              ))}
+            </div>
+
+            {gamesList.length === 0 ? (
               <div style={{ textAlign: "center", color: "#c0899e", padding: "36px 0" }}>
-                <div style={{ fontSize: 40 }}>📅</div>
-                <p style={{ fontWeight: 700, marginTop: 8, fontFamily: "'Shippori Mincho',serif", color: "#9b5070" }}>No games yet!</p>
-                <p style={{ fontSize: 13, marginTop: 4 }}>Be the first to schedule one.</p>
+                <div style={{ fontSize: 40 }}>{gamesTab === "upcoming" ? "📅" : "📖"}</div>
+                <p style={{ fontWeight: 700, marginTop: 8, fontFamily: "'Shippori Mincho',serif", color: "#9b5070" }}>
+                  {gamesTab === "upcoming" ? "No upcoming games yet!" : "No past games yet."}
+                </p>
+                {gamesTab === "upcoming" && <p style={{ fontSize: 13, marginTop: 4 }}>Be the first to schedule one.</p>}
               </div>
-            )}
-            {upcoming.length > 0 && <>
-              <SecLbl>Upcoming</SecLbl>
-              {upcoming.map((gm, i) => <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer" }} onClick={() => go("game", group.id, gm.id)}><GCard game={gm} color={group.color} /></div>)}
-            </>}
-            {past.length > 0 && <>
-              <SecLbl>Past</SecLbl>
-              {past.map((gm) => <div key={gm.id} style={{ cursor: "pointer" }} onClick={() => go("game", group.id, gm.id)}><GCard game={gm} color="#c0a8b8" faded /></div>)}
-            </>}
+            ) : gamesList.map((gm, i) => (
+              <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer" }}
+                onClick={() => go("game", group.id, gm.id)}>
+                <GCard game={gm} color={gamesTab === "upcoming" ? group.color : "#c0a8b8"} faded={gamesTab === "history"} />
+              </div>
+            ))}
           </>
         )}
         {tab === "members" && (
