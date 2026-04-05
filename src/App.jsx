@@ -2056,18 +2056,6 @@ function Invite({ group, game, flash, onBack }) {
         <p style={{ fontWeight: 700, color: "#4a2c3a", marginTop: 8, fontSize: 15 }}>{game ? `"${game.title}"` : `"${group.name}"`}</p>
       </div>
 
-      {/* Join link card */}
-      <div style={{ background: "#fff", borderRadius: 16, padding: "14px 16px", marginBottom: 16, border: "2px solid #c9607a44", display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ fontSize: 24, flexShrink: 0 }}>🔗</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11, color: "#bbb", fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>{game ? "Join Game Link" : "Join Group Link"}</div>
-          <div style={{ fontSize: 12, color: "#c9607a", wordBreak: "break-all", lineHeight: 1.4 }}>{joinUrl}</div>
-        </div>
-        <button onClick={() => share("copyLink")} style={{ background: "#c9607a", border: "none", borderRadius: 10, padding: "8px 12px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0, fontFamily: "'Noto Sans JP',sans-serif" }}>Copy</button>
-      </div>
-
-      <div style={{ background: "#fff", borderRadius: 16, padding: "15px 16px", marginBottom: 20, border: "2px solid #f0d9e3", fontSize: 13, color: "#6b3a4a", lineHeight: 1.75, whiteSpace: "pre-line" }}>{txt}</div>
-
       <SecLbl>Send via</SecLbl>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 11, marginBottom: 22 }}>
         {[
