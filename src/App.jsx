@@ -12,7 +12,7 @@ import { auth, db, googleProvider } from "./firebase";
 const uid = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 const fmt = (ts) => new Date(ts).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 const fmtT = (t) => { const [h, m] = t.split(":").map(Number); return `${h % 12 || 12}:${m.toString().padStart(2,"0")} ${h >= 12 ? "PM" : "AM"}`; };
-const NOW = 1743500000000;
+const NOW = Date.now();
 
 const SEED = [
   {
