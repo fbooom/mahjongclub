@@ -100,6 +100,7 @@ const inputSt = {
   width: "100%", padding: "12px 14px", background: "#fff", borderRadius: 12,
   fontSize: 15, fontWeight: 600, marginBottom: 6, border: "2px solid #f0d9e3",
   color: "#4a2c3a", display: "block", boxSizing: "border-box",
+  WebkitAppearance: "none", appearance: "none",
 };
 
 const globalCSS = `
@@ -1747,11 +1748,11 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Start</div>
-          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...inputSt, marginBottom: 0, width: "100%", boxSizing: "border-box" }} />
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
         </div>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>End</div>
-          <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ ...inputSt, marginBottom: 0, width: "100%", boxSizing: "border-box" }} />
+          <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
         </div>
       </div>
       <Lbl mt>Location</Lbl>
@@ -2262,16 +2263,16 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
           <Lbl>Game Title</Lbl>
           <Fld value={title} set={setTitle} placeholder="e.g. Weekly Game Night" />
           <Lbl mt>Date</Lbl>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputSt} />
           <Lbl mt>Time</Lbl>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Start</div>
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...inputSt, marginBottom: 0, width: "100%", boxSizing: "border-box" }} />
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>End</div>
-              <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ ...inputSt, marginBottom: 0, width: "100%", boxSizing: "border-box" }} />
+              <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
             </div>
           </div>
           <Lbl mt>Location</Lbl>
