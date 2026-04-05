@@ -1694,6 +1694,7 @@ function GuestGameView({ uid, groupId, gameId, go, flash }) {
 
 /* GAME DETAIL */
 function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView = false }) {
+  const [showAttendees, setShowAttendees] = useState(false);
   const isCreator = !isGuestView && group.members.some((m) => m.id === uid && m.host);
   const canInvite = !isGuestView && (isCreator || (group.openInvites ?? false));
   const myRsvp = game.rsvps[uid] || "pending";
@@ -1762,50 +1763,85 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
         </div>
 
         {/* RSVPs card */}
-        <div style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, padding: "15px 16px", marginBottom: 12, boxShadow: "0 4px 16px rgba(168,66,107,0.08), inset 0 1px 0 rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.65)" }}>
-          <div style={{ fontWeight: 700, color: "#4a2c3a", marginBottom: 10, fontFamily: "'Shippori Mincho',serif" }}>RSVPs</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Chip big color="#9b6ea8">✅ Going: {yes}</Chip>
-            <Chip big color="#c4936e">🤔 Maybe: {maybe}</Chip>
-            <Chip big color="#c9607a">❌ No: {no}</Chip>
-          </div>
+        {(() => {
+          // Build named lists for each status
+          const resolveName = (id) => {
+            const m = group.members.find((m) => m.id === id);
+            if (m) return { name: m.name, avatar: m.avatar };
+            const g = allGuests.find((g) => g.id === id);
+            if (g) return { name: g.name, avatar: g.avatar, isGuest: true };
+            return { name: "Unknown", avatar: "👤" };
+          };
+          const goingList = Object.entries(game.rsvps).filter(([, v]) => v === "yes").map(([id]) => ({ id, ...resolveName(id) }));
+          const maybeList = Object.entries(game.rsvps).filter(([, v]) => v === "maybe").map(([id]) => ({ id, ...resolveName(id) }));
+          const noList    = Object.entries(game.rsvps).filter(([, v]) => v === "no").map(([id]) => ({ id, ...resolveName(id) }));
 
-          {/* Confirmed guests */}
-          {confirmedGuests.length > 0 && (
-            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(212,165,201,0.25)" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#d4a5c9", textTransform: "uppercase", letterSpacing: .5, marginBottom: 7, fontFamily: "'Noto Sans JP',sans-serif" }}>Guests</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-                {confirmedGuests.map((g) => (
-                  <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "3px 10px 3px 5px", border: "1px solid rgba(155,110,168,0.2)" }}>
-                    <span style={{ fontSize: 14 }}>{g.avatar}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#4a2c3a", fontFamily: "'Noto Sans JP',sans-serif" }}>{g.name}</span>
-                    <span style={{ fontSize: 10, color: "#9b6ea8", fontWeight: 700, marginLeft: 2 }}>Guest</span>
-                  </div>
-                ))}
-              </div>
+          const AttendeeRow = ({ entry }) => (
+            <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0" }}>
+              <span style={{ fontSize: 18 }}>{entry.avatar}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#4a2c3a", flex: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{entry.name}</span>
+              {entry.isGuest && <span style={{ fontSize: 10, color: "#9b6ea8", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
+              {entry.id === uid && <span style={{ fontSize: 10, color: "#c9607a", fontWeight: 700, background: "rgba(201,96,122,0.1)", borderRadius: 999, padding: "2px 8px" }}>You</span>}
             </div>
-          )}
+          );
 
-          {/* Unified waitlist */}
-          {unifiedWaitlist.length > 0 && (
-            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(212,165,201,0.25)" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#d4a5c9", textTransform: "uppercase", letterSpacing: .5, marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>
-                ⏳ Waitlist ({unifiedWaitlist.length})
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {unifiedWaitlist.map((entry, i) => (
-                  <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: 999, background: "rgba(201,96,122,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#c9607a", flexShrink: 0, fontFamily: "'Noto Sans JP',sans-serif" }}>{i + 1}</div>
-                    <span style={{ fontSize: 16 }}>{entry.avatar}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#4a2c3a", flex: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{entry.name}</span>
-                    {entry.isGuest && <span style={{ fontSize: 10, color: "#9b6ea8", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
-                    {entry.id === uid && <span style={{ fontSize: 10, color: "#c9607a", fontWeight: 700 }}>You</span>}
+          return (
+            <div style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, marginBottom: 12, boxShadow: "0 4px 16px rgba(168,66,107,0.08), inset 0 1px 0 rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.65)", overflow: "hidden" }}>
+              {/* Tappable header */}
+              <div onClick={() => setShowAttendees((v) => !v)} style={{ padding: "15px 16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ fontWeight: 700, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>RSVPs</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Chip big color="#9b6ea8">✅ {yes}</Chip>
+                    <Chip big color="#c4936e">🤔 {maybe}</Chip>
+                    <Chip big color="#c9607a">❌ {no}</Chip>
                   </div>
-                ))}
+                  <span style={{ fontSize: 16, color: "#d4a5c9", transition: "transform .2s", display: "inline-block", transform: showAttendees ? "rotate(180deg)" : "rotate(0deg)" }}>⌄</span>
+                </div>
               </div>
+
+              {/* Expanded attendee list */}
+              {showAttendees && (
+                <div style={{ borderTop: "1px solid rgba(212,165,201,0.25)", padding: "10px 16px 14px" }}>
+                  {[
+                    { label: "✅ Going", list: goingList, color: "#9b6ea8" },
+                    { label: "🤔 Maybe", list: maybeList, color: "#c4936e" },
+                    { label: "❌ Can't Go", list: noList, color: "#c9607a" },
+                  ].map(({ label, list, color }) => list.length > 0 && (
+                    <div key={label} style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color, textTransform: "uppercase", letterSpacing: .5, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>{label} · {list.length}</div>
+                      {list.map((entry) => <AttendeeRow key={entry.id} entry={entry} />)}
+                    </div>
+                  ))}
+
+                  {/* Confirmed guests */}
+                  {confirmedGuests.length > 0 && (
+                    <div style={{ marginTop: 4, paddingTop: 10, borderTop: "1px solid rgba(212,165,201,0.15)" }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: "#9b6ea8", textTransform: "uppercase", letterSpacing: .5, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Guests · {confirmedGuests.length}</div>
+                      {confirmedGuests.map((g) => <AttendeeRow key={g.id} entry={{ ...g, isGuest: true }} />)}
+                    </div>
+                  )}
+
+                  {/* Waitlist */}
+                  {unifiedWaitlist.length > 0 && (
+                    <div style={{ marginTop: 4, paddingTop: 10, borderTop: "1px solid rgba(212,165,201,0.15)" }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: "#c9607a", textTransform: "uppercase", letterSpacing: .5, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>⏳ Waitlist · {unifiedWaitlist.length}</div>
+                      {unifiedWaitlist.map((entry, i) => (
+                        <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0" }}>
+                          <div style={{ width: 20, height: 20, borderRadius: 999, background: "rgba(201,96,122,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#c9607a", flexShrink: 0 }}>{i + 1}</div>
+                          <span style={{ fontSize: 18 }}>{entry.avatar}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#4a2c3a", flex: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{entry.name}</span>
+                          {entry.isGuest && <span style={{ fontSize: 10, color: "#9b6ea8", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
+                          {entry.id === uid && <span style={{ fontSize: 10, color: "#c9607a", fontWeight: 700, background: "rgba(201,96,122,0.1)", borderRadius: 999, padding: "2px 8px" }}>You</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          );
+        })()}
 
         {/* Your RSVP / Waitlist */}
         {!past && (
