@@ -4,7 +4,7 @@ import {
   signInWithEmailAndPassword, signInWithPopup, signOut,
 } from "firebase/auth";
 import {
-  collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
+  collection, collectionGroup, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
   onSnapshot, query, where, arrayUnion, arrayRemove, runTransaction,
 } from "firebase/firestore";
 import { auth, db, googleProvider } from "./firebase";
@@ -117,6 +117,7 @@ export default function App() {
   }, []);
 
   const [groups, setGroups] = useState([]);
+  const [guestGames, setGuestGames] = useState([]);
   const [page, setPage] = useState("home");
   const [gid, setGid] = useState(null);
   const [gmid, setGmid] = useState(null);
@@ -125,6 +126,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const gamesUnsubs = useRef({});
   const groupMeta = useRef({});
+  const guestGroupCache = useRef({});
 
   // ── Firebase auth state listener ──
   useEffect(() => {
@@ -148,6 +150,7 @@ export default function App() {
         setAuthUser(null);
         setUser(null);
         setGroups([]);
+        setGuestGames([]);
         setPage("home");
       }
     });
@@ -195,11 +198,35 @@ export default function App() {
       });
     });
 
+    // Listener for games where this user is a guest (not a group member)
+    const guestUnsub = onSnapshot(
+      query(collectionGroup(db, "games"), where("guestIds", "array-contains", uid)),
+      async (snap) => {
+        const results = await Promise.all(snap.docs.map(async (d) => {
+          const groupId = d.ref.parent.parent.id;
+          if (!guestGroupCache.current[groupId]) {
+            try {
+              const gs = await getDoc(doc(db, "groups", groupId));
+              guestGroupCache.current[groupId] = gs.exists()
+                ? gs.data()
+                : { name: "Unknown Group", color: "#c9607a", emoji: "🀄" };
+            } catch { guestGroupCache.current[groupId] = { name: "Unknown Group", color: "#c9607a", emoji: "🀄" }; }
+          }
+          const gm = guestGroupCache.current[groupId];
+          return { ...d.data(), id: d.id, groupId, groupName: gm.name, groupColor: gm.color, groupEmoji: gm.emoji, isGuestGame: true };
+        }));
+        setGuestGames(results);
+      },
+      () => {} // silently ignore index/permission errors
+    );
+
     return () => {
       groupsUnsub();
+      guestUnsub();
       Object.values(gamesUnsubs.current).forEach((u) => u());
       gamesUnsubs.current = {};
       groupMeta.current = {};
+      guestGroupCache.current = {};
     };
   }, [authUser?.uid]);
 
@@ -223,26 +250,33 @@ export default function App() {
         const groupDoc = snap.docs[0];
         const gid_ = groupDoc.id;
         const data = groupDoc.data();
-        if (!(data.memberIds || []).includes(authUser.uid)) {
-          await runTransaction(db, async (tx) => {
-            const ref = doc(db, "groups", gid_);
-            const latest = await tx.get(ref);
-            const d = latest.data();
-            if ((d.memberIds || []).includes(authUser.uid)) return;
-            tx.update(ref, {
-              memberIds: [...(d.memberIds || []), authUser.uid],
-              members: [...(d.members || []), { id: authUser.uid, name: user.name, avatar: user.avatar }],
-            });
-          });
-          setToast({ msg: `Joined ${data.name}!`, icon: "🎊" }); setTimeout(() => setToast(null), 2600);
-        }
         if (gameId) {
+          // Game-only invite: add user as a guest on the game, do NOT join the group
           try {
-            await updateDoc(doc(db, "groups", gid_, "games", gameId), { [`rsvps.${authUser.uid}`]: "yes" });
-            go_("game", gid_, gameId);
+            await updateDoc(doc(db, "groups", gid_, "games", gameId), {
+              guestIds: arrayUnion(authUser.uid),
+              [`rsvps.${authUser.uid}`]: "yes",
+            });
+            go_("guestGame", gid_, gameId);
             setToast({ msg: "You're in! See you at the table 🀄", icon: "🎉" }); setTimeout(() => setToast(null), 3000);
-          } catch { go_("group", gid_); }
+          } catch {
+            setToast({ msg: "Could not join game.", icon: "❌" }); setTimeout(() => setToast(null), 2600);
+          }
         } else {
+          // Group invite: add user to the group
+          if (!(data.memberIds || []).includes(authUser.uid)) {
+            await runTransaction(db, async (tx) => {
+              const ref = doc(db, "groups", gid_);
+              const latest = await tx.get(ref);
+              const d = latest.data();
+              if ((d.memberIds || []).includes(authUser.uid)) return;
+              tx.update(ref, {
+                memberIds: [...(d.memberIds || []), authUser.uid],
+                members: [...(d.members || []), { id: authUser.uid, name: user.name, avatar: user.avatar }],
+              });
+            });
+            setToast({ msg: `Joined ${data.name}!`, icon: "🎊" }); setTimeout(() => setToast(null), 2600);
+          }
           go_("group", gid_);
         }
       })
@@ -251,6 +285,10 @@ export default function App() {
 
   const group = groups.find((g) => g.id === gid) || null;
   const game = group ? group.games.find((g) => g.id === gmid) || null : null;
+  const guestGame = guestGames.find((g) => g.id === gmid && g.groupId === gid) || null;
+  const guestGroupMeta = guestGame
+    ? { id: guestGame.groupId, name: guestGame.groupName, color: guestGame.groupColor, emoji: guestGame.groupEmoji, members: [], openInvites: false, games: [] }
+    : null;
 
   const go = (p, g, gm) => { setPage(p); if (g !== undefined) setGid(g); if (gm !== undefined) setGmid(gm || null); };
   const flash = (msg, icon) => { setToast({ msg, icon: icon || "✅" }); setTimeout(() => setToast(null), 2600); };
@@ -295,8 +333,8 @@ export default function App() {
 
       {/* Page content */}
       <div style={{ paddingBottom: 74 }}>
-        {page === "home" && <Home groups={groups} go={go} user={user} />}
-        {page === "account" && <Account uid={uid} user={user} setUser={setUser} groups={groups} flash={flash} go={go} onSignOut={handleSignOut} />}
+        {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={user} />}
+        {page === "account" && <Account uid={uid} user={user} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} />}
         {page === "newGroup" && (
           <NewGroup onBack={() => go("home")}
             onSave={async (g) => {
@@ -411,6 +449,25 @@ export default function App() {
         )}
         {page === "invite" && group && (
           <Invite group={group} game={game} flash={flash} onBack={() => go(game ? "game" : "group", group.id, gmid)} />
+        )}
+        {page === "guestGame" && guestGame && guestGroupMeta && (
+          <Game uid={uid} game={guestGame} group={guestGroupMeta} go={go} isGuestView
+            onRsvp={async (ans) => {
+              try {
+                await updateDoc(doc(db, "groups", guestGroupMeta.id, "games", guestGame.id), { [`rsvps.${uid}`]: ans });
+                flash(ans === "yes" ? "You're in!" : "Got it", ans === "yes" ? "🎉" : "👍");
+              } catch { flash("Error updating RSVP", "❌"); }
+            }}
+            onWaitlist={async (action) => {
+              try {
+                await updateDoc(doc(db, "groups", guestGroupMeta.id, "games", guestGame.id), {
+                  waitlist: action === "join" ? arrayUnion(uid) : arrayRemove(uid),
+                });
+                flash(action === "join" ? "Added to waitlist!" : "Removed from waitlist", action === "join" ? "⏳" : "👋");
+              } catch { flash("Error updating waitlist", "❌"); }
+            }}
+            onDelete={null}
+          />
         )}
       </div>
 
@@ -787,7 +844,7 @@ function Divider() {
 }
 
 /* ── ACCOUNT PAGE ── */
-function Account({ uid, user, setUser, groups, flash, go, onSignOut }) {
+function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
@@ -914,7 +971,7 @@ function Account({ uid, user, setUser, groups, flash, go, onSignOut }) {
               </div>
             ))}
           </div>
-          <AllGamesPanel groups={groups} go={go} />
+          <AllGamesPanel groups={groups} guestGames={guestGames} go={go} />
         </div>
 
         {/* About */}
@@ -950,13 +1007,14 @@ function Account({ uid, user, setUser, groups, flash, go, onSignOut }) {
 }
 
 /* ── ALL GAMES PANEL (shared by Home + Account) ── */
-function AllGamesPanel({ groups, go }) {
+function AllGamesPanel({ groups, guestGames = [], go }) {
   const [tab, setTab] = useState("upcoming");
 
-  // Flatten all games across all groups, attach group info
-  const allGames = groups.flatMap((g) =>
+  // Flatten all member games across all groups, then merge in guest games
+  const memberGames = groups.flatMap((g) =>
     g.games.map((gm) => ({ ...gm, groupName: g.name, groupColor: g.color, groupId: g.id, groupEmoji: g.emoji }))
   );
+  const allGames = [...memberGames, ...guestGames];
   const upcoming = allGames.filter((gm) => gm.date > NOW).sort((a, b) => a.date - b.date);
   const history = allGames.filter((gm) => gm.date <= NOW).sort((a, b) => b.date - a.date);
   const list = tab === "upcoming" ? upcoming : history;
@@ -986,7 +1044,7 @@ function AllGamesPanel({ groups, go }) {
         </div>
       ) : list.map((gm, i) => (
         <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.05}s`, cursor: "pointer" }}
-          onClick={() => go("game", gm.groupId, gm.id)}>
+          onClick={() => go(gm.isGuestGame ? "guestGame" : "game", gm.groupId, gm.id)}>
           <div style={{
             background: tab === "upcoming"
               ? "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))"
@@ -998,10 +1056,11 @@ function AllGamesPanel({ groups, go }) {
             border: "1px solid rgba(255,255,255,0.6)",
             borderLeft: `4px solid ${gm.groupColor}`,
           }}>
-            {/* Group tag */}
+            {/* Group tag + optional guest badge */}
             <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
               <span style={{ fontSize: 13 }}>{gm.groupEmoji}</span>
               <span style={{ fontSize: 11, fontWeight: 700, color: gm.groupColor, fontFamily: "'Noto Sans JP',sans-serif" }}>{gm.groupName}</span>
+              {gm.isGuestGame && <span style={{ fontSize: 10, fontWeight: 800, color: "#9b6ea8", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "1px 7px", marginLeft: 2 }}>Guest</span>}
             </div>
             <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{gm.title}</div>
             <div style={{ fontSize: 12, color: "#b08090", marginTop: 3 }}>📅 {fmt(gm.date)} · {fmtT(gm.time)}</div>
@@ -1029,7 +1088,7 @@ function AllGamesPanel({ groups, go }) {
 }
 
 /* HOME */
-function Home({ groups, go, user }) {
+function Home({ groups, guestGames, go, user }) {
   // SVG mahjong tile pattern — faint bamboo/character tiles as background art
   const bgSVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='none'/%3E%3Cg opacity='0.07' fill='%23a0456e'%3E%3Crect x='10' y='10' width='28' height='38' rx='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Crect x='14' y='16' width='20' height='4' rx='2'/%3E%3Crect x='14' y='23' width='20' height='4' rx='2'/%3E%3Crect x='14' y='30' width='20' height='4' rx='2'/%3E%3Crect x='64' y='10' width='28' height='38' rx='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Ccircle cx='78' cy='24' r='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Ccircle cx='78' cy='37' r='3'/%3E%3Crect x='10' y='68' width='28' height='38' rx='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Cpath d='M18 78 Q24 72 30 78 Q24 84 18 78Z'/%3E%3Cpath d='M18 90 Q24 84 30 90 Q24 96 18 90Z'/%3E%3Crect x='64' y='68' width='28' height='38' rx='5' fill='none' stroke='%23a0456e' stroke-width='2'/%3E%3Crect x='70' y='75' width='16' height='18' rx='3' fill='none' stroke='%23a0456e' stroke-width='1.5'/%3E%3Cline x1='78' y1='75' x2='78' y2='93' stroke='%23a0456e' stroke-width='1.5'/%3E%3C/g%3E%3C/svg%3E")`;
 
@@ -1119,7 +1178,7 @@ function Home({ groups, go, user }) {
             ))}
 
             {/* All-groups games tabs */}
-            <AllGamesPanel groups={groups} go={go} />
+            <AllGamesPanel groups={groups} guestGames={guestGames} go={go} />
           </>
         )}
       </div>
@@ -1555,9 +1614,9 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
 }
 
 /* GAME DETAIL */
-function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete }) {
-  const isCreator = group.members.some((m) => m.id === uid && m.host);
-  const canInvite = isCreator || (group.openInvites ?? false);
+function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView = false }) {
+  const isCreator = !isGuestView && group.members.some((m) => m.id === uid && m.host);
+  const canInvite = !isGuestView && (isCreator || (group.openInvites ?? false));
   const myRsvp = game.rsvps[uid] || "pending";
   // Member RSVPs only (guests tracked separately)
   const yes = Object.values(game.rsvps).filter((v) => v === "yes").length;
@@ -1587,8 +1646,8 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete }) {
   return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,#fce8f0 0%,#f5d0e0 40%,#ead0e8 100%)` }}>
       <div style={{ background: `linear-gradient(135deg,${group.color},${group.color}aa)`, padding: "50px 22px 28px", position: "relative" }}>
-        <button onClick={() => go("group", group.id)} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.25)", border: "none", borderRadius: 999, width: 36, height: 36, fontSize: 18, color: "#fff" }}>‹</button>
-        {game.hostId === uid && (
+        <button onClick={() => isGuestView ? go("home") : go("group", group.id)} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.25)", border: "none", borderRadius: 999, width: 36, height: 36, fontSize: 18, color: "#fff" }}>‹</button>
+        {!isGuestView && game.hostId === uid && (
           <button onClick={() => go("editGame", group.id, game.id)} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✏️ Edit</button>
         )}
         <div style={{ textAlign: "center" }}>
