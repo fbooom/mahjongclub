@@ -11,7 +11,18 @@ import { auth, db, googleProvider } from "./firebase";
 
 const uid = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 const fmt = (ts) => new Date(ts).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-const fmtT = (t) => { const [h, m] = t.split(":").map(Number); return `${h % 12 || 12}:${m.toString().padStart(2,"0")} ${h >= 12 ? "PM" : "AM"}`; };
+const fmtT = (t) => { const [h, m] = t.split(":").map(Number); const mins = m === 0 ? "" : `:${m.toString().padStart(2,"0")}`; return `${h % 12 || 12}${mins} ${h >= 12 ? "PM" : "AM"}`; };
+const fmtRange = (start, end) => {
+  if (!end) return fmtT(start);
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  const startAmPm = sh >= 12 ? "PM" : "AM";
+  const endAmPm = eh >= 12 ? "PM" : "AM";
+  const fmt1 = (h, m) => { const mins = m === 0 ? "" : `:${m.toString().padStart(2,"0")}`; return `${h % 12 || 12}${mins}`; };
+  // Omit start AM/PM if same as end
+  const startStr = startAmPm === endAmPm ? fmt1(sh, sm) : `${fmt1(sh, sm)} ${startAmPm}`;
+  return `${startStr} – ${fmt1(eh, em)} ${endAmPm}`;
+};
 const NOW = Date.now();
 
 // Calendar helpers
@@ -24,7 +35,7 @@ const calDt = (dateTs, timeStr) => {
 const icsDate = (d) => d.toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
 const buildCalendarLinks = (game, groupName) => {
   const start = calDt(game.date, game.time);
-  const end = new Date(start.getTime() + 3 * 60 * 60 * 1000); // default 3hr duration
+  const end = game.endTime ? calDt(game.date, game.endTime) : new Date(start.getTime() + 3 * 60 * 60 * 1000);
   const title = encodeURIComponent(`${game.title} — ${groupName}`);
   const loc = encodeURIComponent(game.location);
   const details = encodeURIComponent(
@@ -1235,7 +1246,8 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
               {gm.isGuestGame && <span style={{ fontSize: 10, fontWeight: 800, color: "#9b6ea8", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "1px 7px", marginLeft: 2 }}>Guest</span>}
             </div>
             <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{gm.title}</div>
-            <div style={{ fontSize: 12, color: "#b08090", marginTop: 3 }}>📅 {fmt(gm.date)} · {fmtT(gm.time)}</div>
+            <div style={{ fontSize: 12, color: "#b08090", marginTop: 3 }}>📅 {fmt(gm.date)}</div>
+            <div style={{ fontSize: 12, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(gm.time, gm.endTime)}</div>
             <div style={{ fontSize: 12, color: "#b08090", marginTop: 1 }}>📍 {gm.location}</div>
             {(() => {
               const yesCount = Object.values(gm.rsvps).filter(v => v === "yes").length;
@@ -1650,7 +1662,8 @@ function GCard({ game, groupName = "", color, faded }) {
       borderLeft: `4px solid ${color}`,
     }}>
       <div style={{ fontWeight: 700, fontSize: 15, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{game.title}</div>
-      <div style={{ fontSize: 13, color: "#b08090", marginTop: 3 }}>📅 {fmt(game.date)} · {fmtT(game.time)}</div>
+      <div style={{ fontSize: 13, color: "#b08090", marginTop: 3 }}>📅 {fmt(game.date)}</div>
+      <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(game.time, game.endTime)}</div>
       <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>📍 {game.location}</div>
       {(() => {
         const yesCount = Object.values(game.rsvps).filter((v) => v === "yes").length;
@@ -1677,6 +1690,7 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("19:00");
+  const [endTime, setEndTime] = useState("22:00");
   const [loc, setLoc] = useState("");
   const [note, setNote] = useState("");
   const [seats, setSeats] = useState(4);
@@ -1705,14 +1719,14 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
     if (!ok) return;
     if (!recurring) {
       const ts = new Date(`${date}T${time}`).getTime();
-      onSave({ id: "gm" + uid(), title: title.trim(), host: myUser.name, hostId: myUid, date: ts, time, location: loc.trim(), seats, rsvps: { [myUid]: "yes" }, note, waitlist: [] });
+      onSave({ id: "gm" + uid(), title: title.trim(), host: myUser.name, hostId: myUid, date: ts, time, endTime, location: loc.trim(), seats, rsvps: { [myUid]: "yes" }, note, waitlist: [] });
     } else {
       const dates = previewDates();
       const games = dates.map((ts) => ({
         id: "gm" + uid(),
         title: title.trim(),
         host: myUser.name, hostId: myUid,
-        date: ts, time,
+        date: ts, time, endTime,
         location: loc.trim(),
         seats, rsvps: { [myUid]: "yes" },
         note,
@@ -1730,7 +1744,16 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
       <Lbl mt>Date</Lbl>
       <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputSt} />
       <Lbl mt>Time</Lbl>
-      <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={inputSt} />
+      <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Start</div>
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>End</div>
+          <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
+        </div>
+      </div>
       <Lbl mt>Location</Lbl>
       <Fld value={loc} set={setLoc} placeholder="e.g. 12 Oak Street" />
       <Lbl mt>Seats</Lbl>
@@ -1937,7 +1960,8 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
         </div>
       </div>
       <div style={{ padding: "18px 16px 100px" }}>
-        <IRow icon="📅" label="Date & Time" val={`${fmt(game.date)} · ${fmtT(game.time)}`} />
+        <IRow icon="📅" label="Date" val={fmt(game.date)} />
+        <IRow icon="🕐" label="Time" val={fmtRange(game.time, game.endTime)} />
         <IRow icon="📍" label="Location" val={game.location} />
         <IRow icon="🎯" label="Host" val={game.host} />
         <IRow icon="👥" label="Seats" val={`${filledSeats} / ${totalSeats} filled${seatsLeft > 0 ? ` · ${seatsLeft} open` : " · Full"}`} />
@@ -2102,6 +2126,7 @@ function EditGame({ uid: myUid, game, group, onBack, onSave, onTransferHost }) {
   const [title, setTitle] = useState(game.title);
   const [date, setDate] = useState(new Date(game.date).toISOString().slice(0, 10));
   const [time, setTime] = useState(game.time);
+  const [endTime, setEndTime] = useState(game.endTime || "22:00");
   const [loc, setLoc] = useState(game.location);
   const [note, setNote] = useState(game.note || "");
   const [seats, setSeats] = useState(() => {
@@ -2201,7 +2226,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
       }
     });
 
-    onSave({ ...game, title: title.trim(), date: ts, time, location: loc.trim(), note, seats, rsvps: newRsvps, guests: newGuests, waitlist: newWaitlist });
+    onSave({ ...game, title: title.trim(), date: ts, time, endTime, location: loc.trim(), note, seats, rsvps: newRsvps, guests: newGuests, waitlist: newWaitlist });
   };
 
   const ok = title.trim() && date && time && loc.trim();
@@ -2239,7 +2264,16 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
           <Lbl mt>Date</Lbl>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputSt} />
           <Lbl mt>Time</Lbl>
-          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={inputSt} />
+          <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Start</div>
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>End</div>
+              <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
+            </div>
+          </div>
           <Lbl mt>Location</Lbl>
           <Fld value={loc} set={setLoc} placeholder="e.g. 12 Oak Street" />
           <Lbl mt>Seats</Lbl>
