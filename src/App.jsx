@@ -322,13 +322,14 @@ export default function App() {
 
       {/* Toast */}
       {toast && (
-        <div className="bIn" style={{
-          position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)",
-          background: "linear-gradient(135deg,#7a3050,#c9607a)",
-          color: "#fff", borderRadius: 999, padding: "10px 22px",
-          fontWeight: 700, fontSize: 14, zIndex: 9999, whiteSpace: "nowrap",
-          boxShadow: "0 6px 24px rgba(168,66,107,0.4)",
-        }}>{toast.icon} {toast.msg}</div>
+        <div style={{ position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)", zIndex: 9999, width: "100%", maxWidth: 480, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+          <div className="bIn" style={{
+            background: "linear-gradient(135deg,#7a3050,#c9607a)",
+            color: "#fff", borderRadius: 999, padding: "10px 22px",
+            fontWeight: 700, fontSize: 14, whiteSpace: "nowrap",
+            boxShadow: "0 6px 24px rgba(168,66,107,0.4)",
+          }}>{toast.icon} {toast.msg}</div>
+        </div>
       )}
 
       {/* Page content */}
