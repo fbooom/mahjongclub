@@ -1744,12 +1744,12 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
       <Lbl mt>Date</Lbl>
       <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputSt} />
       <Lbl mt>Time</Lbl>
-      <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+        <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Start</div>
           <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...inputSt, marginBottom: 0, width: "100%", boxSizing: "border-box" }} />
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>End</div>
           <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ ...inputSt, marginBottom: 0, width: "100%", boxSizing: "border-box" }} />
         </div>
@@ -2521,6 +2521,8 @@ function Shell({ title, onBack, color, children }) {
         WebkitBackdropFilter: "blur(16px)",
         minHeight: "calc(100vh - 100px)",
         paddingBottom: 100,
+        overflowX: "hidden",
+        boxSizing: "border-box",
       }} className="sUp">{children}</div>
     </div>
   );
