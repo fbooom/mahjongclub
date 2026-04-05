@@ -124,6 +124,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [authUser, setAuthUser] = useState(undefined); // undefined = checking, null = logged out
   const [user, setUser] = useState(null);
+  const [impersonating, setImpersonating] = useState(null); // { uid, name, avatar, email }
   const gamesUnsubs = useRef({});
   const groupMeta = useRef({});
   const guestGameUnsubs = useRef({});
@@ -159,9 +160,11 @@ export default function App() {
   }, []);
 
   // ── Firestore real-time listeners for groups + games ──
+  // Uses effectiveUid so listeners reload automatically when impersonation starts/stops
+  const effectiveUid = impersonating?.uid || authUser?.uid;
   useEffect(() => {
-    if (!authUser?.uid) return;
-    const uid = authUser.uid;
+    if (!effectiveUid) return;
+    const uid = effectiveUid;
     const q = query(collection(db, "groups"), where("memberIds", "array-contains", uid));
 
     const groupsUnsub = onSnapshot(q, (snap) => {
@@ -255,9 +258,27 @@ export default function App() {
       guestGameUnsubs.current = {};
       guestGroupCache.current = {};
     };
-  }, [authUser?.uid]);
+  }, [effectiveUid]);
 
   const handleSignOut = async () => { await signOut(auth); };
+
+  const startImpersonating = (targetUser) => {
+    setImpersonating(targetUser);
+    setGroups([]);
+    setGuestGames([]);
+    setPage("home");
+    setGid(null);
+    setGmid(null);
+  };
+
+  const stopImpersonating = () => {
+    setImpersonating(null);
+    setGroups([]);
+    setGuestGames([]);
+    setPage("home");
+    setGid(null);
+    setGmid(null);
+  };
 
   // ── Deep-link invite processing ──
   const [pendingJoin] = useState(() => {
@@ -341,7 +362,8 @@ export default function App() {
     );
   }
 
-  const uid = authUser.uid;
+  const uid = impersonating?.uid || authUser.uid;
+  const displayUser = impersonating || user; // profile shown throughout the app
 
   const NAV_ITEMS = [
     { id: "home",    icon: "🀄", label: "Home"    },
@@ -350,6 +372,24 @@ export default function App() {
 
   return (
     <div className="app-shell">
+
+      {/* Impersonation banner */}
+      {impersonating && (
+        <div style={{
+          position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)",
+          width: "100%", maxWidth: 480, zIndex: 10000,
+          background: "linear-gradient(135deg,#2d1b4e,#5a2d6b)",
+          padding: "10px 16px", display: "flex", alignItems: "center", gap: 10,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+        }}>
+          <span style={{ fontSize: 20 }}>{impersonating.avatar}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>Admin · Viewing as</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{impersonating.name} · {impersonating.email}</div>
+          </div>
+          <button onClick={stopImpersonating} style={{ background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 999, padding: "5px 12px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", flexShrink: 0 }}>Exit</button>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
@@ -364,9 +404,9 @@ export default function App() {
       )}
 
       {/* Page content */}
-      <div style={{ paddingBottom: 74 }}>
-        {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={user} />}
-        {page === "account" && <Account uid={uid} user={user} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} />}
+      <div style={{ paddingBottom: 74, paddingTop: impersonating ? 52 : 0 }}>
+        {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} />}
+        {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} />}
         {page === "newGroup" && (
           <NewGroup onBack={() => go("home")}
             onSave={async (g) => {
@@ -859,8 +899,83 @@ function Divider() {
   );
 }
 
+/* ── ADMIN PANEL ── */
+function AdminPanel({ onImpersonate }) {
+  const [query_, setQuery_] = useState("");
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
+
+  const search = async () => {
+    const q = query_.trim().toLowerCase();
+    if (!q) return;
+    setSearching(true);
+    setSearched(true);
+    try {
+      // Search by exact email first, then by name prefix
+      const byEmail = await getDocs(query(collection(db, "users"), where("email", "==", q)));
+      const byEmailUp = await getDocs(query(collection(db, "users"), where("email", "==", query_.trim())));
+      const seen = new Set();
+      const combined = [];
+      [...byEmail.docs, ...byEmailUp.docs].forEach((d) => {
+        if (!seen.has(d.id)) { seen.add(d.id); combined.push({ uid: d.id, ...d.data() }); }
+      });
+      setResults(combined);
+    } catch { setResults([]); }
+    setSearching(false);
+  };
+
+  return (
+    <div style={{
+      background: "linear-gradient(135deg,rgba(45,27,78,0.08),rgba(90,45,107,0.06))",
+      borderRadius: 20, padding: "18px", marginBottom: 14,
+      border: "1.5px solid rgba(90,45,107,0.2)",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+        <span style={{ fontSize: 18 }}>🔐</span>
+        <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "#2d1b4e", fontWeight: 700 }}>Admin Panel</span>
+        <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 800, color: "#9b6ea8", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: 1 }}>Admin Only</span>
+      </div>
+
+      <div style={{ fontSize: 12, color: "#7a5090", marginBottom: 12, fontFamily: "'Noto Sans JP',sans-serif" }}>
+        Search for a user by email to view the app as them.
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <input
+          value={query_}
+          onChange={(e) => setQuery_(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && search()}
+          placeholder="User email address"
+          style={{ flex: 1, padding: "10px 14px", borderRadius: 12, fontSize: 13, border: "1.5px solid rgba(90,45,107,0.25)", background: "rgba(255,255,255,0.8)", color: "#2d1b4e", fontFamily: "'Noto Sans JP',sans-serif", outline: "none" }}
+        />
+        <button onClick={search} disabled={searching || !query_.trim()} style={{ background: "linear-gradient(135deg,#2d1b4e,#5a2d6b)", border: "none", borderRadius: 12, padding: "10px 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: (!query_.trim() || searching) ? 0.5 : 1 }}>
+          {searching ? "…" : "Search"}
+        </button>
+      </div>
+
+      {searched && results.length === 0 && !searching && (
+        <div style={{ fontSize: 12, color: "#9b6ea8", fontFamily: "'Noto Sans JP',sans-serif" }}>No user found with that email.</div>
+      )}
+
+      {results.map((u) => (
+        <div key={u.uid} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "rgba(255,255,255,0.7)", marginBottom: 8, border: "1px solid rgba(90,45,107,0.15)" }}>
+          <span style={{ fontSize: 22 }}>{u.avatar}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#2d1b4e", fontFamily: "'Noto Sans JP',sans-serif" }}>{u.name}</div>
+            <div style={{ fontSize: 11, color: "#9b6ea8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
+          </div>
+          <button onClick={() => onImpersonate(u)} style={{ background: "linear-gradient(135deg,#2d1b4e,#5a2d6b)", border: "none", borderRadius: 10, padding: "6px 12px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", flexShrink: 0 }}>
+            View as
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ── ACCOUNT PAGE ── */
-function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut }) {
+function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut, isAdmin, onImpersonate, isImpersonating }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
@@ -1001,6 +1116,9 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut 
           <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 14, color: "#9b5070", fontWeight: 600 }}>Mahjong Club</div>
           <div style={{ fontSize: 11, color: "#c0a0b0", marginTop: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Version 1.0 · Made with ❤️</div>
         </div>
+
+        {/* Admin Panel */}
+        {isAdmin && !isImpersonating && <AdminPanel onImpersonate={onImpersonate} />}
 
         {/* Sign Out */}
         <button onClick={onSignOut} style={{
