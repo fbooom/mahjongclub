@@ -1577,13 +1577,20 @@ function Group({ uid, group, go, flash, onLeave }) {
         <div style={{ textAlign: "center", position: "relative" }}>
           <div style={{ fontSize: 51, marginBottom: 6 }}>{group.emoji}</div>
           <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 27, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.25)", letterSpacing: 1 }}>{group.name}</h1>
-          <div style={{ display: "inline-block", background: "rgba(255,255,255,.22)", backdropFilter: "blur(8px)", borderRadius: 999, padding: "3px 14px", marginTop: 7, fontSize: 13, fontWeight: 700, color: "#fff", border: "1px solid rgba(255,255,255,.35)" }}>Code: {group.code}</div>
-        </div>
-        <div style={{ display: "flex", justifyContent: "center", gap: 7, marginTop: 14, flexWrap: "wrap" }}>
-          {group.members.map((m) => (
-            <div key={m.id} title={m.name} style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(255,255,255,.28)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, border: "2px solid rgba(255,255,255,.55)" }}>{m.avatar}</div>
-          ))}
-          {canInvite && <div onClick={() => go("invite", group.id)} style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(255,255,255,.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, border: "2px dashed rgba(255,255,255,.5)", cursor: "pointer", color: "#fff" }}>+</div>}
+          <div style={{ marginTop: 12 }}>
+            <button onClick={() => setChatOpen(true)} style={{
+              background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.45)",
+              borderRadius: 999, padding: "7px 20px", fontSize: 14, fontWeight: 700,
+              color: "#fff", cursor: "pointer", backdropFilter: "blur(8px)",
+              fontFamily: "'Noto Sans JP',sans-serif", display: "inline-flex",
+              alignItems: "center", gap: 7, transition: "transform .15s",
+            }}
+              onMouseDown={(e) => e.currentTarget.style.transform = "scale(.94)"}
+              onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+              onTouchStart={(e) => e.currentTarget.style.transform = "scale(.94)"}
+              onTouchEnd={(e) => e.currentTarget.style.transform = "scale(1)"}
+            >💬 Group Chat</button>
+          </div>
         </div>
       </div>
 
@@ -1647,21 +1654,6 @@ function Group({ uid, group, go, flash, onLeave }) {
         )}
       </div>
 
-      {/* Floating chat bubble */}
-      <button onClick={() => setChatOpen(true)} style={{
-        position: "fixed", bottom: 86, right: "calc(50% - 228px)",
-        width: 52, height: 52, borderRadius: 999,
-        background: `linear-gradient(135deg,${group.color},${group.color}cc)`,
-        border: "none", boxShadow: `0 4px 18px ${group.color}66`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 23, cursor: "pointer", zIndex: 900,
-        transition: "transform .15s",
-      }}
-        onMouseDown={(e) => e.currentTarget.style.transform = "scale(.92)"}
-        onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
-        onTouchStart={(e) => e.currentTarget.style.transform = "scale(.92)"}
-        onTouchEnd={(e) => e.currentTarget.style.transform = "scale(1)"}
-      >💬</button>
 
       {chatOpen && (
         <GroupChat group={group} uid={uid} user={{ name: group.members.find(m => m.id === uid)?.name || "You", avatar: group.members.find(m => m.id === uid)?.avatar || "🀄" }} onClose={() => setChatOpen(false)} />
