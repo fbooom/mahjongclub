@@ -108,8 +108,8 @@ const inputSt = {
 const globalCSS = `
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Shippori+Mincho:wght@400;500;600;700;800&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%;font-family:'Noto Sans JP',sans-serif}
-  body{background:linear-gradient(135deg,#e8d0e8 0%,#f0d4e8 50%,#d8c8e0 100%);background-attachment:fixed;min-height:100vh}
+  html,body{height:100%;font-family:'Noto Sans JP',sans-serif;overflow:hidden;overscroll-behavior:none}
+  body{background:#ead0e8;min-height:100%}
   button{cursor:pointer;border:none;font-family:'Noto Sans JP',sans-serif}
   input,select,textarea{font-family:'Noto Sans JP',sans-serif;outline:none}
 
@@ -151,7 +151,7 @@ const globalCSS = `
     transform: translateX(-50%);
     width: 100%;
     max-width: 480px;
-    background: rgba(255,240,248,0.88);
+    background: #fdf0f6;
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid rgba(255,200,220,0.5);
     display: flex; align-items: stretch;
