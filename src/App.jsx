@@ -1791,7 +1791,7 @@ function GroupChat({ group, uid, user, onClose }) {
         )}
 
         {/* Messages */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px 4px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "12px 14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
           {messages.length === 0 && (
             <div style={{ textAlign: "center", color: "#c0a0b0", padding: "48px 0" }}>
               <div style={{ fontSize: 40 }}>💬</div>
