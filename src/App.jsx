@@ -1666,8 +1666,8 @@ function Group({ uid, group, go, flash, onLeave }) {
 function GroupChat({ group, uid, user, onClose }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
-  const [expandedReplies, setExpandedReplies] = useState({});
   const [replyTexts, setReplyTexts] = useState({});
+  const [replyOpen, setReplyOpen] = useState({});
   const [notifBanner, setNotifBanner] = useState(
     typeof Notification !== "undefined" && Notification.permission === "default"
   );
@@ -1798,12 +1798,18 @@ function GroupChat({ group, uid, user, onClose }) {
               <p style={{ fontSize: 13, marginTop: 4 }}>Tap <b>+</b> to say hello to the group!</p>
             </div>
           )}
-          {messages.map((msg) => {
+          {messages.map((msg, idx) => {
             const isMe = msg.uid === uid;
-            const repliesOpen = expandedReplies[msg.id];
-            const replyCount = (msg.replies || []).length;
+            const replies = msg.replies || [];
+            const replyCount = replies.length;
+            const showReplyInput = replyOpen[msg.id];
             return (
               <div key={msg.id}>
+                {/* Divider between messages */}
+                {idx > 0 && (
+                  <div style={{ height: 1, background: "rgba(201,96,122,0.12)", margin: "4px 0 12px" }} />
+                )}
+
                 {/* Bubble row */}
                 <div style={{ display: "flex", gap: 8, flexDirection: isMe ? "row-reverse" : "row", alignItems: "flex-end" }}>
                   {!isMe && (
@@ -1812,9 +1818,7 @@ function GroupChat({ group, uid, user, onClose }) {
                   <div style={{ maxWidth: "74%", display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
                     {!isMe && <div style={{ fontSize: 12, color: "#b08090", marginBottom: 3, fontWeight: 700, paddingLeft: 4 }}>{msg.name}</div>}
                     <div style={{
-                      background: isMe
-                        ? `linear-gradient(135deg,${group.color},${group.color}bb)`
-                        : "rgba(255,255,255,0.9)",
+                      background: isMe ? `linear-gradient(135deg,${group.color},${group.color}bb)` : "rgba(255,255,255,0.9)",
                       color: isMe ? "#fff" : "#4a2c3a",
                       borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
                       padding: "10px 14px", fontSize: 15, lineHeight: 1.45,
@@ -1827,7 +1831,7 @@ function GroupChat({ group, uid, user, onClose }) {
                 </div>
 
                 {/* Reactions + reply button */}
-                <div style={{ display: "flex", gap: 4, marginTop: 5, paddingLeft: isMe ? 0 : 42, justifyContent: isMe ? "flex-end" : "flex-start", flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 4, marginTop: 6, paddingLeft: isMe ? 0 : 42, justifyContent: isMe ? "flex-end" : "flex-start", flexWrap: "wrap", alignItems: "center" }}>
                   {REACTION_EMOJIS.map((emoji) => {
                     const reactors = msg.reactions?.[emoji] || [];
                     const reacted = reactors.includes(uid);
@@ -1837,54 +1841,54 @@ function GroupChat({ group, uid, user, onClose }) {
                         border: `1.5px solid ${reacted ? group.color : "rgba(201,96,122,0.15)"}`,
                         borderRadius: 999, padding: "2px 7px", fontSize: 14,
                         cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3,
-                        color: reacted ? group.color : "#b08090",
-                        fontWeight: reacted ? 700 : 400,
-                        fontFamily: "'Noto Sans JP',sans-serif",
-                        transition: "all .13s",
+                        color: reacted ? group.color : "#b08090", fontWeight: reacted ? 700 : 400,
+                        fontFamily: "'Noto Sans JP',sans-serif", transition: "all .13s",
                       }}>
-                        {emoji}
-                        {reactors.length > 0 && <span style={{ fontSize: 12 }}>{reactors.length}</span>}
+                        {emoji}{reactors.length > 0 && <span style={{ fontSize: 12 }}>{reactors.length}</span>}
                       </button>
                     );
                   })}
-                  <button onClick={() => setExpandedReplies((v) => ({ ...v, [msg.id]: !v[msg.id] }))} style={{
-                    background: repliesOpen ? "rgba(201,96,122,0.1)" : "rgba(255,255,255,0.65)",
-                    border: `1.5px solid ${repliesOpen ? "rgba(201,96,122,0.35)" : "rgba(201,96,122,0.15)"}`,
+                  <button onClick={() => setReplyOpen((v) => ({ ...v, [msg.id]: !v[msg.id] }))} style={{
+                    background: showReplyInput ? "rgba(201,96,122,0.1)" : "rgba(255,255,255,0.65)",
+                    border: `1.5px solid ${showReplyInput ? "rgba(201,96,122,0.35)" : "rgba(201,96,122,0.15)"}`,
                     borderRadius: 999, padding: "2px 9px", fontSize: 13,
-                    cursor: "pointer", color: repliesOpen ? "#c9607a" : "#b08090",
-                    fontFamily: "'Noto Sans JP',sans-serif", fontWeight: repliesOpen ? 700 : 400,
+                    cursor: "pointer", color: showReplyInput ? "#c9607a" : "#b08090",
+                    fontFamily: "'Noto Sans JP',sans-serif", fontWeight: showReplyInput ? 700 : 400,
                     transition: "all .13s",
                   }}>
-                    💬 {replyCount > 0 ? `${replyCount} repl${replyCount === 1 ? "y" : "ies"}` : "Reply"}
+                    ↩ {replyCount > 0 ? `${replyCount} repl${replyCount === 1 ? "y" : "ies"}` : "Reply"}
                   </button>
                 </div>
 
-                {/* Reply thread */}
-                {repliesOpen && (
-                  <div style={{ marginLeft: 42, marginTop: 7, borderLeft: `2px solid ${group.color}44`, paddingLeft: 10 }}>
-                    {(msg.replies || []).map((r, ri) => (
+                {/* Inline replies — always visible when present; input shown on toggle */}
+                {(replyCount > 0 || showReplyInput) && (
+                  <div style={{ marginLeft: 42, marginTop: 8, borderLeft: `2px solid ${group.color}33`, paddingLeft: 10 }}>
+                    {replies.map((r, ri) => (
                       <div key={ri} style={{ display: "flex", gap: 6, alignItems: "flex-start", marginBottom: 7 }}>
                         <div style={{ width: 26, height: 26, borderRadius: 999, background: "linear-gradient(135deg,#fce4ee,#f5d0e0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>{r.avatar}</div>
                         <div style={{ background: "rgba(255,255,255,0.82)", borderRadius: "12px 12px 12px 3px", padding: "6px 10px", flex: 1 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: group.color }}>{r.name} </span>
-                          <span style={{ fontSize: 14, color: "#4a2c3a" }}>{r.text}</span>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: group.color, marginBottom: 2 }}>{r.name}</div>
+                          <div style={{ fontSize: 14, color: "#4a2c3a" }}>{r.text}</div>
                         </div>
                       </div>
                     ))}
-                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                      <input
-                        value={replyTexts[msg.id] || ""}
-                        onChange={(e) => setReplyTexts((v) => ({ ...v, [msg.id]: e.target.value }))}
-                        onKeyDown={(e) => e.key === "Enter" && sendReply(msg.id)}
-                        placeholder="Reply…"
-                        style={{ ...inputSt, flex: 1, marginBottom: 0, fontSize: 14, padding: "7px 11px", borderRadius: 12 }}
-                      />
-                      <button onClick={() => sendReply(msg.id)} style={{
-                        background: `linear-gradient(135deg,${group.color},${group.color}cc)`,
-                        border: "none", borderRadius: 12, padding: "0 13px",
-                        color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", flexShrink: 0,
-                      }}>Send</button>
-                    </div>
+                    {showReplyInput && (
+                      <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                        <input
+                          autoFocus
+                          value={replyTexts[msg.id] || ""}
+                          onChange={(e) => setReplyTexts((v) => ({ ...v, [msg.id]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === "Enter") { sendReply(msg.id); setReplyOpen((v) => ({ ...v, [msg.id]: false })); } }}
+                          placeholder="Write a reply…"
+                          style={{ ...inputSt, flex: 1, marginBottom: 0, fontSize: 14, padding: "7px 11px", borderRadius: 12 }}
+                        />
+                        <button onClick={() => { sendReply(msg.id); setReplyOpen((v) => ({ ...v, [msg.id]: false })); }} style={{
+                          background: `linear-gradient(135deg,${group.color},${group.color}cc)`,
+                          border: "none", borderRadius: 12, padding: "0 13px",
+                          color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", flexShrink: 0,
+                        }}>Send</button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
