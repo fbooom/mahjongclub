@@ -111,7 +111,7 @@ const globalCSS = `
   html,body{height:100%;font-family:'Noto Sans JP',sans-serif;overflow:hidden;overscroll-behavior:none}
   body{background:#ead0e8;min-height:100%}
   button{cursor:pointer;border:none;font-family:'Noto Sans JP',sans-serif}
-  input,select,textarea{font-family:'Noto Sans JP',sans-serif;outline:none}
+  input,select,textarea{font-family:'Noto Sans JP',sans-serif;outline:none;font-size:16px}
 
   @keyframes bIn{0%{transform:scale(.7);opacity:0}70%{transform:scale(1.06);opacity:1}100%{transform:scale(1)}}
   @keyframes sUp{from{transform:translateY(28px);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -1922,7 +1922,7 @@ function GroupChat({ group, uid, user, onClose }) {
                           onChange={(e) => setReplyTexts((v) => ({ ...v, [msg.id]: e.target.value }))}
                           onKeyDown={(e) => { if (e.key === "Enter") { sendReply(msg.id); setReplyOpen((v) => ({ ...v, [msg.id]: false })); } }}
                           placeholder="Write a reply…"
-                          style={{ ...inputSt, flex: 1, marginBottom: 0, fontSize: 14, padding: "7px 11px", borderRadius: 12 }}
+                          style={{ ...inputSt, flex: 1, marginBottom: 0, fontSize: 16, padding: "7px 11px", borderRadius: 12 }}
                         />
                         <button onClick={() => { sendReply(msg.id); setReplyOpen((v) => ({ ...v, [msg.id]: false })); }} style={{
                           background: `linear-gradient(135deg,${group.color},${group.color}cc)`,
@@ -1953,7 +1953,7 @@ function GroupChat({ group, uid, user, onClose }) {
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
             placeholder="Message the group…"
             rows={1}
-            style={{ ...inputSt, flex: 1, marginBottom: 0, resize: "none", borderRadius: 18, padding: "10px 14px", fontSize: 15, lineHeight: 1.4, overflow: "hidden" }}
+            style={{ ...inputSt, flex: 1, marginBottom: 0, resize: "none", borderRadius: 18, padding: "10px 14px", fontSize: 16, lineHeight: 1.4, overflow: "hidden" }}
           />
           <button onClick={sendMessage} style={{
             background: text.trim() ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(201,96,122,0.18)",
