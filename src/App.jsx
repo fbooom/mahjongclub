@@ -1939,8 +1939,8 @@ function GroupChat({ group, uid, user, onClose }) {
           <div ref={bottomRef} />
         </div>
 
-        {/* Input bar */}
-        <div style={{
+        {/* Input bar — hidden while a reply input is open */}
+        {!Object.values(replyOpen).some(Boolean) && <div style={{
           padding: "10px 14px calc(10px + env(safe-area-inset-bottom))",
           borderTop: "1px solid rgba(201,96,122,0.15)",
           background: "rgba(255,245,250,0.97)",
@@ -1964,7 +1964,7 @@ function GroupChat({ group, uid, user, onClose }) {
             transition: "all .18s", flexShrink: 0,
             fontFamily: "'Noto Sans JP',sans-serif",
           }}>Send</button>
-        </div>
+        </div>}
       </div>
     </>
   );
