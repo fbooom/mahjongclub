@@ -5,7 +5,8 @@ import {
 } from "firebase/auth";
 import {
   collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
-  onSnapshot, query, where, arrayUnion, arrayRemove, runTransaction,
+  onSnapshot, query, where, orderBy, addDoc, serverTimestamp,
+  arrayUnion, arrayRemove, runTransaction,
 } from "firebase/firestore";
 import { auth, db, googleProvider } from "./firebase";
 
@@ -95,6 +96,7 @@ const SEED = [
 
 const EMOJIS = ["🀄","🀅","🀆","🀇","🀈","🎲","🌸","🌿","🎋","🎍"];
 const COLORS = ["#c9607a","#9b6ea8","#d4829b","#e8a0b0","#c17db8","#a0845c","#7a9e7e","#d4a5c9"];
+const REACTION_EMOJIS = ["😊","👍","❤️","👏","😢","👎"];
 
 const inputSt = {
   width: "100%", padding: "12px 14px", background: "#fff", borderRadius: 12,
@@ -113,6 +115,7 @@ const globalCSS = `
 
   @keyframes bIn{0%{transform:scale(.7);opacity:0}70%{transform:scale(1.06);opacity:1}100%{transform:scale(1)}}
   @keyframes sUp{from{transform:translateY(28px);opacity:0}to{transform:translateY(0);opacity:1}}
+  @keyframes sheetUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}
   @keyframes f0{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-10px) rotate(4deg)}}
   @keyframes f1{0%,100%{transform:translateY(0) rotate(6deg)}50%{transform:translateY(-12px) rotate(-3deg)}}
   @keyframes f2{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-8px) rotate(6deg)}}
@@ -1551,6 +1554,7 @@ function JoinGroup({ uid, groups, onBack, onJoin }) {
 function Group({ uid, group, go, flash, onLeave }) {
   const [tab, setTab] = useState("games");
   const [gamesTab, setGamesTab] = useState("upcoming");
+  const [chatOpen, setChatOpen] = useState(false);
   const upcoming = group.games.filter((g) => g.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
   const past = group.games.filter((g) => g.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
   const gamesList = gamesTab === "upcoming" ? upcoming : past;
@@ -1642,7 +1646,288 @@ function Group({ uid, group, go, flash, onLeave }) {
           </>
         )}
       </div>
+
+      {/* Floating chat bubble */}
+      <button onClick={() => setChatOpen(true)} style={{
+        position: "fixed", bottom: 86, right: "calc(50% - 228px)",
+        width: 52, height: 52, borderRadius: 999,
+        background: `linear-gradient(135deg,${group.color},${group.color}cc)`,
+        border: "none", boxShadow: `0 4px 18px ${group.color}66`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 23, cursor: "pointer", zIndex: 900,
+        transition: "transform .15s",
+      }}
+        onMouseDown={(e) => e.currentTarget.style.transform = "scale(.92)"}
+        onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+        onTouchStart={(e) => e.currentTarget.style.transform = "scale(.92)"}
+        onTouchEnd={(e) => e.currentTarget.style.transform = "scale(1)"}
+      >💬</button>
+
+      {chatOpen && (
+        <GroupChat group={group} uid={uid} user={{ name: group.members.find(m => m.id === uid)?.name || "You", avatar: group.members.find(m => m.id === uid)?.avatar || "🀄" }} onClose={() => setChatOpen(false)} />
+      )}
     </div>
+  );
+}
+
+/* ── GROUP CHAT ── */
+function GroupChat({ group, uid, user, onClose }) {
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState("");
+  const [expandedReplies, setExpandedReplies] = useState({});
+  const [replyTexts, setReplyTexts] = useState({});
+  const [notifBanner, setNotifBanner] = useState(
+    typeof Notification !== "undefined" && Notification.permission === "default"
+  );
+  const bottomRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, "groups", group.id, "messages"),
+      orderBy("createdAt", "asc")
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return unsub;
+  }, [group.id]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const sendMessage = async () => {
+    const t = text.trim();
+    if (!t) return;
+    setText("");
+    inputRef.current?.focus();
+    await addDoc(collection(db, "groups", group.id, "messages"), {
+      uid, name: user.name, avatar: user.avatar,
+      text: t, createdAt: serverTimestamp(),
+      reactions: {}, replies: [],
+    });
+  };
+
+  const toggleReaction = async (msg, emoji) => {
+    const ref = doc(db, "groups", group.id, "messages", msg.id);
+    const current = msg.reactions?.[emoji] || [];
+    const already = current.includes(uid);
+    await updateDoc(ref, {
+      [`reactions.${emoji}`]: already ? arrayRemove(uid) : arrayUnion(uid),
+    });
+  };
+
+  const sendReply = async (msgId) => {
+    const t = (replyTexts[msgId] || "").trim();
+    if (!t) return;
+    setReplyTexts((v) => ({ ...v, [msgId]: "" }));
+    const ref = doc(db, "groups", group.id, "messages", msgId);
+    await updateDoc(ref, {
+      replies: arrayUnion({ uid, name: user.name, avatar: user.avatar, text: t, createdAt: Date.now() }),
+    });
+  };
+
+  const requestNotifications = async () => {
+    if (typeof Notification === "undefined") return;
+    const perm = await Notification.requestPermission();
+    setNotifBanner(false);
+    if (perm === "granted") {
+      await updateDoc(doc(db, "users", uid), { notificationsEnabled: true });
+    }
+  };
+
+  const fmtTime = (ts) => {
+    if (!ts) return "";
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  };
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{
+        position: "fixed", inset: 0, background: "rgba(30,10,20,0.45)",
+        zIndex: 2000, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)",
+      }} />
+
+      {/* Sheet */}
+      <div style={{
+        position: "fixed", bottom: 0, left: "50%",
+        transform: "translateX(-50%)",
+        width: "100%", maxWidth: 480,
+        height: "88vh",
+        background: "linear-gradient(170deg,#fdf0f6 0%,#f8dcea 50%,#f0d4e8 100%)",
+        borderRadius: "22px 22px 0 0",
+        zIndex: 2001,
+        display: "flex", flexDirection: "column",
+        boxShadow: "0 -8px 40px rgba(168,66,107,0.28)",
+        animation: "sheetUp .28s cubic-bezier(.32,.72,0,1) both",
+      }}>
+        {/* Handle */}
+        <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 0" }}>
+          <div style={{ width: 36, height: 4, borderRadius: 999, background: "rgba(201,96,122,0.25)" }} />
+        </div>
+
+        {/* Header */}
+        <div style={{
+          padding: "10px 16px 12px",
+          borderBottom: "1px solid rgba(201,96,122,0.15)",
+          display: "flex", alignItems: "center", gap: 10, flexShrink: 0,
+        }}>
+          <div style={{ width: 40, height: 40, borderRadius: 13, background: `linear-gradient(135deg,${group.color}33,${group.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21 }}>{group.emoji}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, fontWeight: 700, color: "#4a2c3a" }}>Group Chat</div>
+            <div style={{ fontSize: 13, color: "#b08090" }}>{group.name} · {group.members.length} members</div>
+          </div>
+          <button onClick={onClose} style={{ background: "rgba(201,96,122,0.1)", border: "none", borderRadius: 999, width: 34, height: 34, fontSize: 18, cursor: "pointer", color: "#c9607a", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+
+        {/* Notification banner */}
+        {notifBanner && (
+          <div style={{ margin: "8px 14px 0", background: "rgba(201,96,122,0.08)", border: "1px solid rgba(201,96,122,0.2)", borderRadius: 12, padding: "9px 12px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <span style={{ fontSize: 18 }}>🔔</span>
+            <div style={{ flex: 1, fontSize: 13, color: "#7a3050", fontFamily: "'Noto Sans JP',sans-serif" }}>Get notified when members post</div>
+            <button onClick={requestNotifications} style={{ background: `linear-gradient(135deg,${group.color},${group.color}cc)`, border: "none", borderRadius: 999, padding: "4px 12px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", whiteSpace: "nowrap" }}>Enable</button>
+            <button onClick={() => setNotifBanner(false)} style={{ background: "none", border: "none", color: "#c0a0b0", fontSize: 16, cursor: "pointer", padding: 0, lineHeight: 1 }}>✕</button>
+          </div>
+        )}
+
+        {/* Messages */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px 4px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {messages.length === 0 && (
+            <div style={{ textAlign: "center", color: "#c0a0b0", padding: "48px 0" }}>
+              <div style={{ fontSize: 40 }}>💬</div>
+              <p style={{ fontSize: 15, marginTop: 10, fontFamily: "'Shippori Mincho',serif", color: "#9b5070" }}>No messages yet</p>
+              <p style={{ fontSize: 13, marginTop: 4 }}>Say hello to the group!</p>
+            </div>
+          )}
+          {messages.map((msg) => {
+            const isMe = msg.uid === uid;
+            const repliesOpen = expandedReplies[msg.id];
+            const replyCount = (msg.replies || []).length;
+            return (
+              <div key={msg.id}>
+                {/* Bubble row */}
+                <div style={{ display: "flex", gap: 8, flexDirection: isMe ? "row-reverse" : "row", alignItems: "flex-end" }}>
+                  {!isMe && (
+                    <div style={{ width: 34, height: 34, borderRadius: 999, background: "linear-gradient(135deg,#fce4ee,#f5d0e0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0, alignSelf: "flex-start", marginTop: 18 }}>{msg.avatar}</div>
+                  )}
+                  <div style={{ maxWidth: "74%", display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
+                    {!isMe && <div style={{ fontSize: 12, color: "#b08090", marginBottom: 3, fontWeight: 700, paddingLeft: 4 }}>{msg.name}</div>}
+                    <div style={{
+                      background: isMe
+                        ? `linear-gradient(135deg,${group.color},${group.color}bb)`
+                        : "rgba(255,255,255,0.9)",
+                      color: isMe ? "#fff" : "#4a2c3a",
+                      borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                      padding: "10px 14px", fontSize: 15, lineHeight: 1.45,
+                      boxShadow: isMe ? `0 4px 14px ${group.color}44` : "0 2px 8px rgba(168,66,107,0.09)",
+                      border: isMe ? "none" : "1px solid rgba(255,255,255,0.85)",
+                      wordBreak: "break-word",
+                    }}>{msg.text}</div>
+                    <div style={{ fontSize: 12, color: "#c0a8b8", marginTop: 3, paddingLeft: isMe ? 0 : 4, paddingRight: isMe ? 4 : 0 }}>{fmtTime(msg.createdAt)}</div>
+                  </div>
+                </div>
+
+                {/* Reactions + reply button */}
+                <div style={{ display: "flex", gap: 4, marginTop: 5, paddingLeft: isMe ? 0 : 42, justifyContent: isMe ? "flex-end" : "flex-start", flexWrap: "wrap", alignItems: "center" }}>
+                  {REACTION_EMOJIS.map((emoji) => {
+                    const reactors = msg.reactions?.[emoji] || [];
+                    const reacted = reactors.includes(uid);
+                    return (
+                      <button key={emoji} onClick={() => toggleReaction(msg, emoji)} style={{
+                        background: reacted ? `${group.color}22` : "rgba(255,255,255,0.65)",
+                        border: `1.5px solid ${reacted ? group.color : "rgba(201,96,122,0.15)"}`,
+                        borderRadius: 999, padding: "2px 7px", fontSize: 14,
+                        cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3,
+                        color: reacted ? group.color : "#b08090",
+                        fontWeight: reacted ? 700 : 400,
+                        fontFamily: "'Noto Sans JP',sans-serif",
+                        transition: "all .13s",
+                      }}>
+                        {emoji}
+                        {reactors.length > 0 && <span style={{ fontSize: 12 }}>{reactors.length}</span>}
+                      </button>
+                    );
+                  })}
+                  <button onClick={() => setExpandedReplies((v) => ({ ...v, [msg.id]: !v[msg.id] }))} style={{
+                    background: repliesOpen ? "rgba(201,96,122,0.1)" : "rgba(255,255,255,0.65)",
+                    border: `1.5px solid ${repliesOpen ? "rgba(201,96,122,0.35)" : "rgba(201,96,122,0.15)"}`,
+                    borderRadius: 999, padding: "2px 9px", fontSize: 13,
+                    cursor: "pointer", color: repliesOpen ? "#c9607a" : "#b08090",
+                    fontFamily: "'Noto Sans JP',sans-serif", fontWeight: repliesOpen ? 700 : 400,
+                    transition: "all .13s",
+                  }}>
+                    💬 {replyCount > 0 ? `${replyCount} repl${replyCount === 1 ? "y" : "ies"}` : "Reply"}
+                  </button>
+                </div>
+
+                {/* Reply thread */}
+                {repliesOpen && (
+                  <div style={{ marginLeft: 42, marginTop: 7, borderLeft: `2px solid ${group.color}44`, paddingLeft: 10 }}>
+                    {(msg.replies || []).map((r, ri) => (
+                      <div key={ri} style={{ display: "flex", gap: 6, alignItems: "flex-start", marginBottom: 7 }}>
+                        <div style={{ width: 26, height: 26, borderRadius: 999, background: "linear-gradient(135deg,#fce4ee,#f5d0e0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>{r.avatar}</div>
+                        <div style={{ background: "rgba(255,255,255,0.82)", borderRadius: "12px 12px 12px 3px", padding: "6px 10px", flex: 1 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: group.color }}>{r.name} </span>
+                          <span style={{ fontSize: 14, color: "#4a2c3a" }}>{r.text}</span>
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                      <input
+                        value={replyTexts[msg.id] || ""}
+                        onChange={(e) => setReplyTexts((v) => ({ ...v, [msg.id]: e.target.value }))}
+                        onKeyDown={(e) => e.key === "Enter" && sendReply(msg.id)}
+                        placeholder="Reply…"
+                        style={{ ...inputSt, flex: 1, marginBottom: 0, fontSize: 14, padding: "7px 11px", borderRadius: 12 }}
+                      />
+                      <button onClick={() => sendReply(msg.id)} style={{
+                        background: `linear-gradient(135deg,${group.color},${group.color}cc)`,
+                        border: "none", borderRadius: 12, padding: "0 13px",
+                        color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", flexShrink: 0,
+                      }}>Send</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input bar */}
+        <div style={{
+          padding: "10px 14px calc(10px + env(safe-area-inset-bottom))",
+          borderTop: "1px solid rgba(201,96,122,0.15)",
+          background: "rgba(255,245,250,0.97)",
+          flexShrink: 0, display: "flex", gap: 8, alignItems: "flex-end",
+        }}>
+          <textarea
+            ref={inputRef}
+            value={text}
+            onChange={(e) => { setText(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 110) + "px"; }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+            placeholder="Message the group…"
+            rows={1}
+            style={{ ...inputSt, flex: 1, marginBottom: 0, resize: "none", borderRadius: 18, padding: "10px 14px", fontSize: 15, lineHeight: 1.4, overflow: "hidden" }}
+          />
+          <button onClick={sendMessage} style={{
+            background: text.trim() ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(201,96,122,0.18)",
+            border: "none", borderRadius: 18, padding: "10px 20px",
+            color: text.trim() ? "#fff" : "#d4a5c9",
+            fontSize: 15, fontWeight: 700,
+            cursor: text.trim() ? "pointer" : "default",
+            transition: "all .18s", flexShrink: 0,
+            fontFamily: "'Noto Sans JP',sans-serif",
+          }}>Send</button>
+        </div>
+      </div>
+    </>
   );
 }
 
