@@ -1030,6 +1030,7 @@ function AdminPanel({ onImpersonate }) {
 /* ── ACCOUNT PAGE ── */
 function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut, isAdmin, onImpersonate, isImpersonating }) {
   const [editing, setEditing] = useState(false);
+  const [showAllGroups, setShowAllGroups] = useState(false);
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
   const AVATARS = [
@@ -1143,8 +1144,8 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           border: "1px solid rgba(255,255,255,0.65)",
         }}>
           <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "#7a3050", fontWeight: 700 }}>My Groups</span>
-          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-            {groups.map((g) => (
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, marginBottom: groups.length > 3 ? 8 : 16 }}>
+            {(showAllGroups ? groups : groups.slice(0, 3)).map((g) => (
               <div key={g.id} onClick={() => go("group", g.id)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 10px", borderRadius: 12, background: "rgba(255,255,255,0.5)" }}>
                 <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg,${g.color}33,${g.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>{g.emoji}</div>
                 <div style={{ flex: 1 }}>
@@ -1155,6 +1156,15 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
               </div>
             ))}
           </div>
+          {groups.length > 3 && (
+            <button onClick={() => setShowAllGroups(v => !v)} style={{
+              width: "100%", padding: "10px 0", background: "none", border: "1px dashed rgba(201,96,122,0.3)",
+              borderRadius: 12, color: "#c9607a", fontSize: 14, fontWeight: 700,
+              fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", marginBottom: 16,
+            }}>
+              {showAllGroups ? "See less ↑" : `See ${groups.length - 3} more ${groups.length - 3 === 1 ? "group" : "groups"} ↓`}
+            </button>
+          )}
           <AllGamesPanel groups={groups} guestGames={guestGames} go={go} />
         </div>
 
