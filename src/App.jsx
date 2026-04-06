@@ -1203,8 +1203,8 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
     g.games.map((gm) => ({ ...gm, groupName: g.name, groupColor: g.color, groupId: g.id, groupEmoji: g.emoji }))
   );
   const allGames = [...memberGames, ...guestGames];
-  const upcoming = allGames.filter((gm) => gm.date > NOW).sort((a, b) => a.date - b.date);
-  const history = allGames.filter((gm) => gm.date <= NOW).sort((a, b) => b.date - a.date);
+  const upcoming = allGames.filter((gm) => gm.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
+  const history = allGames.filter((gm) => gm.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
   const fullList = tab === "upcoming" ? upcoming : history;
   const list = showAll ? fullList : fullList.slice(0, 3);
 
@@ -1541,8 +1541,8 @@ function JoinGroup({ uid, groups, onBack, onJoin }) {
 function Group({ uid, group, go, flash, onLeave }) {
   const [tab, setTab] = useState("games");
   const [gamesTab, setGamesTab] = useState("upcoming");
-  const upcoming = group.games.filter((g) => g.date > NOW).sort((a, b) => a.date - b.date);
-  const past = group.games.filter((g) => g.date <= NOW).sort((a, b) => b.date - a.date);
+  const upcoming = group.games.filter((g) => g.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
+  const past = group.games.filter((g) => g.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
   const gamesList = gamesTab === "upcoming" ? upcoming : past;
   const isCreator = group.members.some((m) => m.id === uid && m.host);
   const canInvite = isCreator || (group.openInvites ?? false);
