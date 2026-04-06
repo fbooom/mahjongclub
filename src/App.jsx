@@ -1748,10 +1748,10 @@ function GroupChat({ group, uid, user, onClose }) {
 
       {/* Sheet */}
       <div style={{
-        position: "fixed", bottom: 0, left: "50%",
+        position: "fixed", bottom: 74, left: "50%",
         transform: "translateX(-50%)",
         width: "100%", maxWidth: 480,
-        height: "88vh",
+        height: "calc(88vh - 74px)",
         background: "linear-gradient(170deg,#fdf0f6 0%,#f8dcea 50%,#f0d4e8 100%)",
         borderRadius: "22px 22px 0 0",
         zIndex: 2001,
@@ -1775,6 +1775,7 @@ function GroupChat({ group, uid, user, onClose }) {
             <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, fontWeight: 700, color: "#4a2c3a" }}>Group Chat</div>
             <div style={{ fontSize: 13, color: "#b08090" }}>{group.name} · {group.members.length} members</div>
           </div>
+          <button onClick={() => { inputRef.current?.focus(); inputRef.current?.scrollIntoView({ behavior: "smooth" }); }} style={{ background: `linear-gradient(135deg,${group.color},${group.color}cc)`, border: "none", borderRadius: 999, width: 34, height: 34, fontSize: 20, cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 2px 10px ${group.color}55`, marginRight: 4 }}>+</button>
           <button onClick={onClose} style={{ background: "rgba(201,96,122,0.1)", border: "none", borderRadius: 999, width: 34, height: 34, fontSize: 18, cursor: "pointer", color: "#c9607a", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
 
@@ -1794,7 +1795,7 @@ function GroupChat({ group, uid, user, onClose }) {
             <div style={{ textAlign: "center", color: "#c0a0b0", padding: "48px 0" }}>
               <div style={{ fontSize: 40 }}>💬</div>
               <p style={{ fontSize: 15, marginTop: 10, fontFamily: "'Shippori Mincho',serif", color: "#9b5070" }}>No messages yet</p>
-              <p style={{ fontSize: 13, marginTop: 4 }}>Say hello to the group!</p>
+              <p style={{ fontSize: 13, marginTop: 4 }}>Tap <b>+</b> to say hello to the group!</p>
             </div>
           )}
           {messages.map((msg) => {
