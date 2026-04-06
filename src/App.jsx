@@ -1668,6 +1668,7 @@ function GroupChat({ group, uid, user, onClose }) {
   const [text, setText] = useState("");
   const [replyTexts, setReplyTexts] = useState({});
   const [replyOpen, setReplyOpen] = useState({});
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState({});
   const [notifBanner, setNotifBanner] = useState(
     typeof Notification !== "undefined" && Notification.permission === "default"
   );
@@ -1832,22 +1833,63 @@ function GroupChat({ group, uid, user, onClose }) {
 
                 {/* Reactions + reply button */}
                 <div style={{ display: "flex", gap: 4, marginTop: 6, paddingLeft: isMe ? 0 : 42, justifyContent: isMe ? "flex-end" : "flex-start", flexWrap: "wrap", alignItems: "center" }}>
-                  {REACTION_EMOJIS.map((emoji) => {
-                    const reactors = msg.reactions?.[emoji] || [];
+                  {/* Active reaction counts (always visible) */}
+                  {REACTION_EMOJIS.filter(e => (msg.reactions?.[e] || []).length > 0).map((emoji) => {
+                    const reactors = msg.reactions[emoji];
                     const reacted = reactors.includes(uid);
                     return (
                       <button key={emoji} onClick={() => toggleReaction(msg, emoji)} style={{
                         background: reacted ? `${group.color}22` : "rgba(255,255,255,0.65)",
-                        border: `1.5px solid ${reacted ? group.color : "rgba(201,96,122,0.15)"}`,
-                        borderRadius: 999, padding: "2px 7px", fontSize: 14,
+                        border: `1.5px solid ${reacted ? group.color : "rgba(201,96,122,0.2)"}`,
+                        borderRadius: 999, padding: "2px 8px", fontSize: 14,
                         cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3,
                         color: reacted ? group.color : "#b08090", fontWeight: reacted ? 700 : 400,
                         fontFamily: "'Noto Sans JP',sans-serif", transition: "all .13s",
                       }}>
-                        {emoji}{reactors.length > 0 && <span style={{ fontSize: 12 }}>{reactors.length}</span>}
+                        {emoji}<span style={{ fontSize: 12 }}>{reactors.length}</span>
                       </button>
                     );
                   })}
+
+                  {/* Emoji face trigger — expands picker */}
+                  <div style={{ position: "relative" }}>
+                    <button
+                      onClick={() => setEmojiPickerOpen((v) => ({ ...v, [msg.id]: !v[msg.id] }))}
+                      style={{
+                        background: emojiPickerOpen[msg.id] ? "rgba(201,96,122,0.12)" : "rgba(255,255,255,0.65)",
+                        border: `1.5px solid ${emojiPickerOpen[msg.id] ? "rgba(201,96,122,0.4)" : "rgba(201,96,122,0.15)"}`,
+                        borderRadius: 999, width: 28, height: 28, fontSize: 16,
+                        cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        transition: "all .13s",
+                      }}
+                    >😊</button>
+                    {emojiPickerOpen[msg.id] && (
+                      <div style={{
+                        position: "absolute", bottom: "calc(100% + 6px)",
+                        [isMe ? "right" : "left"]: 0,
+                        background: "rgba(255,255,255,0.97)",
+                        borderRadius: 16, padding: "8px 10px",
+                        boxShadow: "0 6px 24px rgba(168,66,107,0.18)",
+                        border: "1px solid rgba(201,96,122,0.15)",
+                        display: "flex", gap: 6, zIndex: 10,
+                        backdropFilter: "blur(12px)",
+                      }}>
+                        {REACTION_EMOJIS.map((emoji) => {
+                          const reacted = (msg.reactions?.[emoji] || []).includes(uid);
+                          return (
+                            <button key={emoji} onClick={() => { toggleReaction(msg, emoji); setEmojiPickerOpen((v) => ({ ...v, [msg.id]: false })); }} style={{
+                              background: reacted ? `${group.color}22` : "none",
+                              border: `1.5px solid ${reacted ? group.color : "transparent"}`,
+                              borderRadius: 8, padding: "4px 5px", fontSize: 20,
+                              cursor: "pointer", transition: "transform .1s",
+                              transform: reacted ? "scale(1.15)" : "scale(1)",
+                            }}>{emoji}</button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
                   <button onClick={() => setReplyOpen((v) => ({ ...v, [msg.id]: !v[msg.id] }))} style={{
                     background: showReplyInput ? "rgba(201,96,122,0.1)" : "rgba(255,255,255,0.65)",
                     border: `1.5px solid ${showReplyInput ? "rgba(201,96,122,0.35)" : "rgba(201,96,122,0.15)"}`,
