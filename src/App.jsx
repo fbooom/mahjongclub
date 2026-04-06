@@ -98,7 +98,7 @@ const COLORS = ["#c9607a","#9b6ea8","#d4829b","#e8a0b0","#c17db8","#a0845c","#7a
 
 const inputSt = {
   width: "100%", padding: "12px 14px", background: "#fff", borderRadius: 12,
-  fontSize: 15, fontWeight: 600, marginBottom: 6, border: "2px solid #f0d9e3",
+  fontSize: 16, fontWeight: 600, marginBottom: 6, border: "2px solid #f0d9e3",
   color: "#4a2c3a", display: "block", boxSizing: "border-box",
   WebkitAppearance: "none", appearance: "none",
 };
@@ -402,8 +402,8 @@ export default function App() {
   if (authUser === undefined) {
     return (
       <div className="app-shell" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", flexDirection: "column", gap: 16 }}>
-        <div style={{ fontSize: 54, filter: "drop-shadow(0 6px 18px rgba(168,66,107,.3))" }}>🀄</div>
-        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#9b5070" }}>Loading…</div>
+        <div style={{ fontSize: 55, filter: "drop-shadow(0 6px 18px rgba(168,66,107,.3))" }}>🀄</div>
+        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 19, color: "#9b5070" }}>Loading…</div>
       </div>
     );
   }
@@ -435,12 +435,12 @@ export default function App() {
           padding: "10px 16px", display: "flex", alignItems: "center", gap: 10,
           boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
         }}>
-          <span style={{ fontSize: 20 }}>{impersonating.avatar}</span>
+          <span style={{ fontSize: 21 }}>{impersonating.avatar}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>Admin · Viewing as</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{impersonating.name} · {impersonating.email}</div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>Admin · Viewing as</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{impersonating.name} · {impersonating.email}</div>
           </div>
-          <button onClick={stopImpersonating} style={{ background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 999, padding: "5px 12px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", flexShrink: 0 }}>Exit</button>
+          <button onClick={stopImpersonating} style={{ background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 999, padding: "5px 12px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", flexShrink: 0 }}>Exit</button>
         </div>
       )}
 
@@ -450,7 +450,7 @@ export default function App() {
           <div className="bIn" style={{
             background: "linear-gradient(135deg,#7a3050,#c9607a)",
             color: "#fff", borderRadius: 999, padding: "10px 22px",
-            fontWeight: 700, fontSize: 14, whiteSpace: "nowrap",
+            fontWeight: 700, fontSize: 15, whiteSpace: "nowrap",
             boxShadow: "0 6px 24px rgba(168,66,107,0.4)",
           }}>{toast.icon} {toast.msg}</div>
         </div>
@@ -595,8 +595,8 @@ export default function App() {
               onTouchStart={(e) => e.currentTarget.style.transform = "scale(.93)"}
               onTouchEnd={(e) => e.currentTarget.style.transform = "scale(1)"}
             >
-              <div style={{ width: 42, height: 28, borderRadius: 14, background: active ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, boxShadow: active ? "0 2px 10px rgba(168,66,107,0.35)" : "none", transition: "all .2s" }}>{item.icon}</div>
-              <span style={{ fontSize: 11, fontWeight: active ? 700 : 500, color: active ? "#c9607a" : "#c0a0b0", fontFamily: "'Noto Sans JP',sans-serif" }}>{item.label}</span>
+              <div style={{ width: 42, height: 28, borderRadius: 14, background: active ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, boxShadow: active ? "0 2px 10px rgba(168,66,107,0.35)" : "none", transition: "all .2s" }}>{item.icon}</div>
+              <span style={{ fontSize: 12, fontWeight: active ? 700 : 500, color: active ? "#c9607a" : "#c0a0b0", fontFamily: "'Noto Sans JP',sans-serif" }}>{item.label}</span>
             </button>
           );
         })}
@@ -626,25 +626,25 @@ function WelcomeModal({ onClose }) {
         position: "relative",
       }}>
         {/* Decorative tiles */}
-        <div style={{ fontSize: 14, letterSpacing: 6, color: "#e8a0b0", marginBottom: 16, opacity: 0.7 }}>
+        <div style={{ fontSize: 15, letterSpacing: 6, color: "#e8a0b0", marginBottom: 16, opacity: 0.7 }}>
           🀇 🀄 🀅 🀆 🀙
         </div>
 
-        <div style={{ fontSize: 52, marginBottom: 12, filter: "drop-shadow(0 4px 12px rgba(168,66,107,0.25))" }}>🀄</div>
+        <div style={{ fontSize: 53, marginBottom: 12, filter: "drop-shadow(0 4px 12px rgba(168,66,107,0.25))" }}>🀄</div>
 
         <h2 style={{
           fontFamily: "'Shippori Mincho',serif",
-          fontSize: 24, color: "#7a3050",
+          fontSize: 25, color: "#7a3050",
           marginBottom: 14, lineHeight: 1.3, letterSpacing: 0.5,
           textAlign: "center",
         }}>
           Welcome to Mahjong Club
           <br />
-          <span style={{ fontSize: 20 }}>✨</span>
+          <span style={{ fontSize: 21 }}>✨</span>
         </h2>
 
         <p style={{
-          fontSize: 14, color: "#7a4a58", lineHeight: 1.8,
+          fontSize: 15, color: "#7a4a58", lineHeight: 1.8,
           fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 400,
           marginBottom: 10,
         }}>
@@ -654,7 +654,7 @@ function WelcomeModal({ onClose }) {
         </p>
 
         <p style={{
-          fontSize: 14, color: "#7a4a58", lineHeight: 1.8,
+          fontSize: 15, color: "#7a4a58", lineHeight: 1.8,
           fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 400,
           marginBottom: 24,
         }}>
@@ -672,7 +672,7 @@ function WelcomeModal({ onClose }) {
           borderRadius: 999,
           background: "linear-gradient(135deg,#c9607a,#9b6ea8)",
           color: "#fff",
-          fontSize: 15, fontWeight: 700,
+          fontSize: 16, fontWeight: 700,
           border: "none", cursor: "pointer",
           fontFamily: "'Noto Sans JP',sans-serif",
           boxShadow: "0 6px 20px rgba(168,66,107,0.4)",
@@ -681,7 +681,7 @@ function WelcomeModal({ onClose }) {
           Let's Play! 🀄
         </button>
 
-        <p style={{ fontSize: 11, color: "#c0a0b0", marginTop: 14, fontFamily: "'Noto Sans JP',sans-serif" }}>
+        <p style={{ fontSize: 12, color: "#c0a0b0", marginTop: 14, fontFamily: "'Noto Sans JP',sans-serif" }}>
           Tap anywhere outside to dismiss
         </p>
       </div>
@@ -810,9 +810,9 @@ function AuthScreen() {
 
       {/* Logo */}
       <div style={{ textAlign: "center", marginBottom: 24, position: "relative" }}>
-        <div style={{ fontSize: 54, filter: "drop-shadow(0 6px 18px rgba(0,0,0,.3))", marginBottom: 10 }}>🀄</div>
-        <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 30, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
-        <p style={{ color: "rgba(255,255,255,.72)", fontSize: 12, fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 1, marginTop: 5 }}>Schedule · Play · Enjoy</p>
+        <div style={{ fontSize: 55, filter: "drop-shadow(0 6px 18px rgba(0,0,0,.3))", marginBottom: 10 }}>🀄</div>
+        <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
+        <p style={{ color: "rgba(255,255,255,.72)", fontSize: 13, fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 1, marginTop: 5 }}>Schedule · Play · Enjoy</p>
       </div>
 
       {/* Card */}
@@ -826,7 +826,7 @@ function AuthScreen() {
         <div style={{ display: "flex", background: "rgba(240,217,227,0.55)", borderRadius: 999, padding: 4, marginBottom: 20 }}>
           {[["login","Sign In"],["signup","Create Account"]].map(([m, label]) => (
             <button key={m} onClick={() => switchMode(m)} style={{
-              flex: 1, padding: "9px 0", borderRadius: 999, fontSize: 13, fontWeight: 700,
+              flex: 1, padding: "9px 0", borderRadius: 999, fontSize: 14, fontWeight: 700,
               fontFamily: "'Noto Sans JP',sans-serif", border: "none", cursor: "pointer", transition: "all .2s",
               background: mode === m ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "transparent",
               color: mode === m ? "#fff" : "#c0899e",
@@ -856,13 +856,13 @@ function AuthScreen() {
 
             {/* Avatar picker */}
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#c0899e", marginBottom: 7, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Noto Sans JP',sans-serif" }}>
-                Avatar <span style={{ fontWeight: 400, color: "#d4a5c9", textTransform: "none", letterSpacing: 0, fontSize: 11 }}>— auto-selected if skipped</span>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#c0899e", marginBottom: 7, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                Avatar <span style={{ fontWeight: 400, color: "#d4a5c9", textTransform: "none", letterSpacing: 0, fontSize: 12 }}>— auto-selected if skipped</span>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                 {AUTH_AVATARS.map((a) => (
                   <div key={a} onClick={() => setAvatar(avatar === a ? null : a)} style={{
-                    fontSize: 22, padding: 6, borderRadius: 11, cursor: "pointer",
+                    fontSize: 23, padding: 6, borderRadius: 11, cursor: "pointer",
                     background: avatar === a ? "#fce4ee" : "rgba(255,255,255,0.7)",
                     border: `2px solid ${avatar === a ? "#c9607a" : "transparent"}`,
                     transition: "all .14s",
@@ -879,7 +879,7 @@ function AuthScreen() {
           </>
         )}
 
-        <p style={{ fontSize: 11, color: "#c0a0b0", textAlign: "center", marginTop: 14, fontFamily: "'Noto Sans JP',sans-serif" }}>
+        <p style={{ fontSize: 12, color: "#c0a0b0", textAlign: "center", marginTop: 14, fontFamily: "'Noto Sans JP',sans-serif" }}>
           {mode === "login" ? "Don't have an account? " : "Already have an account? "}
           <span onClick={() => switchMode(mode === "login" ? "signup" : "login")} style={{ color: "#c9607a", fontWeight: 700, cursor: "pointer" }}>
             {mode === "login" ? "Create one" : "Sign in"}
@@ -893,7 +893,7 @@ function AuthScreen() {
 function AInput({ label, type = "text", value, set, placeholder }) {
   return (
     <div style={{ marginBottom: 11 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#c0899e", marginBottom: 5, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Noto Sans JP',sans-serif" }}>{label}</div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "#c0899e", marginBottom: 5, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Noto Sans JP',sans-serif" }}>{label}</div>
       <input type={type} value={value} onChange={(e) => set(e.target.value)} placeholder={placeholder}
         style={{ ...inputSt, marginBottom: 0 }} />
     </div>
@@ -904,7 +904,7 @@ function ABtn({ children, onClick, disabled }) {
     <button onClick={onClick} disabled={disabled} style={{
       width: "100%", padding: "14px", borderRadius: 999,
       background: disabled ? "#e5d5dc" : "linear-gradient(135deg,#c9607a,#9b6ea8)", color: disabled ? "#bbb" : "#fff",
-      fontSize: 15, fontWeight: 700, border: "none", cursor: disabled ? "not-allowed" : "pointer",
+      fontSize: 16, fontWeight: 700, border: "none", cursor: disabled ? "not-allowed" : "pointer",
       fontFamily: "'Noto Sans JP',sans-serif", boxShadow: disabled ? "none" : "0 6px 20px rgba(168,66,107,0.38)",
       letterSpacing: 0.3, transition: "transform .15s",
     }}
@@ -919,7 +919,7 @@ function GoogleSignInBtn({ onClick, disabled }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
       width: "100%", padding: "13px", borderRadius: 999,
-      background: "#fff", color: disabled ? "#aaa" : "#3c3c3c", fontSize: 14, fontWeight: 600,
+      background: "#fff", color: disabled ? "#aaa" : "#3c3c3c", fontSize: 15, fontWeight: 600,
       border: "2px solid #e8e0e4", cursor: disabled ? "not-allowed" : "pointer", fontFamily: "'Noto Sans JP',sans-serif",
       display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
       boxShadow: "0 2px 10px rgba(0,0,0,0.08)", transition: "all .15s",
@@ -940,13 +940,13 @@ function GoogleSignInBtn({ onClick, disabled }) {
   );
 }
 function ErrMsg({ msg }) {
-  return <div style={{ color: "#c9607a", fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: "center", fontFamily: "'Noto Sans JP',sans-serif", background: "rgba(201,96,122,0.08)", borderRadius: 10, padding: "8px 12px" }}>{msg}</div>;
+  return <div style={{ color: "#c9607a", fontSize: 14, fontWeight: 600, marginBottom: 12, textAlign: "center", fontFamily: "'Noto Sans JP',sans-serif", background: "rgba(201,96,122,0.08)", borderRadius: 10, padding: "8px 12px" }}>{msg}</div>;
 }
 function Divider() {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0" }}>
       <div style={{ flex: 1, height: 1, background: "linear-gradient(90deg,transparent,#f0c0d0,transparent)" }} />
-      <span style={{ fontSize: 12, color: "#d4a5c9", fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 600 }}>or</span>
+      <span style={{ fontSize: 13, color: "#d4a5c9", fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 600 }}>or</span>
       <div style={{ flex: 1, height: 1, background: "linear-gradient(90deg,transparent,#f0c0d0,transparent)" }} />
     </div>
   );
@@ -985,12 +985,12 @@ function AdminPanel({ onImpersonate }) {
       border: "1.5px solid rgba(90,45,107,0.2)",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-        <span style={{ fontSize: 18 }}>🔐</span>
-        <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "#2d1b4e", fontWeight: 700 }}>Admin Panel</span>
-        <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 800, color: "#9b6ea8", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: 1 }}>Admin Only</span>
+        <span style={{ fontSize: 19 }}>🔐</span>
+        <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "#2d1b4e", fontWeight: 700 }}>Admin Panel</span>
+        <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: "#9b6ea8", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: 1 }}>Admin Only</span>
       </div>
 
-      <div style={{ fontSize: 12, color: "#7a5090", marginBottom: 12, fontFamily: "'Noto Sans JP',sans-serif" }}>
+      <div style={{ fontSize: 13, color: "#7a5090", marginBottom: 12, fontFamily: "'Noto Sans JP',sans-serif" }}>
         Search for a user by email to view the app as them.
       </div>
 
@@ -1000,25 +1000,25 @@ function AdminPanel({ onImpersonate }) {
           onChange={(e) => setQuery_(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && search()}
           placeholder="User email address"
-          style={{ flex: 1, padding: "10px 14px", borderRadius: 12, fontSize: 13, border: "1.5px solid rgba(90,45,107,0.25)", background: "rgba(255,255,255,0.8)", color: "#2d1b4e", fontFamily: "'Noto Sans JP',sans-serif", outline: "none" }}
+          style={{ flex: 1, padding: "10px 14px", borderRadius: 12, fontSize: 14, border: "1.5px solid rgba(90,45,107,0.25)", background: "rgba(255,255,255,0.8)", color: "#2d1b4e", fontFamily: "'Noto Sans JP',sans-serif", outline: "none" }}
         />
-        <button onClick={search} disabled={searching || !query_.trim()} style={{ background: "linear-gradient(135deg,#2d1b4e,#5a2d6b)", border: "none", borderRadius: 12, padding: "10px 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: (!query_.trim() || searching) ? 0.5 : 1 }}>
+        <button onClick={search} disabled={searching || !query_.trim()} style={{ background: "linear-gradient(135deg,#2d1b4e,#5a2d6b)", border: "none", borderRadius: 12, padding: "10px 16px", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: (!query_.trim() || searching) ? 0.5 : 1 }}>
           {searching ? "…" : "Search"}
         </button>
       </div>
 
       {searched && results.length === 0 && !searching && (
-        <div style={{ fontSize: 12, color: "#9b6ea8", fontFamily: "'Noto Sans JP',sans-serif" }}>No user found with that email.</div>
+        <div style={{ fontSize: 13, color: "#9b6ea8", fontFamily: "'Noto Sans JP',sans-serif" }}>No user found with that email.</div>
       )}
 
       {results.map((u) => (
         <div key={u.uid} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "rgba(255,255,255,0.7)", marginBottom: 8, border: "1px solid rgba(90,45,107,0.15)" }}>
-          <span style={{ fontSize: 22 }}>{u.avatar}</span>
+          <span style={{ fontSize: 23 }}>{u.avatar}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#2d1b4e", fontFamily: "'Noto Sans JP',sans-serif" }}>{u.name}</div>
-            <div style={{ fontSize: 11, color: "#9b6ea8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#2d1b4e", fontFamily: "'Noto Sans JP',sans-serif" }}>{u.name}</div>
+            <div style={{ fontSize: 12, color: "#9b6ea8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
           </div>
-          <button onClick={() => onImpersonate(u)} style={{ background: "linear-gradient(135deg,#2d1b4e,#5a2d6b)", border: "none", borderRadius: 10, padding: "6px 12px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", flexShrink: 0 }}>
+          <button onClick={() => onImpersonate(u)} style={{ background: "linear-gradient(135deg,#2d1b4e,#5a2d6b)", border: "none", borderRadius: 10, padding: "6px 12px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", flexShrink: 0 }}>
             View as
           </button>
         </div>
@@ -1069,21 +1069,21 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           background: "linear-gradient(135deg,rgba(255,255,255,0.35),rgba(255,255,255,0.15))",
           backdropFilter: "blur(8px)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 40, border: "3px solid rgba(255,255,255,0.55)",
+          fontSize: 41, border: "3px solid rgba(255,255,255,0.55)",
           boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
           position: "relative",
         }}>
           {user.avatar}
         </div>
-        <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 22, color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,.2)", letterSpacing: 0.5 }}>{user.name}</h1>
-        <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13, marginTop: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>{user.email}</p>
+        <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 23, color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,.2)", letterSpacing: 0.5 }}>{user.name}</h1>
+        <p style={{ color: "rgba(255,255,255,.7)", fontSize: 14, marginTop: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>{user.email}</p>
 
         {/* Stats row */}
         <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 18 }}>
           {[[groups.length, "Groups"],[totalGames, "Games"],[upcoming, "Upcoming"]].map(([n, lbl]) => (
             <div key={lbl} style={{ textAlign: "center", background: "rgba(255,255,255,.18)", backdropFilter: "blur(8px)", borderRadius: 14, padding: "8px 16px", border: "1px solid rgba(255,255,255,.3)" }}>
-              <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 20, color: "#fff", fontWeight: 700 }}>{n}</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,.72)", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 1 }}>{lbl}</div>
+              <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 21, color: "#fff", fontWeight: 700 }}>{n}</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,.72)", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 1 }}>{lbl}</div>
             </div>
           ))}
         </div>
@@ -1099,8 +1099,8 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           border: "1px solid rgba(255,255,255,0.65)",
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "#7a3050", fontWeight: 700 }}>My Profile</span>
-<button onClick={() => setEditing(!editing)} style={{ background: editing ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "rgba(201,96,122,0.12)", border: "none", borderRadius: 999, padding: "5px 14px", fontSize: 12, fontWeight: 700, color: editing ? "#fff" : "#c9607a", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}>
+            <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "#7a3050", fontWeight: 700 }}>My Profile</span>
+<button onClick={() => setEditing(!editing)} style={{ background: editing ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "rgba(201,96,122,0.12)", border: "none", borderRadius: 999, padding: "5px 14px", fontSize: 13, fontWeight: 700, color: editing ? "#fff" : "#c9607a", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}>
               {editing ? "Cancel" : "Edit ✏️"}
             </button>
           </div>
@@ -1114,7 +1114,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
               <Lbl mt>Avatar</Lbl>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
                 {AVATARS.map((a) => (
-                  <div key={a} onClick={() => setAvatar(a)} style={{ fontSize: 26, padding: 7, borderRadius: 12, cursor: "pointer", background: avatar === a ? "#fce4ee" : "rgba(255,255,255,0.6)", border: `2px solid ${avatar === a ? "#c9607a" : "transparent"}`, transition: "all .15s" }}>{a}</div>
+                  <div key={a} onClick={() => setAvatar(a)} style={{ fontSize: 27, padding: 7, borderRadius: 12, cursor: "pointer", background: avatar === a ? "#fce4ee" : "rgba(255,255,255,0.6)", border: `2px solid ${avatar === a ? "#c9607a" : "transparent"}`, transition: "all .15s" }}>{a}</div>
                 ))}
               </div>
               <Btn full onClick={save}>Save Changes ✨</Btn>
@@ -1123,10 +1123,10 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {[["👤", "Name", user.name], ["📧", "Email", user.email], ["🎭", "Avatar", user.avatar]].map(([icon, lbl, val]) => (
                 <div key={lbl} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 16 }}>{icon}</span>
+                  <span style={{ fontSize: 17 }}>{icon}</span>
                   <div>
-                    <div style={{ fontSize: 10, color: "#d4a5c9", fontWeight: 700, textTransform: "uppercase", letterSpacing: .5 }}>{lbl}</div>
-                    <div style={{ fontSize: 14, color: "#4a2c3a", fontWeight: 500, marginTop: 1 }}>{val}</div>
+                    <div style={{ fontSize: 11, color: "#d4a5c9", fontWeight: 700, textTransform: "uppercase", letterSpacing: .5 }}>{lbl}</div>
+                    <div style={{ fontSize: 15, color: "#4a2c3a", fontWeight: 500, marginTop: 1 }}>{val}</div>
                   </div>
                 </div>
               ))}
@@ -1142,16 +1142,16 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           boxShadow: "0 4px 20px rgba(168,66,107,0.09), inset 0 1px 0 rgba(255,255,255,0.85)",
           border: "1px solid rgba(255,255,255,0.65)",
         }}>
-          <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "#7a3050", fontWeight: 700 }}>My Groups</span>
+          <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "#7a3050", fontWeight: 700 }}>My Groups</span>
           <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
             {groups.map((g) => (
               <div key={g.id} onClick={() => go("group", g.id)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 10px", borderRadius: 12, background: "rgba(255,255,255,0.5)" }}>
-                <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg,${g.color}33,${g.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{g.emoji}</div>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg,${g.color}33,${g.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>{g.emoji}</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#4a2c3a" }}>{g.name}</div>
-                  <div style={{ fontSize: 11, color: "#b08090" }}>{g.members.length} members</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#4a2c3a" }}>{g.name}</div>
+                  <div style={{ fontSize: 12, color: "#b08090" }}>{g.members.length} members</div>
                 </div>
-                <span style={{ color: "#d4a5c9", fontSize: 16 }}>›</span>
+                <span style={{ color: "#d4a5c9", fontSize: 17 }}>›</span>
               </div>
             ))}
           </div>
@@ -1165,9 +1165,9 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           borderRadius: 20, padding: "18px", textAlign: "center",
           border: "1px solid rgba(255,200,220,0.4)",
         }}>
-          <div style={{ fontSize: 22, marginBottom: 6 }}>🀄</div>
-          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 14, color: "#9b5070", fontWeight: 600 }}>Mahjong Club</div>
-          <div style={{ fontSize: 11, color: "#c0a0b0", marginTop: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Version 1.0 · Made with ❤️</div>
+          <div style={{ fontSize: 23, marginBottom: 6 }}>🀄</div>
+          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#9b5070", fontWeight: 600 }}>Mahjong Club</div>
+          <div style={{ fontSize: 12, color: "#c0a0b0", marginTop: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Version 1.0 · Made with ❤️</div>
         </div>
 
         {/* Admin Panel */}
@@ -1177,7 +1177,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
         <button onClick={onSignOut} style={{
           width: "100%", padding: "13px", marginTop: 6, borderRadius: 999,
           background: "transparent", border: "2px solid rgba(201,96,122,0.35)",
-          color: "#c9607a", fontSize: 14, fontWeight: 700,
+          color: "#c9607a", fontSize: 15, fontWeight: 700,
           fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer",
           transition: "all .18s", letterSpacing: 0.3,
         }}
@@ -1214,7 +1214,7 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {[["upcoming","📅 Upcoming"],["history","📖 History"]].map(([t, label]) => (
           <button key={t} onClick={() => { setTab(t); setShowAll(false); }} style={{
-            padding: "6px 16px", borderRadius: 999, fontSize: 12, fontWeight: 700,
+            padding: "6px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700,
             fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", transition: "all .18s",
             background: tab === t ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "rgba(255,255,255,0.55)",
             color: tab === t ? "#fff" : "#b08090",
@@ -1226,8 +1226,8 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
 
       {list.length === 0 ? (
         <div style={{ textAlign: "center", padding: "22px 0", color: "#c0a0b0" }}>
-          <div style={{ fontSize: 30 }}>{tab === "upcoming" ? "📅" : "📖"}</div>
-          <p style={{ fontSize: 13, marginTop: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>
+          <div style={{ fontSize: 31 }}>{tab === "upcoming" ? "📅" : "📖"}</div>
+          <p style={{ fontSize: 14, marginTop: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>
             {tab === "upcoming" ? "No upcoming games yet — time to schedule one!" : "No past games yet."}
           </p>
         </div>
@@ -1249,14 +1249,14 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
               }}>
                 {/* Group tag + optional guest badge */}
                 <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
-                  <span style={{ fontSize: 13 }}>{gm.groupEmoji}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: gm.groupColor, fontFamily: "'Noto Sans JP',sans-serif" }}>{gm.groupName}</span>
-                  {gm.isGuestGame && <span style={{ fontSize: 10, fontWeight: 800, color: "#9b6ea8", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "1px 7px", marginLeft: 2 }}>Guest</span>}
+                  <span style={{ fontSize: 14 }}>{gm.groupEmoji}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: gm.groupColor, fontFamily: "'Noto Sans JP',sans-serif" }}>{gm.groupName}</span>
+                  {gm.isGuestGame && <span style={{ fontSize: 11, fontWeight: 800, color: "#9b6ea8", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "1px 7px", marginLeft: 2 }}>Guest</span>}
                 </div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{gm.title}</div>
-                <div style={{ fontSize: 12, color: "#b08090", marginTop: 3 }}>📅 {fmt(gm.date)}</div>
-                <div style={{ fontSize: 12, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(gm.time, gm.endTime)}</div>
-                <div style={{ fontSize: 12, color: "#b08090", marginTop: 1 }}>📍 {gm.location}</div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{gm.title}</div>
+                <div style={{ fontSize: 13, color: "#b08090", marginTop: 3 }}>📅 {fmt(gm.date)}</div>
+                <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(gm.time, gm.endTime)}</div>
+                <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>📍 {gm.location}</div>
                 {(() => {
                   const yesCount = Object.values(gm.rsvps).filter(v => v === "yes").length;
                   const wl = gm.waitlist || [];
@@ -1279,7 +1279,7 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
           {fullList.length > 3 && (
             <button onClick={() => setShowAll(v => !v)} style={{
               width: "100%", padding: "10px 0", background: "none", border: "1px dashed rgba(201,96,122,0.3)",
-              borderRadius: 12, color: "#c9607a", fontSize: 13, fontWeight: 700,
+              borderRadius: 12, color: "#c9607a", fontSize: 14, fontWeight: 700,
               fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", marginTop: 2,
             }}>
               {showAll ? "See less ↑" : `See ${fullList.length - 3} more ↓`}
@@ -1319,13 +1319,13 @@ function Home({ groups, guestGames, go, user }) {
         {/* Frosted shimmer overlay */}
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.12) 0%,transparent 60%)", pointerEvents: "none" }} />
         {pos.map((p, i) => (
-          <div key={i} style={{ position: "absolute", fontSize: 22, opacity: .15, pointerEvents: "none", top: p.top, left: p.left, right: p.right, animation: `${p.a} ${2.4 + i * 0.35}s ${i * 0.4}s ease-in-out infinite`, filter: "blur(0.5px)" }}>{BT[i]}</div>
+          <div key={i} style={{ position: "absolute", fontSize: 23, opacity: .15, pointerEvents: "none", top: p.top, left: p.left, right: p.right, animation: `${p.a} ${2.4 + i * 0.35}s ${i * 0.4}s ease-in-out infinite`, filter: "blur(0.5px)" }}>{BT[i]}</div>
         ))}
         <div style={{ textAlign: "center", position: "relative", display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
-          <div style={{ fontSize: 38, filter: "drop-shadow(0 4px 10px rgba(0,0,0,.25))" }}>🀄</div>
+          <div style={{ fontSize: 39, filter: "drop-shadow(0 4px 10px rgba(0,0,0,.25))" }}>🀄</div>
           <div>
-            <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 30, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
-            <p style={{ color: "rgba(255,255,255,.78)", fontWeight: 400, fontSize: 12, marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 1 }}>Schedule · Play · Enjoy</p>
+            <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
+            <p style={{ color: "rgba(255,255,255,.78)", fontWeight: 400, fontSize: 13, marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 1 }}>Schedule · Play · Enjoy</p>
           </div>
         </div>
       </div>
@@ -1344,7 +1344,7 @@ function Home({ groups, guestGames, go, user }) {
         boxShadow: "0 -4px 24px rgba(168,66,107,0.08)",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h2 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 22, color: "#7a3050", letterSpacing: 0.5 }}>Your Groups</h2>
+          <h2 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 23, color: "#7a3050", letterSpacing: 0.5 }}>Your Groups</h2>
           <div style={{ display: "flex", gap: 8 }}>
             <Btn sm outline onClick={() => go("joinGroup")}>Join</Btn>
             <Btn sm onClick={() => go("newGroup")}>+ New</Btn>
@@ -1353,9 +1353,9 @@ function Home({ groups, guestGames, go, user }) {
 
         {groups.length === 0 ? (
           <div style={{ textAlign: "center", padding: "44px 0", color: "#c0899e" }}>
-            <div style={{ fontSize: 48 }}>🀆</div>
-            <p style={{ fontWeight: 700, marginTop: 10, fontSize: 16, fontFamily: "'Shippori Mincho',serif", color: "#9b5070" }}>No groups yet</p>
-            <p style={{ fontSize: 13, marginTop: 4 }}>Create or join one to get started!</p>
+            <div style={{ fontSize: 49 }}>🀆</div>
+            <p style={{ fontWeight: 700, marginTop: 10, fontSize: 17, fontFamily: "'Shippori Mincho',serif", color: "#9b5070" }}>No groups yet</p>
+            <p style={{ fontSize: 14, marginTop: 4 }}>Create or join one to get started!</p>
           </div>
         ) : (
           <>
@@ -1369,22 +1369,22 @@ function Home({ groups, guestGames, go, user }) {
                   boxShadow: "0 4px 20px rgba(168,66,107,0.10), inset 0 1px 0 rgba(255,255,255,0.8)",
                   border: "1px solid rgba(255,255,255,0.7)", borderLeft: `4px solid ${g.color}`,
                 }}>
-                  <div style={{ width: 50, height: 50, borderRadius: 15, flexShrink: 0, background: `linear-gradient(135deg,${g.color}33,${g.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.6)" }}>{g.emoji}</div>
+                  <div style={{ width: 50, height: 50, borderRadius: 15, flexShrink: 0, background: `linear-gradient(135deg,${g.color}33,${g.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 27, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.6)" }}>{g.emoji}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 16, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{g.name}</div>
-                    <div style={{ fontSize: 12, color: "#b08090", marginTop: 2 }}>{g.members.length} members · Code: <b style={{ color: g.color }}>{g.code}</b></div>
+                    <div style={{ fontWeight: 700, fontSize: 17, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{g.name}</div>
+                    <div style={{ fontSize: 13, color: "#b08090", marginTop: 2 }}>{g.members.length} members · Code: <b style={{ color: g.color }}>{g.code}</b></div>
                   </div>
                   {g.games.filter((gm) => gm.date > NOW).length > 0 && (
-                    <div style={{ background: `linear-gradient(135deg,${g.color},${g.color}cc)`, color: "#fff", borderRadius: 999, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900, boxShadow: `0 2px 8px ${g.color}55` }}>{g.games.filter((gm) => gm.date > NOW).length}</div>
+                    <div style={{ background: `linear-gradient(135deg,${g.color},${g.color}cc)`, color: "#fff", borderRadius: 999, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, boxShadow: `0 2px 8px ${g.color}55` }}>{g.games.filter((gm) => gm.date > NOW).length}</div>
                   )}
-                  <span style={{ color: "#d4a5c9", fontSize: 20 }}>›</span>
+                  <span style={{ color: "#d4a5c9", fontSize: 21 }}>›</span>
                 </div>
               </div>
             ))}
             {groups.length > 3 && (
               <button onClick={() => setShowAllGroups(v => !v)} style={{
                 width: "100%", padding: "10px 0", background: "none", border: "1px dashed rgba(201,96,122,0.3)",
-                borderRadius: 12, color: "#c9607a", fontSize: 13, fontWeight: 700,
+                borderRadius: 12, color: "#c9607a", fontSize: 14, fontWeight: 700,
                 fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", marginBottom: 16,
               }}>
                 {showAllGroups ? "See less ↑" : `See ${groups.length - 3} more ↓`}
@@ -1413,7 +1413,7 @@ function NewGroup({ onBack, onSave }) {
       <Lbl mt>Icon</Lbl>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
         {EMOJIS.map((e) => (
-          <div key={e} onClick={() => setEmoji(e)} style={{ fontSize: 26, padding: 8, borderRadius: 12, cursor: "pointer", background: emoji === e ? "#fce4ee" : "#f9f0f3", border: `2px solid ${emoji === e ? "#c9607a" : "transparent"}`, transition: "all .15s" }}>{e}</div>
+          <div key={e} onClick={() => setEmoji(e)} style={{ fontSize: 27, padding: 8, borderRadius: 12, cursor: "pointer", background: emoji === e ? "#fce4ee" : "#f9f0f3", border: `2px solid ${emoji === e ? "#c9607a" : "transparent"}`, transition: "all .15s" }}>{e}</div>
         ))}
       </div>
       <Lbl>Color</Lbl>
@@ -1445,7 +1445,7 @@ function EditGroup({ group, onBack, onSave }) {
       <Lbl mt>Icon</Lbl>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
         {EMOJIS.map((e) => (
-          <div key={e} onClick={() => setEmoji(e)} style={{ fontSize: 26, padding: 8, borderRadius: 12, cursor: "pointer", background: emoji === e ? "#fce4ee" : "#f9f0f3", border: `2px solid ${emoji === e ? "#c9607a" : "transparent"}`, transition: "all .15s" }}>{e}</div>
+          <div key={e} onClick={() => setEmoji(e)} style={{ fontSize: 27, padding: 8, borderRadius: 12, cursor: "pointer", background: emoji === e ? "#fce4ee" : "#f9f0f3", border: `2px solid ${emoji === e ? "#c9607a" : "transparent"}`, transition: "all .15s" }}>{e}</div>
         ))}
       </div>
       <Lbl>Color</Lbl>
@@ -1473,8 +1473,8 @@ function OpenInvitesToggle({ value, onChange }) {
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>Allow Members to Invite</div>
-          <div style={{ fontSize: 12, color: "#b08090", marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>Allow Members to Invite</div>
+          <div style={{ fontSize: 13, color: "#b08090", marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>
             {value ? "All members can invite players to this group" : "Only you (the creator) can invite players"}
           </div>
         </div>
@@ -1518,20 +1518,20 @@ function JoinGroup({ uid, groups, onBack, onJoin }) {
 
   return (
     <Shell title="Join a Group" onBack={onBack} color="#9b6ea8">
-      <div style={{ textAlign: "center", fontSize: 52, margin: "8px 0 20px" }}>🔑</div>
+      <div style={{ textAlign: "center", fontSize: 53, margin: "8px 0 20px" }}>🔑</div>
       <Lbl>Enter Group Code</Lbl>
       <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. TUE42"
-        style={{ width: "100%", padding: "14px 16px", background: "#fff", borderRadius: 14, fontSize: 22, fontWeight: 900, textAlign: "center", letterSpacing: 6, textTransform: "uppercase", marginBottom: 14, border: "2px solid #f0d9e3", color: "#4a2c3a" }} />
-      {searching && <p style={{ color: "#9b6ea8", fontWeight: 700, fontSize: 14, marginBottom: 14, textAlign: "center" }}>Searching…</p>}
-      {!searching && clean.length >= 4 && !match && <p style={{ color: "#c9607a", fontWeight: 800, fontSize: 14, marginBottom: 14 }}>No group found with that code</p>}
+        style={{ width: "100%", padding: "14px 16px", background: "#fff", borderRadius: 14, fontSize: 23, fontWeight: 900, textAlign: "center", letterSpacing: 6, textTransform: "uppercase", marginBottom: 14, border: "2px solid #f0d9e3", color: "#4a2c3a" }} />
+      {searching && <p style={{ color: "#9b6ea8", fontWeight: 700, fontSize: 15, marginBottom: 14, textAlign: "center" }}>Searching…</p>}
+      {!searching && clean.length >= 4 && !match && <p style={{ color: "#c9607a", fontWeight: 800, fontSize: 15, marginBottom: 14 }}>No group found with that code</p>}
       {match && !alreadyIn && (
         <div className="bIn" style={{ background: "#fdf0f7", border: "2px solid #d4a5c933", borderRadius: 16, padding: "14px 18px", marginBottom: 18 }}>
-          <div style={{ fontSize: 28 }}>{match.emoji}</div>
-          <div style={{ fontWeight: 800, fontSize: 17, color: "#4a2c3a" }}>{match.name}</div>
-          <div style={{ fontSize: 13, color: "#b08090" }}>{(match.members || []).length} members</div>
+          <div style={{ fontSize: 29 }}>{match.emoji}</div>
+          <div style={{ fontWeight: 800, fontSize: 18, color: "#4a2c3a" }}>{match.name}</div>
+          <div style={{ fontSize: 14, color: "#b08090" }}>{(match.members || []).length} members</div>
         </div>
       )}
-      {alreadyIn && <p style={{ color: "#9b6ea8", fontWeight: 800, fontSize: 14, marginBottom: 14 }}>You're already in this group!</p>}
+      {alreadyIn && <p style={{ color: "#9b6ea8", fontWeight: 800, fontSize: 15, marginBottom: 14 }}>You're already in this group!</p>}
       <Btn full disabled={!match || !!alreadyIn} onClick={() => onJoin(match.id)}>Join Group</Btn>
     </Shell>
   );
@@ -1555,27 +1555,27 @@ function Group({ uid, group, go, flash, onLeave }) {
         boxShadow: `0 8px 32px ${group.color}44`,
       }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.18) 0%,transparent 55%)", pointerEvents: "none" }} />
-        <button onClick={() => go("home")} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 18, color: "#fff", backdropFilter: "blur(8px)" }}>‹</button>
+        <button onClick={() => go("home")} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)" }}>‹</button>
         <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 8 }}>
-          {isCreator && <button onClick={() => go("editGroup", group.id)} style={{ background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✏️ Edit</button>}
-          {canInvite && <button onClick={() => go("invite", group.id)} style={{ background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✉️ Invite</button>}
+          {isCreator && <button onClick={() => go("editGroup", group.id)} style={{ background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✏️ Edit</button>}
+          {canInvite && <button onClick={() => go("invite", group.id)} style={{ background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✉️ Invite</button>}
         </div>
         <div style={{ textAlign: "center", position: "relative" }}>
-          <div style={{ fontSize: 50, marginBottom: 6 }}>{group.emoji}</div>
-          <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 26, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.25)", letterSpacing: 1 }}>{group.name}</h1>
-          <div style={{ display: "inline-block", background: "rgba(255,255,255,.22)", backdropFilter: "blur(8px)", borderRadius: 999, padding: "3px 14px", marginTop: 7, fontSize: 12, fontWeight: 700, color: "#fff", border: "1px solid rgba(255,255,255,.35)" }}>Code: {group.code}</div>
+          <div style={{ fontSize: 51, marginBottom: 6 }}>{group.emoji}</div>
+          <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 27, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.25)", letterSpacing: 1 }}>{group.name}</h1>
+          <div style={{ display: "inline-block", background: "rgba(255,255,255,.22)", backdropFilter: "blur(8px)", borderRadius: 999, padding: "3px 14px", marginTop: 7, fontSize: 13, fontWeight: 700, color: "#fff", border: "1px solid rgba(255,255,255,.35)" }}>Code: {group.code}</div>
         </div>
         <div style={{ display: "flex", justifyContent: "center", gap: 7, marginTop: 14, flexWrap: "wrap" }}>
           {group.members.map((m) => (
-            <div key={m.id} title={m.name} style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(255,255,255,.28)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, border: "2px solid rgba(255,255,255,.55)" }}>{m.avatar}</div>
+            <div key={m.id} title={m.name} style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(255,255,255,.28)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, border: "2px solid rgba(255,255,255,.55)" }}>{m.avatar}</div>
           ))}
-          {canInvite && <div onClick={() => go("invite", group.id)} style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(255,255,255,.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, border: "2px dashed rgba(255,255,255,.5)", cursor: "pointer", color: "#fff" }}>+</div>}
+          {canInvite && <div onClick={() => go("invite", group.id)} style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(255,255,255,.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, border: "2px dashed rgba(255,255,255,.5)", cursor: "pointer", color: "#fff" }}>+</div>}
         </div>
       </div>
 
       <div style={{ display: "flex", background: "rgba(255,240,248,0.75)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "1px solid rgba(255,200,220,.4)" }}>
         {[["games","🀀 Games"],["members","👥 Members"]].map(([t, label]) => (
-          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "13px 0", fontSize: 14, fontWeight: 700, background: "none", border: "none", cursor: "pointer", color: tab === t ? group.color : "#d4a5c9", borderBottom: `3px solid ${tab === t ? group.color : "transparent"}`, fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}>{label}</button>
+          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "13px 0", fontSize: 15, fontWeight: 700, background: "none", border: "none", cursor: "pointer", color: tab === t ? group.color : "#d4a5c9", borderBottom: `3px solid ${tab === t ? group.color : "transparent"}`, fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}>{label}</button>
         ))}
       </div>
 
@@ -1588,7 +1588,7 @@ function Group({ uid, group, go, flash, onLeave }) {
             <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
               {[["upcoming","📅 Upcoming"],["history","📖 History"]].map(([t, label]) => (
                 <button key={t} onClick={() => setGamesTab(t)} style={{
-                  padding: "6px 16px", borderRadius: 999, fontSize: 12, fontWeight: 700,
+                  padding: "6px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700,
                   fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", transition: "all .18s",
                   background: gamesTab === t ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(255,255,255,0.55)",
                   color: gamesTab === t ? "#fff" : "#b08090",
@@ -1600,11 +1600,11 @@ function Group({ uid, group, go, flash, onLeave }) {
 
             {gamesList.length === 0 ? (
               <div style={{ textAlign: "center", color: "#c0899e", padding: "36px 0" }}>
-                <div style={{ fontSize: 40 }}>{gamesTab === "upcoming" ? "📅" : "📖"}</div>
+                <div style={{ fontSize: 41 }}>{gamesTab === "upcoming" ? "📅" : "📖"}</div>
                 <p style={{ fontWeight: 700, marginTop: 8, fontFamily: "'Shippori Mincho',serif", color: "#9b5070" }}>
                   {gamesTab === "upcoming" ? "No upcoming games yet!" : "No past games yet."}
                 </p>
-                {gamesTab === "upcoming" && <p style={{ fontSize: 13, marginTop: 4 }}>Be the first to schedule one.</p>}
+                {gamesTab === "upcoming" && <p style={{ fontSize: 14, marginTop: 4 }}>Be the first to schedule one.</p>}
               </div>
             ) : gamesList.map((gm, i) => (
               <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer" }}
@@ -1618,11 +1618,11 @@ function Group({ uid, group, go, flash, onLeave }) {
           <>
             {group.members.map((m) => (
               <div key={m.id} style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.85),rgba(255,235,245,0.7))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, padding: "13px 15px", marginBottom: 10, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 4px 16px rgba(168,66,107,0.09)", border: "1px solid rgba(255,255,255,0.7)" }}>
-                <div style={{ width: 42, height: 42, borderRadius: 999, background: "linear-gradient(135deg,#fce4ee,#f5d0e0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)" }}>{m.avatar}</div>
+                <div style={{ width: 42, height: 42, borderRadius: 999, background: "linear-gradient(135deg,#fce4ee,#f5d0e0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 23, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)" }}>{m.avatar}</div>
                 <div style={{ flex: 1 }}>
                   <span style={{ fontWeight: 700, color: "#4a2c3a" }}>{m.name}</span>
-                  {m.id === uid && <span style={{ marginLeft: 7, background: "linear-gradient(135deg,#c9607a,#a8426b)", color: "#fff", borderRadius: 999, padding: "1px 8px", fontSize: 11, fontWeight: 700 }}>You</span>}
-                  {m.host && <div style={{ fontSize: 12, color: "#c4936e", fontWeight: 700, marginTop: 2 }}>⭐ Host</div>}
+                  {m.id === uid && <span style={{ marginLeft: 7, background: "linear-gradient(135deg,#c9607a,#a8426b)", color: "#fff", borderRadius: 999, padding: "1px 8px", fontSize: 12, fontWeight: 700 }}>You</span>}
+                  {m.host && <div style={{ fontSize: 13, color: "#c4936e", fontWeight: 700, marginTop: 2 }}>⭐ Host</div>}
                 </div>
               </div>
             ))}
@@ -1647,7 +1647,7 @@ function AddToCalendar({ game, groupName, compact = false }) {
       <div style={{ position: "relative" }}>
         <button
           onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-          style={{ background: "rgba(201,96,122,0.1)", border: "1px solid rgba(201,96,122,0.25)", borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: "#c9607a", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
+          style={{ background: "rgba(201,96,122,0.1)", border: "1px solid rgba(201,96,122,0.25)", borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 700, color: "#c9607a", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
         >📅 Add</button>
         {open && (
           <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", bottom: "calc(100% + 6px)", right: 0, background: "#fff", borderRadius: 14, boxShadow: "0 8px 28px rgba(168,66,107,0.18)", border: "1px solid rgba(201,96,122,0.15)", overflow: "hidden", zIndex: 100, minWidth: 180 }}>
@@ -1665,19 +1665,19 @@ function AddToCalendar({ game, groupName, compact = false }) {
       <div style={{ fontWeight: 700, color: "#4a2c3a", marginBottom: 12, fontFamily: "'Shippori Mincho',serif" }}>Add to Calendar</div>
       <div style={{ display: "flex", gap: 10 }}>
         <button onClick={() => window.open(googleUrl, "_blank")} style={calFullBtn("#4285f4")}>
-          <span style={{ fontSize: 18 }}>🗓</span>
+          <span style={{ fontSize: 19 }}>🗓</span>
           <span>Google Calendar</span>
         </button>
         <button onClick={() => downloadIcs(game, groupName)} style={calFullBtn("#c9607a")}>
-          <span style={{ fontSize: 18 }}>📅</span>
+          <span style={{ fontSize: 19 }}>📅</span>
           <span>Apple / Other</span>
         </button>
       </div>
     </div>
   );
 }
-const calMenuBtn = { display: "block", width: "100%", padding: "11px 16px", background: "none", border: "none", textAlign: "left", fontSize: 13, fontWeight: 700, color: "#4a2c3a", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" };
-const calFullBtn = (color) => ({ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "12px 8px", borderRadius: 12, background: `${color}12`, border: `1.5px solid ${color}33`, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", fontSize: 12, fontWeight: 700, color: "#4a2c3a" });
+const calMenuBtn = { display: "block", width: "100%", padding: "11px 16px", background: "none", border: "none", textAlign: "left", fontSize: 14, fontWeight: 700, color: "#4a2c3a", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" };
+const calFullBtn = (color) => ({ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "12px 8px", borderRadius: 12, background: `${color}12`, border: `1.5px solid ${color}33`, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", fontSize: 13, fontWeight: 700, color: "#4a2c3a" });
 
 function GCard({ game, groupName = "", color, faded }) {
   return (
@@ -1690,10 +1690,10 @@ function GCard({ game, groupName = "", color, faded }) {
       border: faded ? "1px solid rgba(200,180,190,0.3)" : "1px solid rgba(255,255,255,0.7)",
       borderLeft: `4px solid ${color}`,
     }}>
-      <div style={{ fontWeight: 700, fontSize: 15, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{game.title}</div>
-      <div style={{ fontSize: 13, color: "#b08090", marginTop: 3 }}>📅 {fmt(game.date)}</div>
-      <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(game.time, game.endTime)}</div>
-      <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>📍 {game.location}</div>
+      <div style={{ fontWeight: 700, fontSize: 16, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>{game.title}</div>
+      <div style={{ fontSize: 14, color: "#b08090", marginTop: 3 }}>📅 {fmt(game.date)}</div>
+      <div style={{ fontSize: 14, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(game.time, game.endTime)}</div>
+      <div style={{ fontSize: 14, color: "#b08090", marginTop: 1 }}>📍 {game.location}</div>
       {(() => {
         const yesCount = Object.values(game.rsvps).filter((v) => v === "yes").length;
         const wl = game.waitlist || [];
@@ -1775,11 +1775,11 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
       <Lbl mt>Time</Lbl>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Start</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Start</div>
           <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
         </div>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>End</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>End</div>
           <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
         </div>
       </div>
@@ -1790,7 +1790,7 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
         {[4, 8, 12, 16].map((n) => (
           <div key={n} onClick={() => setSeats(n)} style={{
             flex: 1, height: 46, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", fontWeight: 700, fontSize: 15, transition: "all .18s",
+            cursor: "pointer", fontWeight: 700, fontSize: 16, transition: "all .18s",
             fontFamily: "'Noto Sans JP',sans-serif",
             background: seats === n ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(255,255,255,0.65)",
             color: seats === n ? "#fff" : "#7a4a58",
@@ -1814,8 +1814,8 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
         {/* Toggle row */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>🔁 Recurring Game</div>
-            <div style={{ fontSize: 12, color: "#b08090", marginTop: 2, fontFamily: "'Noto Sans JP',sans-serif" }}>Automatically schedule repeating sessions</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#4a2c3a", fontFamily: "'Shippori Mincho',serif" }}>🔁 Recurring Game</div>
+            <div style={{ fontSize: 13, color: "#b08090", marginTop: 2, fontFamily: "'Noto Sans JP',sans-serif" }}>Automatically schedule repeating sessions</div>
           </div>
           {/* Toggle switch */}
           <div onClick={() => setRecurring(!recurring)} style={{
@@ -1851,8 +1851,8 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
                   border: freq === f.id ? "none" : "1px solid rgba(201,96,122,0.2)",
                   boxShadow: freq === f.id ? `0 4px 14px ${group.color}44` : "none",
                 }}>
-                  <div style={{ fontSize: 18, marginBottom: 3 }}>{f.icon}</div>
-                  <div style={{ fontSize: 11, fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif" }}>{f.label}</div>
+                  <div style={{ fontSize: 19, marginBottom: 3 }}>{f.icon}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif" }}>{f.label}</div>
                 </div>
               ))}
             </div>
@@ -1863,7 +1863,7 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
                 <div key={n} onClick={() => setOccurrences(n)} style={{
                   width: 44, height: 44, borderRadius: 12,
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  cursor: "pointer", fontWeight: 700, fontSize: 14, transition: "all .18s",
+                  cursor: "pointer", fontWeight: 700, fontSize: 15, transition: "all .18s",
                   background: occurrences === n ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(255,255,255,0.65)",
                   color: occurrences === n ? "#fff" : "#7a4a58",
                   border: occurrences === n ? "none" : "1px solid rgba(201,96,122,0.2)",
@@ -1876,13 +1876,13 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
             {/* Preview dates */}
             {date && (
               <div style={{ background: "rgba(255,255,255,0.55)", borderRadius: 12, padding: "12px 14px", border: "1px solid rgba(255,200,220,0.4)" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#d4a5c9", textTransform: "uppercase", letterSpacing: .5, marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#d4a5c9", textTransform: "uppercase", letterSpacing: .5, marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>
                   Preview — {occurrences} sessions
                 </div>
                 {previewDates().map((ts, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: i < occurrences - 1 ? 6 : 0 }}>
-                    <div style={{ width: 20, height: 20, borderRadius: 999, background: `linear-gradient(135deg,${group.color}44,${group.color}22)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: group.color, flexShrink: 0, fontFamily: "'Noto Sans JP',sans-serif" }}>{i + 1}</div>
-                    <span style={{ fontSize: 13, color: "#4a2c3a", fontFamily: "'Noto Sans JP',sans-serif" }}>{fmt(ts)} · {fmtT(time)}</span>
+                    <div style={{ width: 20, height: 20, borderRadius: 999, background: `linear-gradient(135deg,${group.color}44,${group.color}22)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: group.color, flexShrink: 0, fontFamily: "'Noto Sans JP',sans-serif" }}>{i + 1}</div>
+                    <span style={{ fontSize: 14, color: "#4a2c3a", fontFamily: "'Noto Sans JP',sans-serif" }}>{fmt(ts)} · {fmtT(time)}</span>
                   </div>
                 ))}
               </div>
@@ -1919,8 +1919,8 @@ function GuestGameView({ uid, groupId, gameId, go, flash }) {
 
   if (!game || !groupMeta) return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(170deg,#fce8f0 0%,#f5d0e0 40%,#ead0e8 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
-      <div style={{ fontSize: 40 }}>🀄</div>
-      <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "#9b5070" }}>Loading game…</div>
+      <div style={{ fontSize: 41 }}>🀄</div>
+      <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "#9b5070" }}>Loading game…</div>
     </div>
   );
 
@@ -1979,13 +1979,13 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
   return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,#fce8f0 0%,#f5d0e0 40%,#ead0e8 100%)` }}>
       <div style={{ background: `linear-gradient(135deg,${group.color},${group.color}aa)`, padding: "50px 22px 28px", position: "relative" }}>
-        <button onClick={() => isGuestView ? go("home") : go("group", group.id)} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.25)", border: "none", borderRadius: 999, width: 36, height: 36, fontSize: 18, color: "#fff" }}>‹</button>
+        <button onClick={() => isGuestView ? go("home") : go("group", group.id)} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.25)", border: "none", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff" }}>‹</button>
         {!isGuestView && game.hostId === uid && (
-          <button onClick={() => go("editGame", group.id, game.id)} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✏️ Edit</button>
+          <button onClick={() => go("editGame", group.id, game.id)} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✏️ Edit</button>
         )}
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{group.name}</div>
-          <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 24, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.2)" }}>{game.title}</h1>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{group.name}</div>
+          <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 25, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.2)" }}>{game.title}</h1>
         </div>
       </div>
       <div style={{ padding: "18px 16px 100px" }}>
@@ -2010,7 +2010,7 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
             }} />
           </div>
           {isFull && (
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#c9607a", marginTop: 4, textAlign: "center", fontFamily: "'Noto Sans JP',sans-serif" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#c9607a", marginTop: 4, textAlign: "center", fontFamily: "'Noto Sans JP',sans-serif" }}>
               🀄 Game is full — {unifiedWaitlist.length} on waitlist
             </div>
           )}
@@ -2035,10 +2035,10 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
 
           const AttendeeRow = ({ entry }) => (
             <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0" }}>
-              <span style={{ fontSize: 18 }}>{entry.avatar}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#4a2c3a", flex: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{entry.name}</span>
-              {entry.isGuest && <span style={{ fontSize: 10, color: "#9b6ea8", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
-              {entry.id === uid && <span style={{ fontSize: 10, color: "#c9607a", fontWeight: 700, background: "rgba(201,96,122,0.1)", borderRadius: 999, padding: "2px 8px" }}>You</span>}
+              <span style={{ fontSize: 19 }}>{entry.avatar}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#4a2c3a", flex: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{entry.name}</span>
+              {entry.isGuest && <span style={{ fontSize: 11, color: "#9b6ea8", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
+              {entry.id === uid && <span style={{ fontSize: 11, color: "#c9607a", fontWeight: 700, background: "rgba(201,96,122,0.1)", borderRadius: 999, padding: "2px 8px" }}>You</span>}
             </div>
           );
 
@@ -2053,7 +2053,7 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
                     <Chip big color="#c4936e">🤔 {maybe}</Chip>
                     <Chip big color="#c9607a">❌ {no}</Chip>
                   </div>
-                  <span style={{ fontSize: 16, color: "#d4a5c9", transition: "transform .2s", display: "inline-block", transform: showAttendees ? "rotate(180deg)" : "rotate(0deg)" }}>⌄</span>
+                  <span style={{ fontSize: 17, color: "#d4a5c9", transition: "transform .2s", display: "inline-block", transform: showAttendees ? "rotate(180deg)" : "rotate(0deg)" }}>⌄</span>
                 </div>
               </div>
 
@@ -2066,7 +2066,7 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
                     { label: "❌ Can't Go", list: noList, color: "#c9607a" },
                   ].map(({ label, list, color }) => list.length > 0 && (
                     <div key={label} style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 11, fontWeight: 800, color, textTransform: "uppercase", letterSpacing: .5, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>{label} · {list.length}</div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color, textTransform: "uppercase", letterSpacing: .5, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>{label} · {list.length}</div>
                       {list.map((entry) => <AttendeeRow key={entry.id} entry={entry} />)}
                     </div>
                   ))}
@@ -2074,7 +2074,7 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
                   {/* Confirmed guests */}
                   {confirmedGuests.length > 0 && (
                     <div style={{ marginTop: 4, paddingTop: 10, borderTop: "1px solid rgba(212,165,201,0.15)" }}>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: "#9b6ea8", textTransform: "uppercase", letterSpacing: .5, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Guests · {confirmedGuests.length}</div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "#9b6ea8", textTransform: "uppercase", letterSpacing: .5, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Guests · {confirmedGuests.length}</div>
                       {confirmedGuests.map((g) => <AttendeeRow key={g.id} entry={{ ...g, isGuest: true }} />)}
                     </div>
                   )}
@@ -2082,14 +2082,14 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
                   {/* Waitlist */}
                   {unifiedWaitlist.length > 0 && (
                     <div style={{ marginTop: 4, paddingTop: 10, borderTop: "1px solid rgba(212,165,201,0.15)" }}>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: "#c9607a", textTransform: "uppercase", letterSpacing: .5, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>⏳ Waitlist · {unifiedWaitlist.length}</div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "#c9607a", textTransform: "uppercase", letterSpacing: .5, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>⏳ Waitlist · {unifiedWaitlist.length}</div>
                       {unifiedWaitlist.map((entry, i) => (
                         <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0" }}>
-                          <div style={{ width: 20, height: 20, borderRadius: 999, background: "rgba(201,96,122,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#c9607a", flexShrink: 0 }}>{i + 1}</div>
-                          <span style={{ fontSize: 18 }}>{entry.avatar}</span>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#4a2c3a", flex: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{entry.name}</span>
-                          {entry.isGuest && <span style={{ fontSize: 10, color: "#9b6ea8", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
-                          {entry.id === uid && <span style={{ fontSize: 10, color: "#c9607a", fontWeight: 700, background: "rgba(201,96,122,0.1)", borderRadius: 999, padding: "2px 8px" }}>You</span>}
+                          <div style={{ width: 20, height: 20, borderRadius: 999, background: "rgba(201,96,122,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#c9607a", flexShrink: 0 }}>{i + 1}</div>
+                          <span style={{ fontSize: 19 }}>{entry.avatar}</span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: "#4a2c3a", flex: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{entry.name}</span>
+                          {entry.isGuest && <span style={{ fontSize: 11, color: "#9b6ea8", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
+                          {entry.id === uid && <span style={{ fontSize: 11, color: "#c9607a", fontWeight: 700, background: "rgba(201,96,122,0.1)", borderRadius: 999, padding: "2px 8px" }}>You</span>}
                         </div>
                       ))}
                     </div>
@@ -2109,21 +2109,21 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
             {game.hostId === uid ? (
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, background: "linear-gradient(135deg,rgba(155,110,168,0.15),rgba(201,96,122,0.1))", border: "1px solid rgba(155,110,168,0.25)", marginBottom: 10 }}>
-                  <span style={{ fontSize: 18 }}>⭐</span>
+                  <span style={{ fontSize: 19 }}>⭐</span>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "#4a2c3a", fontFamily: "'Noto Sans JP',sans-serif" }}>You're the host — you're always going!</div>
-                    <div style={{ fontSize: 11, color: "#b08090", marginTop: 2, fontFamily: "'Noto Sans JP',sans-serif" }}>To step down, transfer host in Edit → Players</div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a", fontFamily: "'Noto Sans JP',sans-serif" }}>You're the host — you're always going!</div>
+                    <div style={{ fontSize: 12, color: "#b08090", marginTop: 2, fontFamily: "'Noto Sans JP',sans-serif" }}>To step down, transfer host in Edit → Players</div>
                   </div>
                 </div>
               </div>
             ) : isFull && myRsvp !== "yes" ? (
               /* Full game waitlist */
               <div>
-                <div style={{ fontSize: 13, color: "#7a4a58", marginBottom: 12, fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1.6 }}>
+                <div style={{ fontSize: 14, color: "#7a4a58", marginBottom: 12, fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1.6 }}>
                   This game is full. {onWaitlistMe ? "You're on the waitlist — we'll let you know if a spot opens up! 🌸" : "Join the waitlist and you'll be notified if a spot opens up."}
                 </div>
                 <button onClick={() => onWaitlist(onWaitlistMe ? "leave" : "join")} style={{
-                  width: "100%", padding: "11px 0", borderRadius: 12, fontSize: 13, fontWeight: 700,
+                  width: "100%", padding: "11px 0", borderRadius: 12, fontSize: 14, fontWeight: 700,
                   cursor: "pointer", transition: "all .2s", fontFamily: "'Noto Sans JP',sans-serif", border: "none",
                   background: onWaitlistMe ? "rgba(201,96,122,0.12)" : "linear-gradient(135deg,rgba(155,110,168,0.85),rgba(201,96,122,0.85))",
                   color: onWaitlistMe ? "#c9607a" : "#fff",
@@ -2136,7 +2136,7 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
               /* Normal RSVP buttons */
               <div style={{ display: "flex", gap: 8 }}>
                 {[["yes","✅ Going","#9b6ea8"],["maybe","🤔 Maybe","#c4936e"],["no","❌ Can't","#c9607a"]].map(([v, label, col]) => (
-                  <button key={v} onClick={() => onRsvp(v)} style={{ flex: 1, padding: "10px 4px", borderRadius: 12, fontSize: 12, fontWeight: 700, background: myRsvp === v ? col : "#f7eef2", color: myRsvp === v ? "#fff" : "#c0a0ac", border: "none", cursor: "pointer", transition: "all .18s", fontFamily: "'Noto Sans JP',sans-serif" }}>{label}</button>
+                  <button key={v} onClick={() => onRsvp(v)} style={{ flex: 1, padding: "10px 4px", borderRadius: 12, fontSize: 13, fontWeight: 700, background: myRsvp === v ? col : "#f7eef2", color: myRsvp === v ? "#fff" : "#c0a0ac", border: "none", cursor: "pointer", transition: "all .18s", fontFamily: "'Noto Sans JP',sans-serif" }}>{label}</button>
                 ))}
               </div>
             )}
@@ -2275,7 +2275,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         {[["details","📋 Details"],["players","👥 Players"]].map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)} style={{
-            flex: 1, padding: "9px 0", borderRadius: 999, fontSize: 13, fontWeight: 700,
+            flex: 1, padding: "9px 0", borderRadius: 999, fontSize: 14, fontWeight: 700,
             fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", transition: "all .18s",
             background: tab === t ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(255,255,255,0.55)",
             color: tab === t ? "#fff" : "#b08090",
@@ -2295,11 +2295,11 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
           <Lbl mt>Time</Lbl>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Start</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Start</div>
               <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
             </div>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>End</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>End</div>
               <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
             </div>
           </div>
@@ -2310,7 +2310,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
             {[4, 8, 12, 16].map((n) => (
               <div key={n} onClick={() => setSeats(n)} style={{
                 flex: 1, height: 46, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", fontWeight: 700, fontSize: 15, transition: "all .18s",
+                cursor: "pointer", fontWeight: 700, fontSize: 16, transition: "all .18s",
                 fontFamily: "'Noto Sans JP',sans-serif",
                 background: seats === n ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(255,255,255,0.65)",
                 color: seats === n ? "#fff" : "#7a4a58",
@@ -2331,28 +2331,28 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
         <div className="sUp">
           {/* Group members */}
           <div style={glassCard}>
-            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#7a3050", fontWeight: 700, marginBottom: 12 }}>Group Members</div>
+            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "#7a3050", fontWeight: 700, marginBottom: 12 }}>Group Members</div>
             {group.members.map((m) => {
               const isIn = invitedIds.has(m.id);
               const isMe = m.id === myUid;
               return (
                 <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 10 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 999, background: "linear-gradient(135deg,#fce4ee,#f5d0e0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{m.avatar}</div>
+                  <div style={{ width: 38, height: 38, borderRadius: 999, background: "linear-gradient(135deg,#fce4ee,#f5d0e0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>{m.avatar}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a" }}>{m.name}</div>
-                    {isMe && <div style={{ fontSize: 11, color: "#c9607a", fontWeight: 700 }}>Host · Always invited</div>}
+                    <div style={{ fontWeight: 700, fontSize: 15, color: "#4a2c3a" }}>{m.name}</div>
+                    {isMe && <div style={{ fontSize: 12, color: "#c9607a", fontWeight: 700 }}>Host · Always invited</div>}
                   </div>
                   {!isMe && (
                     <div onClick={() => toggleMember(m.id)} style={{
                       width: 32, height: 32, borderRadius: 999, cursor: "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15,
+                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
                       transition: "all .18s",
                       background: isIn ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(200,180,190,0.25)",
                       boxShadow: isIn ? `0 2px 8px ${group.color}44` : "none",
                       border: isIn ? "none" : "1px solid rgba(201,96,122,0.25)",
                     }}>{isIn ? "✅" : "➕"}</div>
                   )}
-                  {isMe && <div style={{ width: 32, height: 32, borderRadius: 999, background: `linear-gradient(135deg,${group.color},${group.color}cc)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>✅</div>}
+                  {isMe && <div style={{ width: 32, height: 32, borderRadius: 999, background: `linear-gradient(135deg,${group.color},${group.color}cc)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>✅</div>}
                 </div>
               );
             })}
@@ -2360,17 +2360,17 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
 
           {/* Guests */}
           <div style={glassCard}>
-            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#7a3050", fontWeight: 700, marginBottom: 4 }}>Guests</div>
-            <div style={{ fontSize: 12, color: "#b08090", marginBottom: 12, fontFamily: "'Noto Sans JP',sans-serif" }}>Invite someone outside the group</div>
+            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "#7a3050", fontWeight: 700, marginBottom: 4 }}>Guests</div>
+            <div style={{ fontSize: 13, color: "#b08090", marginBottom: 12, fontFamily: "'Noto Sans JP',sans-serif" }}>Invite someone outside the group</div>
 
             {guests.map((g) => (
               <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 10 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 999, background: "linear-gradient(135deg,#f0e4f8,#e8d0f0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{g.avatar}</div>
+                <div style={{ width: 38, height: 38, borderRadius: 999, background: "linear-gradient(135deg,#f0e4f8,#e8d0f0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>{g.avatar}</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a" }}>{g.name}</div>
-                  <div style={{ fontSize: 11, color: "#9b6ea8", fontWeight: 700 }}>Guest</div>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: "#4a2c3a" }}>{g.name}</div>
+                  <div style={{ fontSize: 12, color: "#9b6ea8", fontWeight: 700 }}>Guest</div>
                 </div>
-                <div onClick={() => removeGuest(g.id)} style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, background: "rgba(201,96,122,0.12)", border: "1px solid rgba(201,96,122,0.2)" }}>✕</div>
+                <div onClick={() => removeGuest(g.id)} style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, background: "rgba(201,96,122,0.12)", border: "1px solid rgba(201,96,122,0.2)" }}>✕</div>
               </div>
             ))}
 
@@ -2383,7 +2383,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
                 style={{ ...inputSt, flex: 1, marginBottom: 0 }}
               />
               <button onClick={addGuest} disabled={!guestName.trim()} style={{
-                padding: "0 16px", borderRadius: 12, fontSize: 20, cursor: guestName.trim() ? "pointer" : "not-allowed",
+                padding: "0 16px", borderRadius: 12, fontSize: 21, cursor: guestName.trim() ? "pointer" : "not-allowed",
                 background: guestName.trim() ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(200,180,190,0.3)",
                 border: "none", color: "#fff", transition: "all .18s",
                 boxShadow: guestName.trim() ? `0 3px 10px ${group.color}44` : "none",
@@ -2399,7 +2399,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
             <div style={{ marginTop: 16 }}>
               {!transferring ? (
                 <button onClick={() => setTransferring(true)} style={{
-                  width: "100%", padding: "11px 0", borderRadius: 12, fontSize: 13, fontWeight: 700,
+                  width: "100%", padding: "11px 0", borderRadius: 12, fontSize: 14, fontWeight: 700,
                   cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", border: "1px solid rgba(201,96,122,0.3)",
                   background: "transparent", color: "#c9607a", transition: "all .18s",
                 }}>
@@ -2412,14 +2412,14 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
                   border: "1px solid rgba(255,200,220,0.5)",
                   boxShadow: "0 4px 16px rgba(168,66,107,0.09)",
                 }}>
-                  <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#7a3050", fontWeight: 700, marginBottom: 4 }}>Transfer Host</div>
-                  <div style={{ fontSize: 12, color: "#b08090", marginBottom: 14, fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1.6 }}>
+                  <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "#7a3050", fontWeight: 700, marginBottom: 4 }}>Transfer Host</div>
+                  <div style={{ fontSize: 13, color: "#b08090", marginBottom: 14, fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1.6 }}>
                     Select a new host. They'll take over responsibilities and you can update your own RSVP freely.
                   </div>
 
                   {/* Eligible members — invited, not me, not already host */}
                   {group.members.filter((m) => m.id !== myUid && invitedIds.has(m.id)).length === 0 ? (
-                    <div style={{ fontSize: 13, color: "#c0a0b0", textAlign: "center", padding: "12px 0", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    <div style={{ fontSize: 14, color: "#c0a0b0", textAlign: "center", padding: "12px 0", fontFamily: "'Noto Sans JP',sans-serif" }}>
                       No other invited members to transfer to.
                     </div>
                   ) : (
@@ -2431,9 +2431,9 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
                           background: selectedNewHost === m.id ? `linear-gradient(135deg,${group.color}22,${group.color}0f)` : "rgba(255,255,255,0.5)",
                           border: `2px solid ${selectedNewHost === m.id ? group.color : "transparent"}`,
                         }}>
-                          <div style={{ width: 36, height: 36, borderRadius: 999, background: "linear-gradient(135deg,#fce4ee,#f5d0e0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{m.avatar}</div>
-                          <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: "#4a2c3a" }}>{m.name}</div>
-                          {selectedNewHost === m.id && <span style={{ fontSize: 16, color: group.color }}>⭐</span>}
+                          <div style={{ width: 36, height: 36, borderRadius: 999, background: "linear-gradient(135deg,#fce4ee,#f5d0e0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>{m.avatar}</div>
+                          <div style={{ flex: 1, fontWeight: 700, fontSize: 15, color: "#4a2c3a" }}>{m.name}</div>
+                          {selectedNewHost === m.id && <span style={{ fontSize: 17, color: group.color }}>⭐</span>}
                         </div>
                       ))}
                     </div>
@@ -2441,12 +2441,12 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
 
                   <div style={{ display: "flex", gap: 8 }}>
                     <button onClick={() => { setTransferring(false); setSelectedNewHost(null); }} style={{
-                      flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 13, fontWeight: 700,
+                      flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 14, fontWeight: 700,
                       cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif",
                       background: "rgba(200,180,190,0.25)", border: "1px solid rgba(201,96,122,0.2)", color: "#b08090",
                     }}>Cancel</button>
                     <button onClick={() => { if (selectedNewHost) onTransferHost(selectedNewHost); }} disabled={!selectedNewHost} style={{
-                      flex: 2, padding: "10px 0", borderRadius: 12, fontSize: 13, fontWeight: 700,
+                      flex: 2, padding: "10px 0", borderRadius: 12, fontSize: 14, fontWeight: 700,
                       cursor: selectedNewHost ? "pointer" : "not-allowed", fontFamily: "'Noto Sans JP',sans-serif", border: "none",
                       background: selectedNewHost ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(200,180,190,0.3)",
                       color: selectedNewHost ? "#fff" : "#bbb",
@@ -2493,8 +2493,8 @@ function Invite({ group, game, flash, onBack }) {
   return (
     <Shell title={game ? "Invite to Game" : "Invite to Group"} onBack={onBack} color={group.color}>
       <div style={{ textAlign: "center", marginBottom: 16 }}>
-        <div style={{ fontSize: 48 }}>✉️</div>
-        <p style={{ fontWeight: 700, color: "#4a2c3a", marginTop: 8, fontSize: 15 }}>{game ? `"${game.title}"` : `"${group.name}"`}</p>
+        <div style={{ fontSize: 49 }}>✉️</div>
+        <p style={{ fontWeight: 700, color: "#4a2c3a", marginTop: 8, fontSize: 16 }}>{game ? `"${game.title}"` : `"${group.name}"`}</p>
       </div>
 
       <SecLbl>Send via</SecLbl>
@@ -2511,16 +2511,16 @@ function Invite({ group, game, flash, onBack }) {
             onTouchStart={(e) => { e.currentTarget.style.transform = "scale(.95)"; }}
             onTouchEnd={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
           >
-            <div style={{ fontSize: 28, marginBottom: 4 }}>{icon}</div>
-            <div style={{ fontWeight: 700, fontSize: 13, color: "#4a2c3a" }}>{label}</div>
-            <div style={{ fontSize: 11, color: "#c0a0ac", marginTop: 1 }}>{sub}</div>
+            <div style={{ fontSize: 29, marginBottom: 4 }}>{icon}</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#4a2c3a" }}>{label}</div>
+            <div style={{ fontSize: 12, color: "#c0a0ac", marginTop: 1 }}>{sub}</div>
           </button>
         ))}
       </div>
 
       <div style={{ textAlign: "center", background: "#fff", borderRadius: 14, padding: "14px 16px", boxShadow: "0 2px 10px rgba(0,0,0,.05)" }}>
-        <div style={{ fontSize: 11, color: "#bbb", fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>Group Join Code</div>
-        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 38, color: group.color, letterSpacing: 8, marginTop: 4 }}>{group.code}</div>
+        <div style={{ fontSize: 12, color: "#bbb", fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>Group Join Code</div>
+        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 39, color: group.color, letterSpacing: 8, marginTop: 4 }}>{group.code}</div>
       </div>
     </Shell>
   );
@@ -2540,8 +2540,8 @@ function Shell({ title, onBack, color, children }) {
         position: "relative", overflow: "hidden",
       }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.15) 0%,transparent 60%)", pointerEvents: "none" }} />
-        <button onClick={onBack} style={{ background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 18, color: "#fff", flexShrink: 0, backdropFilter: "blur(8px)" }}>‹</button>
-        <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 23, color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,.2)", position: "relative" }}>{title}</h1>
+        <button onClick={onBack} style={{ background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", flexShrink: 0, backdropFilter: "blur(8px)" }}>‹</button>
+        <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 24, color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,.2)", position: "relative" }}>{title}</h1>
       </div>
       <div style={{
         padding: "20px 16px",
@@ -2557,10 +2557,10 @@ function Shell({ title, onBack, color, children }) {
   );
 }
 function Lbl({ children, mt }) {
-  return <div style={{ fontSize: 12, fontWeight: 700, color: "#c0899e", marginBottom: 6, marginTop: mt ? 10 : 0, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Noto Sans JP',sans-serif" }}>{children}</div>;
+  return <div style={{ fontSize: 13, fontWeight: 700, color: "#c0899e", marginBottom: 6, marginTop: mt ? 10 : 0, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Noto Sans JP',sans-serif" }}>{children}</div>;
 }
 function SecLbl({ children }) {
-  return <div style={{ fontSize: 11, fontWeight: 700, color: "#d4a5c9", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{children}</div>;
+  return <div style={{ fontSize: 12, fontWeight: 700, color: "#d4a5c9", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{children}</div>;
 }
 function Fld({ value, set, placeholder }) {
   return <input value={value} onChange={(e) => set(e.target.value)} placeholder={placeholder} style={inputSt} />;
@@ -2579,10 +2579,10 @@ function Chip({ children, color, big }) {
 function IRow({ icon, label, val }) {
   return (
     <div style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 14, padding: "11px 14px", marginBottom: 9, display: "flex", gap: 11, alignItems: "flex-start", boxShadow: "0 4px 16px rgba(168,66,107,0.08), inset 0 1px 0 rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.65)" }}>
-      <span style={{ fontSize: 18, lineHeight: 1.3, flexShrink: 0 }}>{icon}</span>
+      <span style={{ fontSize: 19, lineHeight: 1.3, flexShrink: 0 }}>{icon}</span>
       <div>
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#d4a5c9", textTransform: "uppercase", letterSpacing: .5 }}>{label}</div>
-        <div style={{ fontSize: 14, fontWeight: 500, color: "#4a2c3a", marginTop: 2 }}>{val}</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#d4a5c9", textTransform: "uppercase", letterSpacing: .5 }}>{label}</div>
+        <div style={{ fontSize: 15, fontWeight: 500, color: "#4a2c3a", marginTop: 2 }}>{val}</div>
       </div>
     </div>
   );
