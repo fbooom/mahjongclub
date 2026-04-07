@@ -20,6 +20,26 @@ const showBrowserNotif = (title, body, tag) => {
   try { new Notification(title, { body, icon: "/favicon.ico", tag }); } catch(e) {}
 };
 
+// Silently register/refresh the FCM token for a user and persist it to Firestore.
+// Called on sign-in and after the user enables notifications.
+async function registerFcmToken(uid) {
+  try {
+    const messaging = getMsg();
+    if (!messaging) return;
+    // Only proceed if the browser has notification permission
+    if (typeof Notification !== "undefined" && Notification.permission !== "granted") return;
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+    if (token) {
+      await updateDoc(doc(db, "users", uid), {
+        notificationsEnabled: true,
+        fcmTokens: arrayUnion(token),
+      });
+    }
+  } catch (e) {
+    // Non-fatal — FCM unavailable in this browser/context
+  }
+}
+
 const uid = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 const fmt = (ts) => new Date(ts).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 const fmtT = (t) => { const [h, m] = t.split(":").map(Number); const mins = m === 0 ? "" : `:${m.toString().padStart(2,"0")}`; return `${h % 12 || 12}${mins} ${h >= 12 ? "PM" : "AM"}`; };
@@ -226,6 +246,10 @@ export default function App() {
             const data = snap.data();
             setUser({ uid: fbUser.uid, ...data });
             if (data.theme && themes[data.theme]) setActiveTheme(themes[data.theme]);
+            // Refresh FCM token on every sign-in if notifications are enabled or already permitted
+            if (data.notificationsEnabled || (typeof Notification !== "undefined" && Notification.permission === "granted")) {
+              registerFcmToken(fbUser.uid);
+            }
           } else {
             const profile = { name: fbUser.displayName || fbUser.email.split("@")[0], email: fbUser.email, avatar: randAvatar(), phone: "" };
             await setDoc(doc(db, "users", fbUser.uid), profile);
@@ -1229,16 +1253,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
       }
       const perm = await Notification.requestPermission();
       if (perm === "denied") { flash("Notifications blocked — check browser settings", "🔕"); return; }
-      // Try to get FCM token for background push (requires VAPID key)
-      let updates = { notificationsEnabled: true };
-      try {
-        const messaging = getMsg();
-        if (messaging && VAPID_KEY !== "REPLACE_WITH_YOUR_VAPID_KEY") {
-          const token = await getToken(messaging, { vapidKey: VAPID_KEY });
-          if (token) updates.fcmTokens = arrayUnion(token);
-        }
-      } catch(e) { /* FCM unavailable — foreground notifications still work */ }
-      await updateDoc(doc(db, "users", uid), updates);
+      await registerFcmToken(uid);
       setNotifEnabled(true);
       flash("Notifications enabled!", "🔔");
     } else {
