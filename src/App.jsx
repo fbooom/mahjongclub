@@ -10,6 +10,7 @@ import {
 } from "firebase/firestore";
 import { auth, db, googleProvider, getMsg } from "./firebase";
 import { getToken, onMessage } from "firebase/messaging";
+import { sakura as defaultTheme, buildCSSVars } from "./theme";
 
 // VAPID key — get from Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
 const VAPID_KEY = "BKkYCO7TpfkGKyFGFwxP9qv_SqUyey_tLi5yzk5bngZxZ6ZBd3S9IgYSsHwIlRMinuGxmiFK4bQDjwxIPj8M0Bg";
@@ -108,19 +109,21 @@ const COLORS = ["#c9607a","#9b6ea8","#d4829b","#e8a0b0","#c17db8","#a0845c","#7a
 const REACTION_EMOJIS = ["😊","👍","❤️","👏","😢","👎"];
 
 const inputSt = {
-  width: "100%", padding: "12px 14px", background: "#fff", borderRadius: 12,
-  fontSize: 16, fontWeight: 600, marginBottom: 6, border: "2px solid #f0d9e3",
-  color: "#4a2c3a", display: "block", boxSizing: "border-box",
+  width: "100%", padding: "12px 14px", background: "var(--bg-input)", borderRadius: "var(--radius-input)",
+  fontSize: 16, fontWeight: 600, marginBottom: 6, border: "2px solid var(--border-input)",
+  color: "var(--text-body)", display: "block", boxSizing: "border-box",
   WebkitAppearance: "none", appearance: "none",
 };
 
-const globalCSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Shippori+Mincho:wght@400;500;600;700;800&display=swap');
+function buildGlobalCSS(theme) {
+  return `
+  ${buildCSSVars(theme)}
+  @import url('${theme.googleFontUrl}');
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%;font-family:'Noto Sans JP',sans-serif;overflow:hidden;overscroll-behavior:none}
-  body{background:#ead0e8;min-height:100%}
-  button{cursor:pointer;border:none;font-family:'Noto Sans JP',sans-serif}
-  input,select,textarea{font-family:'Noto Sans JP',sans-serif;outline:none;font-size:16px}
+  html,body{height:100%;font-family:var(--font-body);overflow:hidden;overscroll-behavior:none}
+  body{background:var(--bg-body);min-height:100%}
+  button{cursor:pointer;border:none;font-family:var(--font-body)}
+  input,select,textarea{font-family:var(--font-body);outline:none;font-size:16px}
 
   @keyframes bIn{0%{transform:scale(.7);opacity:0}70%{transform:scale(1.06);opacity:1}100%{transform:scale(1)}}
   @keyframes sUp{from{transform:translateY(28px);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -138,7 +141,7 @@ const globalCSS = `
     height: 100vh;
     height: 100dvh;
     margin: 0 auto;
-    background: linear-gradient(170deg,#fce8f0 0%,#f5d0e0 40%,#ead0e8 100%);
+    background: linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%);
     position: relative;
     display: flex;
     flex-direction: column;
@@ -148,7 +151,7 @@ const globalCSS = `
   /* On larger screens: float as a card with subtle shadow */
   @media (min-width: 520px) {
     .app-shell {
-      box-shadow: 0 0 60px rgba(168,66,107,0.18), 0 0 0 1px rgba(255,200,220,0.2);
+      box-shadow: 0 0 60px var(--shadow-primary), 0 0 0 1px rgba(255,200,220,0.2);
     }
   }
 
@@ -160,23 +163,24 @@ const globalCSS = `
     transform: translateX(-50%);
     width: 100%;
     max-width: 480px;
-    background: #fdf0f6;
+    background: var(--bg-nav);
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid rgba(255,200,220,0.5);
+    border-top: 1px solid var(--border-nav);
     display: flex; align-items: stretch;
-    box-shadow: 0 -4px 24px rgba(168,66,107,0.12);
+    box-shadow: 0 -4px 24px var(--shadow-primary);
     z-index: 1000;
     padding-bottom: env(safe-area-inset-bottom);
   }
 
   ::-webkit-scrollbar{width:4px}
-  ::-webkit-scrollbar-thumb{background:rgba(201,96,122,0.25);border-radius:99px}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border-radius:99px}
 `;
+}
 
 export default function App() {
   useEffect(() => {
     const el = document.createElement("style");
-    el.textContent = globalCSS;
+    el.textContent = buildGlobalCSS(defaultTheme);
     document.head.appendChild(el);
     return () => document.head.removeChild(el);
   }, []);
@@ -3054,32 +3058,32 @@ function Shell({ title, onBack, color, children }) {
   );
 }
 function Lbl({ children, mt }) {
-  return <div style={{ fontSize: 13, fontWeight: 700, color: "#c0899e", marginBottom: 6, marginTop: mt ? 10 : 0, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Noto Sans JP',sans-serif" }}>{children}</div>;
+  return <div style={{ fontSize: 13, fontWeight: 700, color: "var(--primary-subtle)", marginBottom: 6, marginTop: mt ? 10 : 0, textTransform: "uppercase", letterSpacing: .5, fontFamily: "var(--font-body)" }}>{children}</div>;
 }
 function SecLbl({ children }) {
-  return <div style={{ fontSize: 12, fontWeight: 700, color: "#d4a5c9", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{children}</div>;
+  return <div style={{ fontSize: 12, fontWeight: 700, color: "var(--primary-faint)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1, fontFamily: "var(--font-body)" }}>{children}</div>;
 }
 function Fld({ value, set, placeholder }) {
   return <input value={value} onChange={(e) => set(e.target.value)} placeholder={placeholder} style={inputSt} />;
 }
 function Btn({ children, onClick, full, sm, outline, danger, disabled, style: sx }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ width: full ? "100%" : "auto", padding: sm ? "7px 14px" : "13px 20px", borderRadius: 999, fontSize: sm ? 13 : 15, fontWeight: 700, background: disabled ? "#e5e5e5" : outline ? "transparent" : "#c9607a", color: disabled ? "#bbb" : outline ? (danger ? "#c9607a" : "#c9607a") : "#fff", border: outline ? `2px solid ${danger ? "#c9607a" : "#c9607a"}` : "none", cursor: disabled ? "not-allowed" : "pointer", boxShadow: disabled || outline ? "none" : "0 4px 16px #c9607a50", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .18s", ...sx }}
+    <button onClick={onClick} disabled={disabled} style={{ width: full ? "100%" : "auto", padding: sm ? "7px 14px" : "13px 20px", borderRadius: "var(--radius-btn)", fontSize: sm ? 13 : 15, fontWeight: 700, background: disabled ? "#e5e5e5" : outline ? "transparent" : "var(--primary)", color: disabled ? "#bbb" : outline ? "var(--primary)" : "#fff", border: outline ? "2px solid var(--primary)" : "none", cursor: disabled ? "not-allowed" : "pointer", boxShadow: disabled || outline ? "none" : "0 4px 16px var(--shadow-btn)", fontFamily: "var(--font-body)", transition: "all .18s", ...sx }}
       onMouseDown={(e) => { if (!disabled) e.currentTarget.style.transform = "scale(.97)"; }}
       onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
     >{children}</button>
   );
 }
 function Chip({ children, color, big }) {
-  return <div style={{ background: color + "18", color, borderRadius: 999, padding: big ? "5px 12px" : "2px 10px", fontSize: big ? 13 : 12, fontWeight: 700, whiteSpace: "nowrap", fontFamily: "'Noto Sans JP',sans-serif" }}>{children}</div>;
+  return <div style={{ background: color + "18", color, borderRadius: "var(--radius-btn)", padding: big ? "5px 12px" : "2px 10px", fontSize: big ? 13 : 12, fontWeight: 700, whiteSpace: "nowrap", fontFamily: "var(--font-body)" }}>{children}</div>;
 }
 function IRow({ icon, label, val }) {
   return (
-    <div style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,235,245,0.68))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 14, padding: "11px 14px", marginBottom: 9, display: "flex", gap: 11, alignItems: "flex-start", boxShadow: "0 4px 16px rgba(168,66,107,0.08), inset 0 1px 0 rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.65)" }}>
+    <div style={{ background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: "var(--radius-card-sm)", padding: "11px 14px", marginBottom: 9, display: "flex", gap: 11, alignItems: "flex-start", boxShadow: "0 4px 16px var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.8)", border: "1px solid var(--border-card)" }}>
       <span style={{ fontSize: 19, lineHeight: 1.3, flexShrink: 0 }}>{icon}</span>
       <div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#d4a5c9", textTransform: "uppercase", letterSpacing: .5 }}>{label}</div>
-        <div style={{ fontSize: 15, fontWeight: 500, color: "#4a2c3a", marginTop: 2 }}>{val}</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--primary-faint)", textTransform: "uppercase", letterSpacing: .5 }}>{label}</div>
+        <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text-body)", marginTop: 2 }}>{val}</div>
       </div>
     </div>
   );
