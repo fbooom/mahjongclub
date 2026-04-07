@@ -150,7 +150,7 @@ export const forest = {
   shadowInset:         "rgba(255,255,255,0.80)",
 
   headerGradient:      "linear-gradient(135deg,rgba(58,100,60,0.92),rgba(61,122,94,0.88))",
-  headerGradient2:     "linear-gradient(150deg,rgba(58,100,60,0.95) 0%,rgba(90,138,92,0.9) 50%,rgba(61,122,94,0.9) 100%)",
+  headerGradient2:     "linear-gradient(150deg,rgba(28,58,30,0.99) 0%,rgba(48,85,50,0.98) 55%,rgba(36,72,46,0.98) 100%)",
   activeTabGradient:   "linear-gradient(135deg,#5a8a5c,#3d7a5e)",
   avatarBubbleBg:      "linear-gradient(135deg,#d4f0d6,#c4e8c6)",
   chatSheetBg:         "linear-gradient(170deg,#eef6ef 0%,#e0eddf 50%,#d4e8d4 100%)",
