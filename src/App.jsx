@@ -8,7 +8,16 @@ import {
   onSnapshot, query, where, orderBy, addDoc, serverTimestamp,
   arrayUnion, arrayRemove, runTransaction,
 } from "firebase/firestore";
-import { auth, db, googleProvider } from "./firebase";
+import { auth, db, googleProvider, getMsg } from "./firebase";
+import { getToken, onMessage } from "firebase/messaging";
+
+// VAPID key — get from Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
+const VAPID_KEY = "REPLACE_WITH_YOUR_VAPID_KEY";
+
+const showBrowserNotif = (title, body, tag) => {
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  try { new Notification(title, { body, icon: "/favicon.ico", tag }); } catch(e) {}
+};
 
 const uid = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 const fmt = (ts) => new Date(ts).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -185,6 +194,7 @@ export default function App() {
   const groupMeta = useRef({});
   const guestGameUnsubs = useRef({});
   const guestGroupCache = useRef({});
+  const knownGameIds = useRef(null); // null = initialising, Set after first load
 
   // ── Firebase auth state listener ──
   useEffect(() => {
@@ -245,6 +255,30 @@ export default function App() {
           collection(db, "groups", groupDoc.id, "games"),
           (gamesSnap) => {
             const games = gamesSnap.docs.map((d) => ({ ...d.data(), id: d.id }));
+
+            // Notify user about newly added games (skip on initial load)
+            if (knownGameIds.current !== null) {
+              games.forEach((gm) => {
+                const key = `${groupDoc.id}:${gm.id}`;
+                if (!knownGameIds.current.has(key)) {
+                  const isMember =
+                    (gm.memberIds || []).includes(uid) ||
+                    gm.rsvps?.[uid] !== undefined ||
+                    (gm.guestIds || []).includes(uid);
+                  if (isMember) {
+                    const groupName = groupMeta.current[groupDoc.id]?.name || "Your group";
+                    showBrowserNotif(
+                      `New game: ${gm.title}`,
+                      `${groupName} · ${fmt(gm.date)}${gm.time ? " · " + fmtT(gm.time) : ""}`,
+                      `game-${gm.id}`
+                    );
+                  }
+                }
+              });
+            }
+            if (knownGameIds.current === null) knownGameIds.current = new Set();
+            games.forEach((gm) => knownGameIds.current.add(`${groupDoc.id}:${gm.id}`));
+
             setGroups((prev) => {
               const meta = groupMeta.current[groupDoc.id] || {};
               const updated = { ...meta, id: groupDoc.id, games };
@@ -1061,7 +1095,16 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
       if (typeof Notification === "undefined") { flash("Notifications not supported on this device", "⚠️"); return; }
       const perm = await Notification.requestPermission();
       if (perm !== "granted") { flash("Notification permission denied", "🔕"); return; }
-      await updateDoc(doc(db, "users", uid), { notificationsEnabled: true });
+      // Try to get FCM token for background push (requires VAPID key)
+      let updates = { notificationsEnabled: true };
+      try {
+        const messaging = getMsg();
+        if (messaging && VAPID_KEY !== "REPLACE_WITH_YOUR_VAPID_KEY") {
+          const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+          if (token) updates.fcmTokens = arrayUnion(token);
+        }
+      } catch(e) { /* FCM unavailable — foreground notifications still work */ }
+      await updateDoc(doc(db, "users", uid), updates);
       setNotifEnabled(true);
       flash("Notifications enabled!", "🔔");
     } else {
@@ -1698,6 +1741,7 @@ function GroupChat({ group, uid, user, onClose }) {
   );
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+  const knownMsgIds = useRef(null); // null = initialising
 
   useEffect(() => {
     const q = query(
@@ -1705,7 +1749,23 @@ function GroupChat({ group, uid, user, onClose }) {
       orderBy("createdAt", "asc")
     );
     const unsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const msgs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      // Notify about new messages from other members (skip initial load)
+      if (knownMsgIds.current !== null) {
+        msgs.forEach((msg) => {
+          if (!knownMsgIds.current.has(msg.id) && msg.uid !== uid) {
+            showBrowserNotif(
+              `${msg.name} in ${group.name}`,
+              msg.text,
+              `chat-${group.id}-${msg.id}`
+            );
+          }
+        });
+      }
+      knownMsgIds.current = new Set(msgs.map((m) => m.id));
+
+      setMessages(msgs);
     });
     return unsub;
   }, [group.id]);
