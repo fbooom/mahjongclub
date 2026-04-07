@@ -12,7 +12,7 @@ import { auth, db, googleProvider, getMsg } from "./firebase";
 import { getToken, onMessage } from "firebase/messaging";
 
 // VAPID key — get from Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
-const VAPID_KEY = "REPLACE_WITH_YOUR_VAPID_KEY";
+const VAPID_KEY = "BKkYCO7TpfkGKyFGFwxP9qv_SqUyey_tLi5yzk5bngZxZ6ZBd3S9IgYSsHwIlRMinuGxmiFK4bQDjwxIPj8M0Bg";
 
 const showBrowserNotif = (title, body, tag) => {
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
