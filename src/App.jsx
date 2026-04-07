@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import { auth, db, googleProvider, getMsg } from "./firebase";
 import { getToken, onMessage } from "firebase/messaging";
-import { sakura as defaultTheme, buildCSSVars } from "./theme";
+import { sakura as defaultTheme, themes, buildCSSVars } from "./theme";
 
 // VAPID key — get from Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
 const VAPID_KEY = "BKkYCO7TpfkGKyFGFwxP9qv_SqUyey_tLi5yzk5bngZxZ6ZBd3S9IgYSsHwIlRMinuGxmiFK4bQDjwxIPj8M0Bg";
@@ -178,12 +178,20 @@ function buildGlobalCSS(theme) {
 }
 
 export default function App() {
+  const [activeTheme, setActiveTheme] = useState(defaultTheme);
+  const cssElRef = useRef(null);
+
+  // Create the style element once; update it whenever activeTheme changes
   useEffect(() => {
     const el = document.createElement("style");
-    el.textContent = buildGlobalCSS(defaultTheme);
     document.head.appendChild(el);
-    return () => document.head.removeChild(el);
+    cssElRef.current = el;
+    return () => { document.head.removeChild(el); };
   }, []);
+
+  useEffect(() => {
+    if (cssElRef.current) cssElRef.current.textContent = buildGlobalCSS(activeTheme);
+  }, [activeTheme]);
 
   const [groups, setGroups] = useState([]);
   const [guestGames, setGuestGames] = useState([]);
@@ -215,7 +223,9 @@ export default function App() {
         try {
           const snap = await getDoc(doc(db, "users", fbUser.uid));
           if (snap.exists()) {
-            setUser({ uid: fbUser.uid, ...snap.data() });
+            const data = snap.data();
+            setUser({ uid: fbUser.uid, ...data });
+            if (data.theme && themes[data.theme]) setActiveTheme(themes[data.theme]);
           } else {
             const profile = { name: fbUser.displayName || fbUser.email.split("@")[0], email: fbUser.email, avatar: randAvatar(), phone: "" };
             await setDoc(doc(db, "users", fbUser.uid), profile);
@@ -363,6 +373,13 @@ export default function App() {
   }, [effectiveUid]);
 
   const handleSignOut = async () => { await signOut(auth); };
+
+  const handleThemeChange = async (themeId) => {
+    const theme = themes[themeId];
+    if (!theme) return;
+    setActiveTheme(theme);
+    try { await updateDoc(doc(db, "users", authUser.uid), { theme: themeId }); } catch {}
+  };
 
   const startImpersonating = (targetUser) => {
     setImpersonating(targetUser);
@@ -559,7 +576,7 @@ export default function App() {
       {/* Page content */}
       <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 16, paddingTop: impersonating ? 52 : 0 }}>
         {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} />}
-        {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} />}
+        {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} activeThemeId={activeTheme.id} onThemeChange={handleThemeChange} />}
         {page === "newGroup" && (
           <NewGroup onBack={() => go("home")}
             onSave={async (g) => {
@@ -1129,7 +1146,7 @@ function AdminPanel({ onImpersonate }) {
 }
 
 /* ── ACCOUNT PAGE ── */
-function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut, isAdmin, onImpersonate, isImpersonating }) {
+function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut, isAdmin, onImpersonate, isImpersonating, activeThemeId, onThemeChange }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
@@ -1318,6 +1335,61 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                 }} />
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Theme picker */}
+        <div style={{
+          background: "linear-gradient(135deg,rgba(255,255,255,0.85),rgba(255,235,245,0.72))",
+          backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+          borderRadius: 20, padding: "20px 18px", marginBottom: 14,
+          boxShadow: "0 4px 20px rgba(168,66,107,0.09), inset 0 1px 0 rgba(255,255,255,0.85)",
+          border: "1px solid rgba(255,255,255,0.65)",
+        }}>
+          <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "#7a3050", fontWeight: 700 }}>Appearance</span>
+          <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+            {Object.values(themes).map((t) => {
+              const active = activeThemeId === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => onThemeChange(t.id)}
+                  style={{
+                    flex: 1, minWidth: 120,
+                    padding: "14px 12px",
+                    borderRadius: 16,
+                    border: active ? `2px solid ${t.primary}` : "2px solid transparent",
+                    background: active
+                      ? `linear-gradient(135deg,${t.bgShellStart},${t.bgShellEnd})`
+                      : "rgba(255,255,255,0.55)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    boxShadow: active ? `0 4px 16px ${t.shadowPrimary}` : "none",
+                    transition: "all .2s",
+                    position: "relative",
+                    fontFamily: "'Noto Sans JP',sans-serif",
+                  }}
+                >
+                  {active && (
+                    <div style={{
+                      position: "absolute", top: 7, right: 8,
+                      width: 18, height: 18, borderRadius: "50%",
+                      background: t.primary,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 10, color: "#fff", fontWeight: 900,
+                    }}>✓</div>
+                  )}
+                  <div style={{ fontSize: 22, marginBottom: 6 }}>{t.emoji}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: t.textBody }}>{t.name}</div>
+                  {/* Colour swatches */}
+                  <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
+                    {[t.primary, t.bgShellStart, t.bgShellMid, t.bgShellEnd, t.primaryFaint].map((c, i) => (
+                      <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", background: c, border: "1.5px solid rgba(255,255,255,0.6)" }} />
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 

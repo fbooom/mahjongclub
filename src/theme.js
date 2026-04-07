@@ -74,12 +74,72 @@ export const sakura = {
   scrollbarThumb: "rgba(201,96,122,0.25)",
 };
 
+// ── Theme: Bamboo Forest ─────────────────────────────────────────────────────
+export const forest = {
+  id: "forest",
+  name: "Bamboo Forest",
+  emoji: "🎋",
+
+  // ── Palette ────────────────────────────────────────────────────────────────
+  primary:        "#5a8a5c",   // sage green
+  primaryDark:    "#3d6b3e",
+  primaryMuted:   "#4a7a4b",
+  primarySubtle:  "#7aaa7c",
+  primaryFaint:   "#a8c8aa",
+
+  // Backgrounds
+  bgBody:         "#c8dfc9",
+  bgShellStart:   "#e4f2e5",
+  bgShellMid:     "#d4ead6",
+  bgShellEnd:     "#c4dfc6",
+  bgNav:          "#eef6ef",
+  bgInput:        "#f7fbf7",
+  bgCard:         "rgba(240,252,241,0.88)",
+  bgCardAlt:      "rgba(220,244,222,0.72)",
+
+  // Borders
+  borderInput:    "#bddbbf",
+  borderNav:      "rgba(140,195,145,0.5)",
+  borderCard:     "rgba(200,235,202,0.7)",
+
+  // Text
+  textBody:       "#243a26",
+  textHeading:    "#162818",
+  textMuted:      "#6a9a6c",
+  textSubtle:     "#8eba90",
+
+  // Shadows
+  shadowPrimary:  "rgba(58,100,60,0.15)",
+  shadowCard:     "rgba(58,100,60,0.07)",
+  shadowBtn:      "#5a8a5c50",
+
+  // Admin / purple accent (kept intentionally unchanged — admin context)
+  adminDeep:      "#1b2e1b",
+  adminMid:       "#2d5a2d",
+  adminLight:     "#5a8a5a",
+  adminMuted:     "#4a7a4a",
+
+  // ── Typography ─────────────────────────────────────────────────────────────
+  fontBody:       "'Noto Sans JP', sans-serif",
+  fontDisplay:    "'Shippori Mincho', serif",
+  googleFontUrl:  "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Shippori+Mincho:wght@400;500;600;700;800&display=swap",
+
+  // ── Shape (same as sakura — consistent feel) ───────────────────────────────
+  radiusInput:    "12px",
+  radiusCard:     "18px",
+  radiusCardSm:   "14px",
+  radiusBtn:      "999px",
+  radiusBtnSm:    "12px",
+  radiusSheet:    "26px",
+
+  // ── Scrollbar ──────────────────────────────────────────────────────────────
+  scrollbarThumb: "rgba(90,138,92,0.28)",
+};
+
 // ── Theme registry ────────────────────────────────────────────────────────────
 export const themes = {
   sakura,
-  // Add future themes here, e.g.:
-  // midnight: { id: "midnight", name: "Midnight", ... },
-  // bamboo:   { id: "bamboo",   name: "Bamboo",   ... },
+  forest,
 };
 
 export const defaultThemeId = "sakura";
