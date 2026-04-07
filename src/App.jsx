@@ -214,7 +214,7 @@ export default function App() {
   const groupMeta = useRef({});
   const guestGameUnsubs = useRef({});
   const guestGroupCache = useRef({});
-  const knownGameIds = useRef(null); // null = initialising, Set after first load
+  const knownGameIds = useRef({}); // { [groupId]: Set<gameId> } — per-group tracking
 
   // ── Firebase auth state listener ──
   useEffect(() => {
@@ -264,6 +264,7 @@ export default function App() {
           gamesUnsubs.current[id]();
           delete gamesUnsubs.current[id];
           delete groupMeta.current[id];
+          delete knownGameIds.current[id];
         }
       });
 
@@ -278,17 +279,18 @@ export default function App() {
           (gamesSnap) => {
             const games = gamesSnap.docs.map((d) => ({ ...d.data(), id: d.id }));
 
-            // Notify user about newly added games (skip on initial load)
-            if (knownGameIds.current !== null) {
+            // Notify user about newly added games (skip on initial load per group)
+            const gid = groupDoc.id;
+            const knownForGroup = knownGameIds.current[gid];
+            if (knownForGroup !== undefined) {
               games.forEach((gm) => {
-                const key = `${groupDoc.id}:${gm.id}`;
-                if (!knownGameIds.current.has(key)) {
+                if (!knownForGroup.has(gm.id)) {
                   const isMember =
                     (gm.memberIds || []).includes(uid) ||
                     gm.rsvps?.[uid] !== undefined ||
                     (gm.guestIds || []).includes(uid);
                   if (isMember) {
-                    const groupName = groupMeta.current[groupDoc.id]?.name || "Your group";
+                    const groupName = groupMeta.current[gid]?.name || "Your group";
                     showBrowserNotif(
                       `New game: ${gm.title}`,
                       `${groupName} · ${fmt(gm.date)}${gm.time ? " · " + fmtT(gm.time) : ""}`,
@@ -298,8 +300,8 @@ export default function App() {
                 }
               });
             }
-            if (knownGameIds.current === null) knownGameIds.current = new Set();
-            games.forEach((gm) => knownGameIds.current.add(`${groupDoc.id}:${gm.id}`));
+            if (knownGameIds.current[gid] === undefined) knownGameIds.current[gid] = new Set();
+            games.forEach((gm) => knownGameIds.current[gid].add(gm.id));
 
             setGroups((prev) => {
               const meta = groupMeta.current[groupDoc.id] || {};
@@ -724,6 +726,42 @@ export default function App() {
 }
 
 /* ── WELCOME MODAL ── */
+function ConfirmDialog({ title, message, confirmLabel = "Delete", onConfirm, onCancel }) {
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 10000,
+      background: "rgba(0,0,0,0.45)",
+      backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: "24px",
+    }}>
+      <div className="bIn" style={{
+        background: "linear-gradient(160deg,var(--bg-card-base) 0%,var(--bg-card-alt) 100%)",
+        borderRadius: 24,
+        padding: "28px 24px 22px",
+        maxWidth: 340, width: "100%",
+        boxShadow: "0 20px 56px rgba(var(--shadow-rgb),0.28), inset 0 1px 0 var(--shadow-inset)",
+        border: "1px solid rgba(var(--border-light-rgb),0.5)",
+        textAlign: "center",
+      }}>
+        <div style={{ fontSize: 38, marginBottom: 12 }}>⚠️</div>
+        <h3 style={{
+          fontFamily: "var(--font-display)", fontSize: 20,
+          color: "var(--text-heading)", marginBottom: 10, lineHeight: 1.3,
+        }}>{title}</h3>
+        <p style={{
+          fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6,
+          marginBottom: 22,
+        }}>{message}</p>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Btn full outline onClick={onCancel} style={{ flex: 1 }}>Cancel</Btn>
+          <Btn full danger onClick={onConfirm} style={{ flex: 1 }}>{confirmLabel}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WelcomeModal({ onClose }) {
   return (
     <div style={{
@@ -1779,6 +1817,7 @@ function Group({ uid, group, go, flash, onLeave }) {
   const [tab, setTab] = useState("games");
   const [gamesTab, setGamesTab] = useState("upcoming");
   const [chatOpen, setChatOpen] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const upcoming = group.games.filter((g) => g.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
   const past = group.games.filter((g) => g.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
   const gamesList = gamesTab === "upcoming" ? upcoming : past;
@@ -1872,7 +1911,7 @@ function Group({ uid, group, go, flash, onLeave }) {
               </div>
             ))}
             <div style={{ marginTop: 18 }}>
-              <Btn full outline danger onClick={onLeave}>Leave Group</Btn>
+              <Btn full outline danger onClick={() => setConfirmLeave(true)}>Leave Group</Btn>
             </div>
           </>
         )}
@@ -1881,6 +1920,15 @@ function Group({ uid, group, go, flash, onLeave }) {
 
       {chatOpen && (
         <GroupChat group={group} uid={uid} user={{ name: group.members.find(m => m.id === uid)?.name || "You", avatar: group.members.find(m => m.id === uid)?.avatar || "🀄" }} onClose={() => setChatOpen(false)} />
+      )}
+      {confirmLeave && (
+        <ConfirmDialog
+          title="Leave Group?"
+          message={`You will be removed from "${group.name}" and will lose access to its games and chat.`}
+          confirmLabel="Leave Group"
+          onConfirm={() => { setConfirmLeave(false); onLeave(); }}
+          onCancel={() => setConfirmLeave(false)}
+        />
       )}
     </div>
   );
@@ -2523,6 +2571,7 @@ function GuestGameView({ uid, groupId, gameId, go, flash }) {
 /* GAME DETAIL */
 function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView = false }) {
   const [showAttendees, setShowAttendees] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const isCreator = !isGuestView && group.members.some((m) => m.id === uid && m.host);
   const canInvite = !isGuestView && (isCreator || (group.openInvites ?? false));
   const myRsvp = game.rsvps[uid] || "pending";
@@ -2552,6 +2601,7 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
     return { id, name: "Unknown", avatar: "👤", isGuest: false };
   });
   return (
+    <>
     <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
       <div style={{ background: `linear-gradient(135deg,${group.color},${group.color}aa)`, padding: "50px 22px 28px", position: "relative" }}>
         <button onClick={() => isGuestView ? go("home") : go("group", group.id)} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.25)", border: "none", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff" }}>‹</button>
@@ -2719,9 +2769,19 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
         )}
 
         <Btn full onClick={() => go("invite", group.id, game.id)} style={{ marginBottom: 10 }}>✉️ Invite Players</Btn>
-        {game.hostId === uid && <Btn full outline danger onClick={onDelete}>🗑 Delete Game</Btn>}
+        {game.hostId === uid && <Btn full outline danger onClick={() => setConfirmDelete(true)}>🗑 Delete Game</Btn>}
       </div>
     </div>
+    {confirmDelete && (
+      <ConfirmDialog
+        title="Delete Game?"
+        message={`"${game.title}" will be permanently deleted and cannot be recovered.`}
+        confirmLabel="Delete Game"
+        onConfirm={() => { setConfirmDelete(false); onDelete(); }}
+        onCancel={() => setConfirmDelete(false)}
+      />
+    )}
+    </>
   );
 }
 
