@@ -184,6 +184,14 @@ export default function App() {
   const [groups, setGroups] = useState([]);
   const [guestGames, setGuestGames] = useState([]);
   const [page, setPage] = useState("home");
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 900);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const onResize = () => setIsDesktop(window.innerWidth >= 900);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
   const [gid, setGid] = useState(null);
   const [gmid, setGmid] = useState(null);
   const [toast, setToast] = useState(null);
@@ -460,7 +468,58 @@ export default function App() {
     { id: "account", icon: "👤", label: "Account" },
   ];
 
+  // Admin hub renders outside the app shell (full viewport)
+  if (page === "adminHub" && user?.isAdmin) {
+    return <AdminHub uid={authUser.uid} user={user} go={(p) => setPage(p)} flash={flash} onImpersonate={startImpersonating} />;
+  }
+
   return (
+    <>
+    {/* Desktop admin dropdown — only shown on wide screens for admin users */}
+    {isDesktop && user?.isAdmin && !impersonating && (
+      <div style={{ position: "fixed", top: 16, right: 24, zIndex: 5000 }}>
+        <button
+          onClick={() => setAdminMenuOpen(v => !v)}
+          style={{
+            background: adminMenuOpen ? "linear-gradient(135deg,#2d1b4e,#5a2d6b)" : "rgba(45,27,78,0.9)",
+            border: "1px solid rgba(155,110,168,0.4)", borderRadius: 10,
+            padding: "8px 16px", color: "#fff", fontSize: 13, fontWeight: 700,
+            cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif",
+            display: "flex", alignItems: "center", gap: 7,
+            boxShadow: "0 4px 16px rgba(45,27,78,0.35)",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          🔐 Admin {adminMenuOpen ? "▲" : "▼"}
+        </button>
+        {adminMenuOpen && (
+          <>
+            <div onClick={() => setAdminMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: -1 }} />
+            <div style={{
+              position: "absolute", top: "calc(100% + 6px)", right: 0,
+              background: "rgba(255,255,255,0.97)", borderRadius: 14,
+              boxShadow: "0 8px 32px rgba(45,27,78,0.18)", border: "1px solid rgba(155,110,168,0.15)",
+              overflow: "hidden", minWidth: 180, backdropFilter: "blur(16px)",
+            }}>
+              <button onClick={() => { setPage("adminHub"); setAdminMenuOpen(false); }} style={{
+                width: "100%", padding: "12px 16px", background: "none", border: "none",
+                textAlign: "left", fontSize: 14, fontWeight: 700, color: "#2d1b4e",
+                cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif",
+                display: "flex", alignItems: "center", gap: 9,
+                borderBottom: "1px solid rgba(155,110,168,0.1)",
+              }}>🏛️ Admin Hub</button>
+              <button onClick={() => { setPage("account"); setAdminMenuOpen(false); }} style={{
+                width: "100%", padding: "12px 16px", background: "none", border: "none",
+                textAlign: "left", fontSize: 14, fontWeight: 600, color: "#7a5090",
+                cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif",
+                display: "flex", alignItems: "center", gap: 9,
+              }}>👤 My Profile</button>
+            </div>
+          </>
+        )}
+      </div>
+    )}
+
     <div className="app-shell">
 
       {/* Impersonation banner */}
@@ -639,6 +698,7 @@ export default function App() {
         })}
       </div>
     </div>
+    </>
   );
 }
 
@@ -3021,6 +3081,323 @@ function IRow({ icon, label, val }) {
         <div style={{ fontSize: 11, fontWeight: 700, color: "#d4a5c9", textTransform: "uppercase", letterSpacing: .5 }}>{label}</div>
         <div style={{ fontSize: 15, fontWeight: 500, color: "#4a2c3a", marginTop: 2 }}>{val}</div>
       </div>
+    </div>
+  );
+}
+
+/* ── ADMIN HUB ── */
+function AdminHub({ uid: adminUid, user: adminUser, go, flash, onImpersonate }) {
+  const [tab, setTab] = useState("users");
+
+  const hubStyle = {
+    minHeight: "100dvh",
+    background: "linear-gradient(160deg,#1a0d30 0%,#2d1b4e 40%,#3d1f5e 100%)",
+    fontFamily: "'Noto Sans JP',sans-serif",
+    color: "#fff",
+  };
+  const headerStyle = {
+    display: "flex", alignItems: "center", gap: 14,
+    padding: "20px 28px 0",
+    borderBottom: "1px solid rgba(155,110,168,0.2)",
+    paddingBottom: 0,
+  };
+  const tabStyle = (active) => ({
+    padding: "10px 20px", fontSize: 14, fontWeight: 700,
+    border: "none", background: "none", cursor: "pointer",
+    color: active ? "#e8a0d0" : "rgba(255,255,255,0.5)",
+    borderBottom: active ? "2px solid #e8a0d0" : "2px solid transparent",
+    transition: "all .18s", fontFamily: "'Noto Sans JP',sans-serif",
+    marginBottom: -1,
+  });
+
+  return (
+    <div style={hubStyle}>
+      <div style={headerStyle}>
+        <button onClick={() => go("home")} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "7px 14px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>
+          ← Back
+        </button>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 22, fontWeight: 700, color: "#fff" }}>🏛️ Admin Hub</div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>Signed in as {adminUser.name}</div>
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 800, color: "#e8a0d0", background: "rgba(232,160,208,0.15)", borderRadius: 999, padding: "4px 12px", textTransform: "uppercase", letterSpacing: 1 }}>Admin</div>
+      </div>
+
+      <div style={{ display: "flex", gap: 0, padding: "0 28px", borderBottom: "1px solid rgba(155,110,168,0.2)", marginTop: 8 }}>
+        {[["users","👥 Users"],["logs","📋 Logs"],["subscriptions","💳 Subscriptions"]].map(([key, label]) => (
+          <button key={key} style={tabStyle(tab === key)} onClick={() => setTab(key)}>{label}</button>
+        ))}
+      </div>
+
+      <div style={{ padding: "24px 28px", maxWidth: 960, margin: "0 auto" }}>
+        {tab === "users"          && <AdminUsers onImpersonate={onImpersonate} go={go} flash={flash} />}
+        {tab === "logs"           && <AdminLogs />}
+        {tab === "subscriptions"  && <AdminSubscriptions flash={flash} />}
+      </div>
+    </div>
+  );
+}
+
+/* Users tab — list all users, search, view-as */
+function AdminUsers({ onImpersonate, go, flash }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [promoting, setPromoting] = useState(null);
+
+  useEffect(() => {
+    getDocs(collection(db, "users"))
+      .then((snap) => {
+        const list = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+        list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+        setUsers(list);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggleAdmin = async (u) => {
+    setPromoting(u.uid);
+    try {
+      await updateDoc(doc(db, "users", u.uid), { isAdmin: !u.isAdmin });
+      setUsers((prev) => prev.map((x) => x.uid === u.uid ? { ...x, isAdmin: !x.isAdmin } : x));
+      flash(`${u.name} is now ${!u.isAdmin ? "an Admin" : "a Standard user"}`);
+    } catch { flash("Failed to update user role"); }
+    setPromoting(null);
+  };
+
+  const filtered = users.filter((u) => {
+    const q = search.toLowerCase();
+    return !q || (u.name || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q);
+  });
+
+  const cardSt = {
+    background: "rgba(255,255,255,0.06)", borderRadius: 14,
+    padding: "14px 16px", marginBottom: 10,
+    border: "1px solid rgba(255,255,255,0.1)",
+    display: "flex", alignItems: "center", gap: 12,
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff" }}>All Users</div>
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>{users.length} total</div>
+      </div>
+
+      <input
+        value={search} onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search by name or email…"
+        style={{ width: "100%", padding: "11px 16px", borderRadius: 12, fontSize: 14, border: "1.5px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", outline: "none", boxSizing: "border-box", marginBottom: 18 }}
+      />
+
+      {loading && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>Loading…</div>}
+
+      {filtered.map((u) => (
+        <div key={u.uid} style={cardSt}>
+          <span style={{ fontSize: 26, flexShrink: 0 }}>{u.avatar || "👤"}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>{u.name || "Unnamed"}</span>
+              {u.isAdmin && (
+                <span style={{ fontSize: 11, fontWeight: 800, color: "#e8a0d0", background: "rgba(232,160,208,0.18)", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: 1 }}>Admin</span>
+              )}
+            </div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <button
+              onClick={() => toggleAdmin(u)}
+              disabled={promoting === u.uid}
+              style={{ background: u.isAdmin ? "rgba(232,160,208,0.15)" : "rgba(255,255,255,0.1)", border: `1px solid ${u.isAdmin ? "rgba(232,160,208,0.35)" : "rgba(255,255,255,0.2)"}`, borderRadius: 10, padding: "6px 12px", color: u.isAdmin ? "#e8a0d0" : "rgba(255,255,255,0.7)", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: promoting === u.uid ? 0.5 : 1 }}
+            >
+              {u.isAdmin ? "Revoke Admin" : "Make Admin"}
+            </button>
+            <button
+              onClick={() => { onImpersonate(u); go("home"); }}
+              style={{ background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", borderRadius: 10, padding: "6px 12px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
+            >
+              View as
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {!loading && filtered.length === 0 && (
+        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>No users match your search.</div>
+      )}
+    </div>
+  );
+}
+
+/* Logs tab — activity log from Firestore `adminLogs` collection */
+function AdminLogs() {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(collection(db, "adminLogs"), orderBy("ts", "desc"));
+    const unsub = onSnapshot(q, (snap) => {
+      setLogs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    }, () => setLoading(false));
+    return unsub;
+  }, []);
+
+  const fmtTs = (ts) => {
+    if (!ts) return "";
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  };
+
+  const iconFor = (type) => ({ chat: "💬", game: "🀄", join: "👋", leave: "🚪", rsvp: "✅", admin: "🔐" }[type] || "📝");
+
+  return (
+    <div>
+      <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff", marginBottom: 20 }}>Activity Logs</div>
+      {loading && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>Loading…</div>}
+      {!loading && logs.length === 0 && (
+        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>No logs yet. Activity will appear here as users interact with the app.</div>
+      )}
+      {logs.map((log) => (
+        <div key={log.id} style={{ background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: "12px 16px", marginBottom: 8, border: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: 12, alignItems: "flex-start" }}>
+          <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{iconFor(log.type)}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{log.message || log.action}</div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 3 }}>
+              {log.actorName && <span style={{ marginRight: 8 }}>{log.actorName}</span>}
+              {fmtTs(log.ts)}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* Subscriptions tab — manage subscription tiers */
+function AdminSubscriptions({ flash }) {
+  const [packages, setPackages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // null | "new" | docId
+  const [form, setForm] = useState({ name: "", price: "", interval: "month", description: "", features: "" });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const q = query(collection(db, "subscriptionPackages"), orderBy("price", "asc"));
+    const unsub = onSnapshot(q, (snap) => {
+      setPackages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    }, () => setLoading(false));
+    return unsub;
+  }, []);
+
+  const startNew = () => {
+    setForm({ name: "", price: "", interval: "month", description: "", features: "" });
+    setEditing("new");
+  };
+
+  const startEdit = (pkg) => {
+    setForm({ name: pkg.name, price: String(pkg.price), interval: pkg.interval || "month", description: pkg.description || "", features: (pkg.features || []).join("\n") });
+    setEditing(pkg.id);
+  };
+
+  const save = async () => {
+    if (!form.name.trim() || !form.price) return;
+    setSaving(true);
+    const data = {
+      name: form.name.trim(),
+      price: parseFloat(form.price) || 0,
+      interval: form.interval,
+      description: form.description.trim(),
+      features: form.features.split("\n").map((s) => s.trim()).filter(Boolean),
+      updatedAt: serverTimestamp(),
+    };
+    try {
+      if (editing === "new") {
+        await addDoc(collection(db, "subscriptionPackages"), { ...data, createdAt: serverTimestamp() });
+        flash("Package created");
+      } else {
+        await updateDoc(doc(db, "subscriptionPackages", editing), data);
+        flash("Package updated");
+      }
+      setEditing(null);
+    } catch { flash("Failed to save package"); }
+    setSaving(false);
+  };
+
+  const remove = async (id, name) => {
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    try {
+      await deleteDoc(doc(db, "subscriptionPackages", id));
+      flash("Package deleted");
+    } catch { flash("Failed to delete package"); }
+  };
+
+  const inputSt2 = { width: "100%", padding: "10px 14px", borderRadius: 10, fontSize: 14, border: "1.5px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", outline: "none", boxSizing: "border-box", marginBottom: 10 };
+
+  if (editing !== null) {
+    return (
+      <div>
+        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff", marginBottom: 20 }}>
+          {editing === "new" ? "New Package" : "Edit Package"}
+        </div>
+        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Package name (e.g. Pro)" style={inputSt2} />
+        <div style={{ display: "flex", gap: 10, marginBottom: 0 }}>
+          <input value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="Price (e.g. 9.99)" type="number" min="0" step="0.01" style={{ ...inputSt2, flex: 1 }} />
+          <select value={form.interval} onChange={(e) => setForm({ ...form, interval: e.target.value })} style={{ ...inputSt2, flex: 1 }}>
+            <option value="month">/ month</option>
+            <option value="year">/ year</option>
+            <option value="once">one-time</option>
+          </select>
+        </div>
+        <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Short description" style={inputSt2} />
+        <textarea value={form.features} onChange={(e) => setForm({ ...form, features: e.target.value })} placeholder={"Features (one per line)\nUnlimited groups\nPriority support"} rows={5} style={{ ...inputSt2, resize: "vertical" }} />
+        <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+          <button onClick={() => setEditing(null)} style={{ flex: 1, padding: "11px", borderRadius: 12, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
+          <button onClick={save} disabled={saving || !form.name.trim() || !form.price} style={{ flex: 1, padding: "11px", borderRadius: 12, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: (saving || !form.name.trim() || !form.price) ? 0.5 : 1 }}>
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff" }}>Subscription Packages</div>
+        <button onClick={startNew} style={{ background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", borderRadius: 10, padding: "8px 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>+ New Package</button>
+      </div>
+
+      {loading && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>Loading…</div>}
+      {!loading && packages.length === 0 && (
+        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, marginBottom: 16 }}>No packages yet. Create your first subscription package.</div>
+      )}
+
+      {packages.map((pkg) => (
+        <div key={pkg.id} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "18px 20px", marginBottom: 12, border: "1px solid rgba(155,110,168,0.2)" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff", fontWeight: 700 }}>{pkg.name}</span>
+                <span style={{ fontSize: 20, color: "#e8a0d0", fontWeight: 800 }}>${pkg.price}</span>
+                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>/ {pkg.interval}</span>
+              </div>
+              {pkg.description && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", marginTop: 4 }}>{pkg.description}</div>}
+              {pkg.features?.length > 0 && (
+                <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                  {pkg.features.map((f, i) => <li key={i} style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 3 }}>{f}</li>)}
+                </ul>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <button onClick={() => startEdit(pkg)} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "6px 12px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Edit</button>
+              <button onClick={() => remove(pkg.id, pkg.name)} style={{ background: "rgba(201,96,122,0.15)", border: "1px solid rgba(201,96,122,0.3)", borderRadius: 10, padding: "6px 12px", color: "#c9607a", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
