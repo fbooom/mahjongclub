@@ -1545,7 +1545,7 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
     <div style={{ minHeight: "100vh", background: `${bgSVG}, linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)`, backgroundSize: "120px 120px, cover" }}>
       {/* Hero header — glassy */}
       <div style={{
-        background: "linear-gradient(150deg,rgba(var(--shadow-rgb),0.92) 0%,rgba(var(--primary-rgb),0.88) 55%,rgba(212,130,155,0.82) 100%)",
+        background: "var(--header-gradient-2)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
         padding: "36px 24px 28px",
@@ -1569,7 +1569,7 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
 
       {/* Content panel — glassy frosted */}
       <div style={{
-        background: "rgba(255,240,248,0.72)",
+        background: "var(--bg-card-base)",
         backdropFilter: "blur(20px)",
         WebkitBackdropFilter: "blur(20px)",
         borderRadius: "28px 28px 0 0",
