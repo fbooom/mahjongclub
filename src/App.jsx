@@ -8,7 +8,7 @@ import {
   onSnapshot, query, where, orderBy, addDoc, serverTimestamp,
   arrayUnion, arrayRemove, runTransaction,
 } from "firebase/firestore";
-import { auth, db, googleProvider, getMsg } from "./firebase";
+import { auth, db, googleProvider, messagingReady } from "./firebase";
 import { getToken, onMessage } from "firebase/messaging";
 import { sakura as defaultTheme, themes, buildCSSVars } from "./theme";
 
@@ -24,9 +24,8 @@ const showBrowserNotif = (title, body, tag) => {
 // Called on sign-in and after the user enables notifications.
 async function registerFcmToken(uid) {
   try {
-    const messaging = getMsg();
+    const messaging = await messagingReady;
     if (!messaging) return;
-    // Only proceed if the browser has notification permission
     if (typeof Notification !== "undefined" && Notification.permission !== "granted") return;
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
     if (token) {
