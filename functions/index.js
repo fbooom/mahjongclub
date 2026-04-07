@@ -12,7 +12,7 @@
  *   firebase deploy --only functions
  */
 
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
@@ -75,7 +75,53 @@ exports.onNewChatMessage = onDocumentCreated(
   }
 );
 
-// ── 2. New game created ──────────────────────────────────────────────────────
+// ── 2. New reply on a message ────────────────────────────────────────────────
+exports.onNewReply = onDocumentUpdated(
+  "groups/{groupId}/messages/{messageId}",
+  async (event) => {
+    const before = event.data.before.data();
+    const after  = event.data.after.data();
+
+    const prevReplies = before.replies || [];
+    const newReplies  = after.replies  || [];
+
+    // Only act when a reply was actually added
+    if (newReplies.length <= prevReplies.length) return;
+
+    const latestReply = newReplies[newReplies.length - 1];
+    const senderUid   = latestReply.uid;
+    const { groupId }  = event.params;
+
+    // Notify: original message author + everyone who replied before (thread participants)
+    // — excluding the person who just replied
+    const threadUids = [
+      after.uid,                          // original message author
+      ...prevReplies.map((r) => r.uid),   // prior reply authors
+    ];
+    const recipients = [...new Set(threadUids)].filter((id) => id !== senderUid);
+    if (!recipients.length) return;
+
+    // Get group name for context
+    const groupSnap = await db.doc(`groups/${groupId}`).get();
+    const groupName = groupSnap.data()?.name || "your group";
+
+    const tokens = await getTokensForUsers(recipients);
+    const body = latestReply.text?.length > 100
+      ? latestReply.text.slice(0, 97) + "…"
+      : latestReply.text;
+
+    await sendToTokens(
+      tokens,
+      {
+        title: `${latestReply.name} replied in ${groupName}`,
+        body,
+      },
+      { type: "reply", groupId, messageId: event.params.messageId }
+    );
+  }
+);
+
+// ── 3. New game created ──────────────────────────────────────────────────────
 exports.onNewGame = onDocumentCreated(
   "groups/{groupId}/games/{gameId}",
   async (event) => {
