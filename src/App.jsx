@@ -1090,11 +1090,26 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
     } catch { flash("Error saving profile", "❌"); }
   };
 
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const notifUnsupported = typeof Notification === "undefined";
+
   const toggleNotifications = async () => {
     if (!notifEnabled) {
-      if (typeof Notification === "undefined") { flash("Notifications not supported on this device", "⚠️"); return; }
+      if (notifUnsupported) {
+        // Save preference anyway so FCM can still deliver via service worker
+        await updateDoc(doc(db, "users", uid), { notificationsEnabled: true });
+        setNotifEnabled(true);
+        // Show platform-specific guidance
+        if (isIOS) {
+          flash("On iPhone, add app to Home Screen first", "📱");
+        } else {
+          flash("Open in Chrome or Firefox to enable notifications", "🌐");
+        }
+        return;
+      }
       const perm = await Notification.requestPermission();
-      if (perm !== "granted") { flash("Notification permission denied", "🔕"); return; }
+      if (perm === "denied") { flash("Notifications blocked — check browser settings", "🔕"); return; }
       // Try to get FCM token for background push (requires VAPID key)
       let updates = { notificationsEnabled: true };
       try {
@@ -1216,7 +1231,11 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "#4a2c3a" }}>Push Notifications</div>
                 <div style={{ fontSize: 13, color: "#b08090", marginTop: 2 }}>
-                  {notifEnabled ? "You'll be notified of new messages and game updates" : "Enable to get alerts for group chats and games"}
+                  {notifEnabled
+                    ? "You'll be notified of new messages and game updates"
+                    : notifUnsupported && isIOS
+                      ? "Tap Share → Add to Home Screen, then re-enable"
+                      : "Enable to get alerts for group chats and games"}
                 </div>
               </div>
               {/* Toggle switch */}
