@@ -20,22 +20,34 @@ const showBrowserNotif = (title, body, tag) => {
   try { new Notification(title, { body, icon: "/favicon.ico", tag }); } catch(e) {}
 };
 
-// Silently register/refresh the FCM token for a user and persist it to Firestore.
-// Called on sign-in and after the user enables notifications.
+// Register/refresh the FCM token for a user and persist it to Firestore.
+// Returns a status string for debugging. Called on sign-in and when enabling notifications.
 async function registerFcmToken(uid) {
+  const messaging = await messagingReady;
+  if (!messaging) {
+    console.warn("[FCM] messaging not supported in this browser");
+    return "unsupported";
+  }
+  if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
+    console.warn("[FCM] notification permission not granted:", typeof Notification !== "undefined" ? Notification.permission : "Notification API unavailable");
+    return "no-permission";
+  }
   try {
-    const messaging = await messagingReady;
-    if (!messaging) return;
-    if (typeof Notification !== "undefined" && Notification.permission !== "granted") return;
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
     if (token) {
       await updateDoc(doc(db, "users", uid), {
         notificationsEnabled: true,
         fcmTokens: arrayUnion(token),
       });
+      console.log("[FCM] token registered:", token.slice(0, 20) + "…");
+      return "ok";
+    } else {
+      console.warn("[FCM] getToken returned empty token");
+      return "empty-token";
     }
   } catch (e) {
-    // Non-fatal — FCM unavailable in this browser/context
+    console.error("[FCM] getToken failed:", e);
+    return "error:" + e.message;
   }
 }
 
@@ -1252,9 +1264,19 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
       }
       const perm = await Notification.requestPermission();
       if (perm === "denied") { flash("Notifications blocked — check browser settings", "🔕"); return; }
-      await registerFcmToken(uid);
+      const result = await registerFcmToken(uid);
       setNotifEnabled(true);
-      flash("Notifications enabled!", "🔔");
+      if (result === "ok") {
+        flash("Notifications enabled!", "🔔");
+      } else if (result === "unsupported") {
+        flash("Push notifications not supported in this browser", "⚠️");
+      } else if (result === "empty-token") {
+        flash("Could not get push token — try reinstalling the app to Home Screen", "⚠️");
+      } else if (result === "no-permission") {
+        flash("Permission not granted — check browser settings", "🔕");
+      } else {
+        flash("Notifications saved, but push token failed — check console", "⚠️");
+      }
     } else {
       await updateDoc(doc(db, "users", uid), { notificationsEnabled: false });
       setNotifEnabled(false);
