@@ -1033,9 +1033,12 @@ function AdminPanel({ onImpersonate }) {
 /* ── ACCOUNT PAGE ── */
 function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut, isAdmin, onImpersonate, isImpersonating }) {
   const [editing, setEditing] = useState(false);
-  const [showAllGroups, setShowAllGroups] = useState(false);
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
+  const [notifEnabled, setNotifEnabled] = useState(
+    user.notificationsEnabled === true ||
+    (typeof Notification !== "undefined" && Notification.permission === "granted")
+  );
   const AVATARS = [
     "🐼","🌸","🦋","🍀","🌹","🦚","🎋","🌿","🦩","🌺","🎍","🐝",
     "🦊","🐱","🐰","🦁","🐨","🦄","🐸","🦜","🌙","⭐","🌊","🍵",
@@ -1051,6 +1054,21 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
       setEditing(false);
       flash("Profile updated!", "✨");
     } catch { flash("Error saving profile", "❌"); }
+  };
+
+  const toggleNotifications = async () => {
+    if (!notifEnabled) {
+      if (typeof Notification === "undefined") { flash("Notifications not supported on this device", "⚠️"); return; }
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") { flash("Notification permission denied", "🔕"); return; }
+      await updateDoc(doc(db, "users", uid), { notificationsEnabled: true });
+      setNotifEnabled(true);
+      flash("Notifications enabled!", "🔔");
+    } else {
+      await updateDoc(doc(db, "users", uid), { notificationsEnabled: false });
+      setNotifEnabled(false);
+      flash("Notifications disabled", "🔕");
+    }
   };
 
   const totalGames = groups.reduce((n, g) => n + g.games.length, 0);
@@ -1138,7 +1156,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           )}
         </div>
 
-        {/* My groups + games */}
+        {/* Notification settings */}
         <div style={{
           background: "linear-gradient(135deg,rgba(255,255,255,0.85),rgba(255,235,245,0.72))",
           backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
@@ -1146,29 +1164,35 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           boxShadow: "0 4px 20px rgba(168,66,107,0.09), inset 0 1px 0 rgba(255,255,255,0.85)",
           border: "1px solid rgba(255,255,255,0.65)",
         }}>
-          <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "#7a3050", fontWeight: 700 }}>My Groups</span>
-          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, marginBottom: groups.length > 3 ? 8 : 16 }}>
-            {(showAllGroups ? groups : groups.slice(0, 3)).map((g) => (
-              <div key={g.id} onClick={() => go("group", g.id)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 10px", borderRadius: 12, background: "rgba(255,255,255,0.5)" }}>
-                <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg,${g.color}33,${g.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>{g.emoji}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "#4a2c3a" }}>{g.name}</div>
-                  <div style={{ fontSize: 12, color: "#b08090" }}>{g.members.length} members</div>
-                </div>
-                <span style={{ color: "#d4a5c9", fontSize: 17 }}>›</span>
+          <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "#7a3050", fontWeight: 700 }}>Notifications</span>
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 14, background: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,200,220,0.3)" }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: notifEnabled ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "rgba(201,96,122,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, transition: "all .2s" }}>
+                {notifEnabled ? "🔔" : "🔕"}
               </div>
-            ))}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#4a2c3a" }}>Push Notifications</div>
+                <div style={{ fontSize: 13, color: "#b08090", marginTop: 2 }}>
+                  {notifEnabled ? "You'll be notified of new messages and game updates" : "Enable to get alerts for group chats and games"}
+                </div>
+              </div>
+              {/* Toggle switch */}
+              <div onClick={toggleNotifications} style={{
+                width: 50, height: 28, borderRadius: 999, cursor: "pointer",
+                background: notifEnabled ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "rgba(201,96,122,0.18)",
+                position: "relative", transition: "all .22s", flexShrink: 0,
+                border: `2px solid ${notifEnabled ? "transparent" : "rgba(201,96,122,0.2)"}`,
+              }}>
+                <div style={{
+                  position: "absolute", top: 2, left: notifEnabled ? 22 : 2,
+                  width: 20, height: 20, borderRadius: 999,
+                  background: notifEnabled ? "#fff" : "rgba(201,96,122,0.4)",
+                  transition: "left .22s, background .22s",
+                  boxShadow: notifEnabled ? "0 2px 6px rgba(168,66,107,0.3)" : "none",
+                }} />
+              </div>
+            </div>
           </div>
-          {groups.length > 3 && (
-            <button onClick={() => setShowAllGroups(v => !v)} style={{
-              width: "100%", padding: "10px 0", background: "none", border: "1px dashed rgba(201,96,122,0.3)",
-              borderRadius: 12, color: "#c9607a", fontSize: 14, fontWeight: 700,
-              fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", marginBottom: 16,
-            }}>
-              {showAllGroups ? "See less ↑" : `See ${groups.length - 3} more ${groups.length - 3 === 1 ? "group" : "groups"} ↓`}
-            </button>
-          )}
-          <AllGamesPanel groups={groups} guestGames={guestGames} go={go} />
         </div>
 
         {/* About */}
