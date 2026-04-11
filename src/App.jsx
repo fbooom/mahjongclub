@@ -523,10 +523,12 @@ export default function App() {
 
   const NAV_ITEMS = [
     { id: "home",    icon: "🀄", label: "Home"    },
+    { id: "games",   icon: "🀅", label: "Games"   },
     { id: "groups",  icon: "👥", label: "Groups"  },
     { id: "account", icon: "👤", label: "Account" },
   ];
   const GROUP_PAGES = ["groups","group","newGroup","joinGroup","editGroup","newGame","game","editGame","invite"];
+  const GAMES_PAGES = ["games","guestGame"];
 
   // Admin hub renders outside the app shell (full viewport)
   if (page === "adminHub" && user?.isAdmin) {
@@ -615,6 +617,7 @@ export default function App() {
       {/* Page content */}
       <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 90, paddingTop: impersonating ? 52 : 0 }}>
         {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} activeTheme={activeTheme} />}
+        {page === "games" && <GamesPage groups={groups} guestGames={guestGames} go={go} />}
         {page === "groups" && <GroupsPage groups={groups} go={go} />}
         {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} activeThemeId={activeTheme.id} onThemeChange={handleThemeChange} />}
         {page === "newGroup" && (
@@ -740,7 +743,7 @@ export default function App() {
       {/* Bottom nav */}
       <div className="bottom-nav">
         {NAV_ITEMS.map((item) => {
-          const active = item.id === "account" ? page === "account" : item.id === "groups" ? GROUP_PAGES.includes(page) : page === "home";
+          const active = item.id === "account" ? page === "account" : item.id === "groups" ? GROUP_PAGES.includes(page) : item.id === "games" ? GAMES_PAGES.includes(page) : page === "home";
           return (
             <button key={item.id} onClick={() => go(item.id)} style={{
               flex: 1, padding: "10px 0 12px", background: "none", border: "none",
@@ -1708,6 +1711,137 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
             {/* All-groups games tabs */}
             <AllGamesPanel groups={groups} guestGames={guestGames} go={go} />
           </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* GAMES PAGE */
+function GamesPage({ groups, guestGames = [], go }) {
+  const [tab, setTab] = useState("upcoming");
+
+  const memberGames = groups.flatMap((g) =>
+    g.games.map((gm) => ({ ...gm, groupName: g.name, groupColor: g.color, groupId: g.id, groupEmoji: g.emoji }))
+  );
+  const allGames = [...memberGames, ...guestGames];
+  const upcoming = allGames.filter((gm) => gm.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
+  const history = allGames.filter((gm) => gm.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
+  const list = tab === "upcoming" ? upcoming : history;
+
+  return (
+    <div style={{ minHeight: "100vh", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)" }}>
+
+      {/* ── Header ── */}
+      <div style={{ background: "var(--header-gradient2)", padding: "54px 22px 30px", position: "relative", overflow: "hidden" }}>
+        {/* Decorative tile glyphs */}
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+          {["🀄","🀇","🀙","🀅","🀃"].map((t, i) => (
+            <span key={i} style={{
+              position: "absolute", fontSize: [42,30,38,28,44][i], opacity: [0.08,0.05,0.07,0.05,0.06][i],
+              top: ["14%","62%","8%","72%","40%"][i], left: ["10%","70%","55%","15%","85%"][i],
+              transform: `rotate(${[-10,20,-6,18,-14][i]}deg)`, userSelect: "none",
+            }}>{t}</span>
+          ))}
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.10) 0%,transparent 60%)", pointerEvents: "none" }} />
+        </div>
+
+        <div style={{ position: "relative" }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.60)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Your Games</div>
+          <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 34, color: "#fff", textShadow: "0 2px 16px rgba(0,0,0,0.22)", lineHeight: 1, letterSpacing: 0.5 }}>
+            {allGames.length} {allGames.length === 1 ? "Game" : "Games"}
+          </h1>
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
+            {upcoming.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.15)", borderRadius: 999, padding: "4px 11px", backdropFilter: "blur(8px)" }}>
+                <span style={{ fontSize: 13 }}>📅</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>{upcoming.length} upcoming</span>
+              </div>
+            )}
+            {history.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.12)", borderRadius: 999, padding: "4px 11px", backdropFilter: "blur(8px)" }}>
+                <span style={{ fontSize: 13 }}>📖</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.75)" }}>{history.length} played</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Tab pills ── */}
+      <div style={{ padding: "18px 16px 0" }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {[["upcoming","📅 Upcoming"],["history","📖 History"]].map(([t, label]) => (
+            <button key={t} onClick={() => setTab(t)} style={{
+              padding: "8px 20px", borderRadius: 999, fontSize: 13, fontWeight: 700,
+              fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", transition: "all .18s",
+              background: tab === t ? "var(--active-tab-gradient)" : "var(--bg-surface)",
+              color: tab === t ? "#fff" : "#b08090",
+              border: tab === t ? "none" : "1px solid rgba(var(--primary-rgb),0.2)",
+              boxShadow: tab === t ? "0 3px 12px rgba(var(--shadow-rgb),0.3)" : "none",
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Game list ── */}
+      <div style={{ padding: "0 16px 24px" }}>
+        {list.length === 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "52px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>{tab === "upcoming" ? "📅" : "📖"}</div>
+            <h2 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 20, color: "var(--primary-muted)", marginBottom: 8 }}>
+              {tab === "upcoming" ? "No upcoming games" : "No past games yet"}
+            </h2>
+            <p style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 260 }}>
+              {tab === "upcoming" ? "Head to a group and schedule your next session." : "Completed games will appear here."}
+            </p>
+          </div>
+        ) : (
+          list.map((gm, i) => {
+            const yesCount = Object.values(gm.rsvps).filter((v) => v === "yes").length;
+            const wl = gm.waitlist || [];
+            const confirmedG = (gm.guests || []).filter((g) => !wl.includes(g.id)).length;
+            const filled = yesCount + confirmedG;
+            return (
+              <div key={`${gm.groupId}-${gm.id}`} className="sUp" style={{ animationDelay: `${i * 0.04}s`, cursor: "pointer" }}
+                onClick={() => go(gm.isGuestGame ? "guestGame" : "game", gm.groupId, gm.id)}>
+                <div style={{
+                  background: tab === "upcoming"
+                    ? "linear-gradient(135deg,var(--bg-card-base),var(--bg-card-alt))"
+                    : "rgba(245,235,242,0.55)",
+                  backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+                  borderRadius: 18, padding: "14px 15px", marginBottom: 10,
+                  opacity: tab === "history" ? 0.78 : 1,
+                  boxShadow: tab === "upcoming" ? "0 4px 18px rgba(var(--shadow-rgb),0.09), inset 0 1px 0 var(--shadow-inset)" : "none",
+                  border: "1px solid var(--border-card)",
+                  borderLeft: `4px solid ${gm.groupColor}`,
+                }}>
+                  <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", marginBottom: 4 }}>{gm.title}</div>
+                  {!gm.isGuestGame ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
+                      <span style={{ fontSize: 13 }}>{gm.groupEmoji}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: gm.groupColor, fontFamily: "'Noto Sans JP',sans-serif" }}>{gm.groupName}</span>
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: 5 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: "var(--secondary-accent)", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "1px 7px" }}>Guest</span>
+                    </div>
+                  )}
+                  <div style={{ fontSize: 13, color: "#b08090", marginTop: 2 }}>📅 {fmt(gm.date)}</div>
+                  <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(gm.time, gm.endTime)}</div>
+                  <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>📍 {gm.location}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 9, flexWrap: "wrap" }}>
+                    <Chip color="var(--secondary-accent)">✅ {filled}</Chip>
+                    <Chip color="#c4936e">🤔 {Object.values(gm.rsvps).filter((v) => v === "maybe").length}</Chip>
+                    <Chip color="#b08090">👤 {filled}/{gm.seats}</Chip>
+                    <div style={{ marginLeft: "auto" }}>
+                      <AddToCalendar game={gm} groupName={gm.groupName || ""} compact />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
     </div>
