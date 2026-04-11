@@ -986,7 +986,7 @@ function AuthScreen() {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "var(--header-gradient-2)",
+      background: "var(--header-gradient2)",
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       padding: "24px 20px", position: "relative", overflow: "hidden",
     }}>
@@ -1629,7 +1629,7 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
     <div style={{ minHeight: "100vh", background: `${bgSVG}, linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)`, backgroundSize: "120px 120px, cover" }}>
       {/* Hero header — glassy */}
       <div style={{
-        background: "var(--header-gradient-2)",
+        background: "var(--header-gradient2)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
         padding: "36px 24px 28px",
