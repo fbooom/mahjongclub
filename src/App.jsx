@@ -1513,7 +1513,6 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
 /* ── ALL GAMES PANEL (shared by Home + Account) ── */
 function AllGamesPanel({ groups, guestGames = [], go }) {
   const [tab, setTab] = useState("upcoming");
-  const [showAll, setShowAll] = useState(false);
 
   // Flatten all member games across all groups, then merge in guest games
   const memberGames = groups.flatMap((g) =>
@@ -1523,7 +1522,7 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
   const upcoming = allGames.filter((gm) => gm.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
   const history = allGames.filter((gm) => gm.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
   const fullList = tab === "upcoming" ? upcoming : history;
-  const list = showAll ? fullList : fullList.slice(0, 3);
+  const list = fullList.slice(0, 3);
 
   return (
     <div style={{ marginTop: 4 }}>
@@ -1601,12 +1600,12 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
             </div>
           ))}
           {fullList.length > 3 && (
-            <button onClick={() => setShowAll(v => !v)} style={{
+            <button onClick={() => go("games")} style={{
               width: "100%", padding: "10px 0", background: "none", border: "1px dashed rgba(var(--primary-rgb),0.3)",
               borderRadius: 12, color: "var(--primary)", fontSize: 14, fontWeight: 700,
               fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", marginTop: 2,
             }}>
-              {showAll ? "See less ↑" : `See ${fullList.length - 3} more ↓`}
+              See {fullList.length - 3} more ↓
             </button>
           )}
         </>
