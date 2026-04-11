@@ -21,16 +21,25 @@ const showBrowserNotif = (title, body, tag) => {
 };
 
 // Register/refresh the FCM token for a user and persist it to Firestore.
-// Returns a status string for debugging. Called on sign-in and when enabling notifications.
-async function registerFcmToken(uid) {
+// Requests permission if not yet decided. Skips if already denied.
+// Returns a status string for debugging.
+async function registerForPushNotifications(uid) {
+  if (typeof Notification === "undefined") return "unsupported";
+  if (Notification.permission === "denied") {
+    console.warn("[FCM] notifications denied by user");
+    return "denied";
+  }
+  if (Notification.permission === "default") {
+    const result = await Notification.requestPermission();
+    if (result !== "granted") {
+      console.warn("[FCM] permission not granted:", result);
+      return "no-permission";
+    }
+  }
   const messaging = await messagingReady;
   if (!messaging) {
     console.warn("[FCM] messaging not supported in this browser");
     return "unsupported";
-  }
-  if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
-    console.warn("[FCM] notification permission not granted:", typeof Notification !== "undefined" ? Notification.permission : "Notification API unavailable");
-    return "no-permission";
   }
   try {
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
@@ -257,10 +266,8 @@ export default function App() {
             const data = snap.data();
             setUser({ uid: fbUser.uid, ...data });
             if (data.theme && themes[data.theme]) setActiveTheme(themes[data.theme]);
-            // Refresh FCM token on every sign-in if notifications are enabled or already permitted
-            if (data.notificationsEnabled || (typeof Notification !== "undefined" && Notification.permission === "granted")) {
-              registerFcmToken(fbUser.uid);
-            }
+            // Refresh FCM token on every sign-in (skips internally if denied)
+            registerForPushNotifications(fbUser.uid);
           } else {
             const profile = { name: fbUser.displayName || fbUser.email.split("@")[0], email: fbUser.email, avatar: randAvatar(), phone: "" };
             await setDoc(doc(db, "users", fbUser.uid), profile);
@@ -961,8 +968,8 @@ function AuthScreen() {
     if (!email.trim() || !password.trim()) { setError("Please enter your email and password."); return; }
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
-      // onAuthStateChanged in App handles the rest
+      const { user: fbUser } = await signInWithEmailAndPassword(auth, email.trim(), password);
+      registerForPushNotifications(fbUser.uid);
     } catch (e) {
       setError(fmtFirebaseError(e.code));
     } finally {
@@ -988,7 +995,7 @@ function AuthScreen() {
         avatar: chosenAvatar,
       };
       await setDoc(doc(db, "users", fbUser.uid), profile);
-      // onAuthStateChanged in App handles the rest
+      registerForPushNotifications(fbUser.uid);
     } catch (e) {
       setError(fmtFirebaseError(e.code));
     } finally {
@@ -1000,7 +1007,8 @@ function AuthScreen() {
     setError("");
     setLoading(true);
     try {
-      await signInWithPopup(auth, googleProvider);
+      const { user: fbUser } = await signInWithPopup(auth, googleProvider);
+      registerForPushNotifications(fbUser.uid);
     } catch (e) {
       setError(fmtFirebaseError(e.code));
     } finally {
@@ -1304,7 +1312,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
       }
       const perm = await Notification.requestPermission();
       if (perm === "denied") { flash("Notifications blocked — check browser settings", "🔕"); return; }
-      const result = await registerFcmToken(uid);
+      const result = await registerForPushNotifications(uid);
       setNotifEnabled(true);
       if (result === "ok") {
         flash("Notifications enabled!", "🔔");
