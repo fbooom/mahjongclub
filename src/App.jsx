@@ -498,7 +498,9 @@ export default function App() {
     ? { id: guestGame.groupId, name: guestGame.groupName, color: guestGame.groupColor, emoji: guestGame.groupEmoji, members: [], openInvites: false, games: [] }
     : null;
 
+  const scrollRef = useRef(null);
   const go = (p, g, gm) => { setPage(p); if (g !== undefined) setGid(g); if (gm !== undefined) setGmid(gm || null); };
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, [page]);
   const flash = (msg, icon) => { setToast({ msg, icon: icon || "✅" }); setTimeout(() => setToast(null), 2600); };
 
   // ── Loading / auth gate ──
@@ -615,7 +617,7 @@ export default function App() {
       )}
 
       {/* Page content */}
-      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 90, paddingTop: impersonating ? 52 : 0 }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 90, paddingTop: impersonating ? 52 : 0 }}>
         {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} activeTheme={activeTheme} />}
         {page === "games" && <GamesPage groups={groups} guestGames={guestGames} go={go} />}
         {page === "groups" && <GroupsPage groups={groups} go={go} />}
