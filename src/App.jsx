@@ -617,7 +617,7 @@ export default function App() {
       )}
 
       {/* Page content */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 90, paddingTop: impersonating ? 52 : 0 }}>
+      <div ref={scrollRef} data-scroll-container style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 90, paddingTop: impersonating ? 52 : 0 }}>
         {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} activeTheme={activeTheme} />}
         {page === "games" && <GamesPage groups={groups} guestGames={guestGames} go={go} />}
         {page === "groups" && <GroupsPage groups={groups} go={go} />}
@@ -2420,6 +2420,15 @@ function GroupChat({ group, uid, user, onClose }) {
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
   const knownMsgIds = useRef(null); // null = initialising
+
+  // Lock background scroll while chat is open
+  useEffect(() => {
+    const el = document.querySelector('[data-scroll-container]');
+    if (!el) return;
+    const prev = el.style.overflowY;
+    el.style.overflowY = 'hidden';
+    return () => { el.style.overflowY = prev; };
+  }, []);
 
   useEffect(() => {
     const q = query(
