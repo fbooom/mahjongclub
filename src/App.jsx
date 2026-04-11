@@ -1753,22 +1753,16 @@ function GroupsPage({ groups, go }) {
             <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 34, color: "#fff", textShadow: "0 2px 16px rgba(0,0,0,0.22)", lineHeight: 1, letterSpacing: 0.5 }}>
               {groups.length} {groups.length === 1 ? "Group" : "Groups"}
             </h1>
-            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.15)", borderRadius: 999, padding: "4px 11px", backdropFilter: "blur(8px)" }}>
-                <span style={{ fontSize: 13 }}>👥</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>
-                  {groups.reduce((s, g) => s + g.members.length, 0)} members
-                </span>
-              </div>
-              {totalUpcoming > 0 && (
+            {totalUpcoming > 0 && (
+              <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.15)", borderRadius: 999, padding: "4px 11px", backdropFilter: "blur(8px)" }}>
                   <span style={{ fontSize: 13 }}>🀄</span>
                   <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>
                     {totalUpcoming} upcoming
                   </span>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
             <button onClick={() => go("newGroup")} style={{
