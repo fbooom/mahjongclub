@@ -690,6 +690,22 @@ export default function App() {
                 });
                 go("groups"); flash("Host transferred — group left", "👑");
               } catch { flash("Error leaving group", "❌"); }
+            }}
+            onTransferHost={async (newHostId) => {
+              try {
+                await runTransaction(db, async (tx) => {
+                  const ref = doc(db, "groups", group.id);
+                  const snap = await tx.get(ref);
+                  const data = snap.data();
+                  tx.update(ref, {
+                    members: (data.members || []).map((m) =>
+                      m.id === newHostId ? { ...m, host: true } :
+                      m.id === uid ? { ...m, host: false } : m
+                    ),
+                  });
+                });
+                flash("Host transferred!", "👑");
+              } catch { flash("Error transferring host", "❌"); }
             }} />
         )}
         {page === "newGame" && group && (
@@ -2203,12 +2219,12 @@ function JoinGroup({ uid, groups, onBack, onJoin }) {
 }
 
 /* GROUP DETAIL */
-function Group({ uid, group, go, flash, onLeave, onTransferAndLeave }) {
+function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferHost }) {
   const [tab, setTab] = useState("games");
   const [gamesTab, setGamesTab] = useState("upcoming");
   const [chatOpen, setChatOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
-  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferMode, setTransferMode] = useState(null); // null | "leave" | "standalone"
   const [selectedNewHost, setSelectedNewHost] = useState(null);
   const upcoming = group.games.filter((g) => g.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
   const past = group.games.filter((g) => g.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
@@ -2220,7 +2236,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave }) {
   const handleLeaveClick = () => {
     if (isCreator && otherMembers.length > 0) {
       setSelectedNewHost(null);
-      setShowTransfer(true);
+      setTransferMode("leave");
     } else {
       setConfirmLeave(true);
     }
@@ -2312,7 +2328,10 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave }) {
                 </div>
               </div>
             ))}
-            <div style={{ marginTop: 18 }}>
+            <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 10 }}>
+              {isCreator && otherMembers.length > 0 && (
+                <Btn full outline onClick={() => { setSelectedNewHost(null); setTransferMode("standalone"); }}>👑 Transfer Host</Btn>
+              )}
               <Btn full outline danger onClick={handleLeaveClick}>Leave Group</Btn>
             </div>
           </>
@@ -2332,9 +2351,9 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave }) {
           onCancel={() => setConfirmLeave(false)}
         />
       )}
-      {showTransfer && (
+      {transferMode && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 2000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
-          onClick={() => setShowTransfer(false)}>
+          onClick={() => setTransferMode(null)}>
           <div onClick={(e) => e.stopPropagation()} style={{
             width: "100%", maxWidth: 480, background: "var(--bg-popup)",
             borderRadius: "24px 24px 0 0", padding: "24px 20px 40px",
@@ -2344,7 +2363,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave }) {
             <div style={{ fontSize: 28, textAlign: "center", marginBottom: 8 }}>👑</div>
             <h3 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 20, color: "var(--text-body)", textAlign: "center", marginBottom: 6 }}>Transfer Host</h3>
             <p style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", marginBottom: 20, lineHeight: 1.5, fontFamily: "'Noto Sans JP',sans-serif" }}>
-              You must assign a new host before leaving.
+              {transferMode === "leave" ? "Assign a new host before leaving the group." : "Choose a member to become the new host."}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
               {otherMembers.map((m) => {
@@ -2370,11 +2389,17 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave }) {
                 );
               })}
             </div>
-            <Btn full disabled={!selectedNewHost} onClick={() => { setShowTransfer(false); onTransferAndLeave(selectedNewHost); }}
+            <Btn full disabled={!selectedNewHost}
+              onClick={() => {
+                const id = selectedNewHost;
+                setTransferMode(null);
+                if (transferMode === "leave") onTransferAndLeave(id);
+                else onTransferHost(id);
+              }}
               style={{ background: selectedNewHost ? `linear-gradient(135deg,${group.color},${group.color}cc)` : undefined }}>
-              👑 Transfer & Leave
+              {transferMode === "leave" ? "👑 Transfer & Leave" : "👑 Transfer Host"}
             </Btn>
-            <button onClick={() => setShowTransfer(false)} style={{ width: "100%", marginTop: 10, padding: "12px 0", background: "none", border: "none", fontSize: 14, fontWeight: 700, color: "var(--text-muted)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
+            <button onClick={() => setTransferMode(null)} style={{ width: "100%", marginTop: 10, padding: "12px 0", background: "none", border: "none", fontSize: 14, fontWeight: 700, color: "var(--text-muted)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
           </div>
         </div>
       )}
