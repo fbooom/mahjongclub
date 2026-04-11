@@ -1519,6 +1519,7 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
 
   return (
     <div style={{ marginTop: 4 }}>
+      <h2 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5, marginBottom: 14 }}>Your Games</h2>
       {/* Tab pills */}
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {[["upcoming","📅 Upcoming"],["history","📖 History"]].map(([t, label]) => (
