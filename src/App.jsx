@@ -2272,7 +2272,10 @@ function JoinGroup({ uid, groups, onBack, onJoin }) {
     setMatch(null);
     if (clean.length < 4) return;
     setSearching(true);
-    getDocs(query(collection(db, "groups"), where("code", "==", clean)))
+    // Search both uppercase and lowercase variants to handle codes created before
+    // the uppercase-normalization was added.
+    const variants = [...new Set([clean, clean.toLowerCase()])];
+    getDocs(query(collection(db, "groups"), where("code", "in", variants)))
       .then((snap) => { setMatch(snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data(), games: [] }); })
       .catch(() => setMatch(null))
       .finally(() => setSearching(false));
