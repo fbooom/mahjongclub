@@ -2218,6 +2218,57 @@ function JoinGroup({ uid, groups, onBack, onJoin }) {
   );
 }
 
+/* ── BOTTOM SHEET ── */
+function BottomSheet({ onClose, children, zIndex = 2000, sheetStyle = {} }) {
+  const [dragY, setDragY] = useState(0);
+  const startY = useRef(null);
+
+  const onTouchStart = (e) => { startY.current = e.touches[0].clientY; };
+  const onTouchMove = (e) => {
+    if (startY.current === null) return;
+    const delta = e.touches[0].clientY - startY.current;
+    if (delta > 0) setDragY(delta);
+  };
+  const onTouchEnd = () => {
+    if (dragY > 90) {
+      setDragY(window.innerHeight);
+      setTimeout(onClose, 180);
+    } else {
+      setDragY(0);
+    }
+    startY.current = null;
+  };
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: `rgba(0,0,0,${Math.max(0, 0.45 - dragY / 600)})`, zIndex, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)" }} />
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: "fixed", bottom: 0, left: "50%",
+          transform: `translateX(-50%) translateY(${dragY}px)`,
+          transition: dragY === 0 ? "transform 0.22s cubic-bezier(.32,.72,0,1)" : "none",
+          width: "100%", maxWidth: 480,
+          zIndex: zIndex + 1,
+          willChange: "transform",
+          ...sheetStyle,
+        }}
+      >
+        {/* Draggable handle bar */}
+        <div
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          style={{ padding: "14px 0 6px", cursor: "grab", touchAction: "none", display: "flex", justifyContent: "center" }}
+        >
+          <div style={{ width: 36, height: 4, borderRadius: 999, background: "rgba(var(--primary-rgb),0.22)" }} />
+        </div>
+        {children}
+      </div>
+    </>
+  );
+}
+
 /* GROUP DETAIL */
 function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferHost }) {
   const [tab, setTab] = useState("games");
@@ -2352,14 +2403,13 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
         />
       )}
       {transferMode && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 2000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
-          onClick={() => setTransferMode(null)}>
-          <div onClick={(e) => e.stopPropagation()} style={{
-            width: "100%", maxWidth: 480, background: "var(--bg-popup)",
-            borderRadius: "24px 24px 0 0", padding: "24px 20px 40px",
+        <BottomSheet onClose={() => setTransferMode(null)} zIndex={2000}>
+          <div style={{
+            background: "var(--bg-popup)",
+            borderRadius: "24px 24px 0 0", padding: "8px 20px 40px",
             boxShadow: "0 -8px 40px rgba(0,0,0,0.22)",
           }}>
-            <div style={{ width: 36, height: 4, borderRadius: 999, background: "rgba(var(--primary-rgb),0.2)", margin: "0 auto 20px" }} />
+            <div style={{ height: 12 }} />
             <div style={{ fontSize: 28, textAlign: "center", marginBottom: 8 }}>👑</div>
             <h3 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 20, color: "var(--text-body)", textAlign: "center", marginBottom: 6 }}>Transfer Host</h3>
             <p style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", marginBottom: 20, lineHeight: 1.5, fontFamily: "'Noto Sans JP',sans-serif" }}>
@@ -2401,7 +2451,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
             </Btn>
             <button onClick={() => setTransferMode(null)} style={{ width: "100%", marginTop: 10, padding: "12px 0", background: "none", border: "none", fontSize: 14, fontWeight: 700, color: "var(--text-muted)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
           </div>
-        </div>
+        </BottomSheet>
       )}
     </div>
   );
@@ -2417,9 +2467,23 @@ function GroupChat({ group, uid, user, onClose }) {
   const [notifBanner, setNotifBanner] = useState(
     typeof Notification !== "undefined" && Notification.permission === "default"
   );
+  const [dragY, setDragY] = useState(0);
+  const dragStartY = useRef(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
   const knownMsgIds = useRef(null); // null = initialising
+
+  const onHandleTouchStart = (e) => { dragStartY.current = e.touches[0].clientY; };
+  const onHandleTouchMove = (e) => {
+    if (dragStartY.current === null) return;
+    const delta = e.touches[0].clientY - dragStartY.current;
+    if (delta > 0) setDragY(delta);
+  };
+  const onHandleTouchEnd = () => {
+    if (dragY > 90) { setDragY(window.innerHeight); setTimeout(onClose, 180); }
+    else setDragY(0);
+    dragStartY.current = null;
+  };
 
   useEffect(() => {
     const q = query(
@@ -2512,7 +2576,8 @@ function GroupChat({ group, uid, user, onClose }) {
       {/* Sheet */}
       <div style={{
         position: "fixed", bottom: 74, left: "50%",
-        transform: "translateX(-50%)",
+        transform: `translateX(-50%) translateY(${dragY}px)`,
+        transition: dragY === 0 ? "transform 0.22s cubic-bezier(.32,.72,0,1)" : "none",
         width: "100%", maxWidth: 480,
         height: "calc(88vh - 74px)",
         background: "var(--chat-sheet-bg)",
@@ -2521,9 +2586,15 @@ function GroupChat({ group, uid, user, onClose }) {
         display: "flex", flexDirection: "column",
         boxShadow: "0 -8px 40px rgba(var(--shadow-rgb),0.28)",
         animation: "sheetUp .28s cubic-bezier(.32,.72,0,1) both",
+        willChange: "transform",
       }}>
-        {/* Handle */}
-        <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 0" }}>
+        {/* Handle — drag to dismiss */}
+        <div
+          onTouchStart={onHandleTouchStart}
+          onTouchMove={onHandleTouchMove}
+          onTouchEnd={onHandleTouchEnd}
+          style={{ display: "flex", justifyContent: "center", padding: "10px 0 0", cursor: "grab", touchAction: "none" }}
+        >
           <div style={{ width: 36, height: 4, borderRadius: 999, background: "rgba(var(--primary-rgb),0.25)" }} />
         </div>
 
