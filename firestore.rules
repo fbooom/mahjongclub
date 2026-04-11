@@ -36,8 +36,9 @@ service cloud.firestore {
 
     // ── Groups ───────────────────────────────────────────────────────────────
     match /groups/{groupId} {
-      allow read: if isSignedIn() &&
-        (request.auth.uid in resource.data.memberIds || isAdmin());
+      // Any signed-in user can read group metadata so they can search by join code.
+      // Sensitive content (messages, games) is protected by sub-collection rules.
+      allow read: if isSignedIn();
 
       allow create: if isSignedIn();
 
