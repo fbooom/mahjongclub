@@ -1612,7 +1612,6 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
 
 /* HOME */
 function Home({ groups, guestGames, go, user, activeTheme }) {
-  const [showAllGroups, setShowAllGroups] = useState(false);
 
   // SVG mahjong tile pattern — color adapts to active theme's primary
   const tileColor = encodeURIComponent(activeTheme?.primary || "#a0456e");
@@ -1674,7 +1673,7 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
           </div>
         ) : (
           <>
-            {(showAllGroups ? groups : groups.slice(0, 3)).map((g, i) => (
+            {groups.slice(0, 3).map((g, i) => (
               <div key={g.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer" }} onClick={() => go("group", g.id)}>
                 <div style={{
                   background: "linear-gradient(135deg,var(--bg-card-base) 0%,var(--bg-card-alt) 100%)",
@@ -1697,12 +1696,12 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
               </div>
             ))}
             {groups.length > 3 && (
-              <button onClick={() => setShowAllGroups(v => !v)} style={{
+              <button onClick={() => go("groups")} style={{
                 width: "100%", padding: "10px 0", background: "none", border: "1px dashed rgba(var(--primary-rgb),0.3)",
                 borderRadius: 12, color: "var(--primary)", fontSize: 14, fontWeight: 700,
                 fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", marginBottom: 16,
               }}>
-                {showAllGroups ? "See less ↑" : `See ${groups.length - 3} more ↓`}
+                See {groups.length - 3} more ↓
               </button>
             )}
 
