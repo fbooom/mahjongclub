@@ -2589,6 +2589,12 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
   const [seats, setSeats] = useState(4);
   const [recurring, setRecurring] = useState(false);
   const [freq, setFreq] = useState("weekly");
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  const otherMembers = group.members.filter((m) => m.id !== myUid);
+  const allSelected = otherMembers.length > 0 && otherMembers.every((m) => selectedIds.has(m.id));
+  const toggleMember = (id) => setSelectedIds((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(otherMembers.map((m) => m.id)));
   const [occurrences, setOccurrences] = useState(4);
 
   const FREQS = [
@@ -2610,9 +2616,11 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
 
   const handleSave = () => {
     if (!ok) return;
+    const rsvps = { [myUid]: "yes" };
+    selectedIds.forEach((id) => { rsvps[id] = "yes"; });
     if (!recurring) {
       const ts = new Date(`${date}T${time}`).getTime();
-      onSave({ id: "gm" + uid(), title: title.trim(), host: myUser.name, hostId: myUid, date: ts, time, endTime, location: loc.trim(), seats, rsvps: { [myUid]: "yes" }, note, waitlist: [] });
+      onSave({ id: "gm" + uid(), title: title.trim(), host: myUser.name, hostId: myUid, date: ts, time, endTime, location: loc.trim(), seats, rsvps, note, waitlist: [] });
     } else {
       const dates = previewDates();
       const games = dates.map((ts) => ({
@@ -2621,7 +2629,7 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
         host: myUser.name, hostId: myUid,
         date: ts, time, endTime,
         location: loc.trim(),
-        seats, rsvps: { [myUid]: "yes" },
+        seats, rsvps,
         note,
         waitlist: [],
         recurring: freq,
@@ -2665,6 +2673,56 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
       </div>
       <Lbl mt>Host Notes (optional)</Lbl>
       <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Style of play, what to bring, house rules..." rows={3} style={{ ...inputSt, resize: "none", height: "auto", padding: "12px 14px" }} />
+
+      {/* Player picker */}
+      {otherMembers.length > 0 && (
+        <div style={{ marginTop: 18, marginBottom: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <SecLbl>Players</SecLbl>
+            <button onClick={toggleAll} style={{
+              background: allSelected ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "var(--bg-surface)",
+              border: allSelected ? "none" : `1.5px solid rgba(var(--primary-rgb),0.25)`,
+              borderRadius: 999, padding: "5px 13px", fontSize: 12, fontWeight: 700,
+              color: allSelected ? "#fff" : "var(--primary)", cursor: "pointer",
+              fontFamily: "'Noto Sans JP',sans-serif", transition: "all .18s",
+              boxShadow: allSelected ? `0 2px 8px ${group.color}44` : "none",
+            }}>{allSelected ? "✓ All Selected" : "Select All"}</button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {otherMembers.map((m) => {
+              const selected = selectedIds.has(m.id);
+              return (
+                <div key={m.id} onClick={() => toggleMember(m.id)} style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "11px 14px", borderRadius: 14, cursor: "pointer",
+                  transition: "all .18s",
+                  background: selected ? `${group.color}14` : "var(--bg-surface)",
+                  border: selected ? `1.5px solid ${group.color}55` : "1.5px solid rgba(var(--primary-rgb),0.12)",
+                  boxShadow: selected ? `0 2px 10px ${group.color}22` : "none",
+                }}>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 999, flexShrink: 0,
+                    background: selected ? `linear-gradient(135deg,${group.color}33,${group.color}18)` : "var(--avatar-bubble-bg)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 20, border: selected ? `1.5px solid ${group.color}44` : "1.5px solid var(--border-card)",
+                    transition: "all .18s",
+                  }}>{m.avatar}</div>
+                  <span style={{ flex: 1, fontWeight: 600, fontSize: 15, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{m.name}</span>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: 999, flexShrink: 0,
+                    background: selected ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "transparent",
+                    border: selected ? "none" : `2px solid rgba(var(--primary-rgb),0.2)`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 12, color: "#fff", fontWeight: 800,
+                    transition: "all .18s",
+                    boxShadow: selected ? `0 2px 6px ${group.color}44` : "none",
+                  }}>{selected ? "✓" : ""}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Recurring toggle */}
       <div style={{ height: 10 }} />
