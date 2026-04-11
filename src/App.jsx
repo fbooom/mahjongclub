@@ -1556,13 +1556,19 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
                 border: "1px solid var(--border-card)",
                 borderLeft: `4px solid ${gm.groupColor}`,
               }}>
+                <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", marginBottom: 4 }}>{gm.title}</div>
                 {/* Group tag + optional guest badge */}
-                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
-                  <span style={{ fontSize: 14 }}>{gm.groupEmoji}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: gm.groupColor, fontFamily: "'Noto Sans JP',sans-serif" }}>{gm.groupName}</span>
-                  {gm.isGuestGame && <span style={{ fontSize: 11, fontWeight: 800, color: "var(--secondary-accent)", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "1px 7px", marginLeft: 2 }}>Guest</span>}
-                </div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>{gm.title}</div>
+                {!gm.isGuestGame && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+                    <span style={{ fontSize: 13 }}>{gm.groupEmoji}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: gm.groupColor, fontFamily: "'Noto Sans JP',sans-serif" }}>{gm.groupName}</span>
+                  </div>
+                )}
+                {gm.isGuestGame && (
+                  <div style={{ marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "var(--secondary-accent)", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "1px 7px" }}>Guest</span>
+                  </div>
+                )}
                 <div style={{ fontSize: 13, color: "#b08090", marginTop: 3 }}>📅 {fmt(gm.date)}</div>
                 <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(gm.time, gm.endTime)}</div>
                 <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>📍 {gm.location}</div>
@@ -2349,7 +2355,8 @@ function GCard({ game, groupName = "", color, faded }) {
       border: faded ? "1px solid rgba(200,180,190,0.3)" : "1px solid var(--border-card)",
       borderLeft: `4px solid ${color}`,
     }}>
-      <div style={{ fontWeight: 700, fontSize: 16, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>{game.title}</div>
+      <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", marginBottom: 3 }}>{game.title}</div>
+      {groupName && <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>{groupName}</div>}
       <div style={{ fontSize: 14, color: "#b08090", marginTop: 3 }}>📅 {fmt(game.date)}</div>
       <div style={{ fontSize: 14, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(game.time, game.endTime)}</div>
       <div style={{ fontSize: 14, color: "#b08090", marginTop: 1 }}>📍 {game.location}</div>
