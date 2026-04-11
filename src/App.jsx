@@ -321,8 +321,14 @@ export default function App() {
             const data = snap.data();
             setUser({ uid: fbUser.uid, ...data });
             if (data.theme && themes[data.theme]) setActiveTheme(themes[data.theme]);
-            // Silently refresh FCM token — no dialog, only runs if permission already granted
-            silentlyRefreshFcmToken(fbUser.uid);
+            // If the user has opted into notifications, call enablePushNotifications so
+            // they get prompted (or silently tokenized if already granted) on every device
+            // they sign in on. If not opted in, only refresh silently if already granted.
+            if (data.notificationsEnabled) {
+              enablePushNotifications(fbUser.uid);
+            } else {
+              silentlyRefreshFcmToken(fbUser.uid);
+            }
           } else {
             const profile = { name: fbUser.displayName || fbUser.email.split("@")[0], email: fbUser.email, avatar: randAvatar(), phone: "" };
             await setDoc(doc(db, "users", fbUser.uid), profile);
