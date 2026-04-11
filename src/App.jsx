@@ -78,6 +78,7 @@ async function enablePushNotifications(uid) {
 // Instrumented version of enablePushNotifications that writes each step to `log[]`
 // so the result can be displayed in the UI without needing dev tools.
 async function enablePushNotificationsWithLog(uid, log) {
+  log.push(`UID: ${uid || "MISSING"}`);
   if (typeof Notification === "undefined") { log.push("FAIL: Notification API undefined"); return "unsupported"; }
   log.push(`Notification API: present`);
   if (Notification.permission === "denied") { log.push("FAIL: permission=denied"); return "denied"; }
@@ -96,10 +97,14 @@ async function enablePushNotificationsWithLog(uid, log) {
   try {
     log.push("Calling getToken…");
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+    log.push(`Token value: ${token ? token.slice(0, 30) + "…" : "(empty)"}`);
     if (token) {
-      log.push(`Token: ${token.slice(0, 20)}…`);
+      log.push(`Writing to users/${uid}…`);
       await updateDoc(doc(db, "users", uid), { notificationsEnabled: true, fcmTokens: arrayUnion(token) });
-      log.push("Firestore write: ok");
+      // Read back the doc to confirm the token actually landed
+      const snap = await getDoc(doc(db, "users", uid));
+      const saved = snap.data()?.fcmTokens || [];
+      log.push(`Firestore confirmed: fcmTokens.length=${saved.length}`);
       return "ok";
     }
     log.push("FAIL: getToken returned empty string");
