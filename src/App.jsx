@@ -75,6 +75,41 @@ async function enablePushNotifications(uid) {
   }
 }
 
+// Instrumented version of enablePushNotifications that writes each step to `log[]`
+// so the result can be displayed in the UI without needing dev tools.
+async function enablePushNotificationsWithLog(uid, log) {
+  if (typeof Notification === "undefined") { log.push("FAIL: Notification API undefined"); return "unsupported"; }
+  log.push(`Notification API: present`);
+  if (Notification.permission === "denied") { log.push("FAIL: permission=denied"); return "denied"; }
+  if (Notification.permission === "default") {
+    log.push("Requesting permission…");
+    const result = await Notification.requestPermission();
+    log.push(`Permission result: ${result}`);
+    if (result !== "granted") return "no-permission";
+  } else {
+    log.push(`Permission: ${Notification.permission}`);
+  }
+  log.push("Awaiting messagingReady…");
+  const messaging = await messagingReady;
+  if (!messaging) { log.push("FAIL: messagingReady=null (isSupported() false)"); return "unsupported"; }
+  log.push("Messaging instance: ok");
+  try {
+    log.push("Calling getToken…");
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+    if (token) {
+      log.push(`Token: ${token.slice(0, 20)}…`);
+      await updateDoc(doc(db, "users", uid), { notificationsEnabled: true, fcmTokens: arrayUnion(token) });
+      log.push("Firestore write: ok");
+      return "ok";
+    }
+    log.push("FAIL: getToken returned empty string");
+    return "empty-token";
+  } catch (e) {
+    log.push(`FAIL: ${e.name} — ${e.message}`);
+    return "error:" + e.message;
+  }
+}
+
 const uid = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 const fmt = (ts) => new Date(ts).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 const fmtT = (t) => { const [h, m] = t.split(":").map(Number); const mins = m === 0 ? "" : `:${m.toString().padStart(2,"0")}`; return `${h % 12 || 12}${mins} ${h >= 12 ? "PM" : "AM"}`; };
@@ -1290,6 +1325,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
     user.notificationsEnabled === true ||
     (typeof Notification !== "undefined" && Notification.permission === "granted")
   );
+  const [notifDebug, setNotifDebug] = useState(null);
   const AVATARS = [
     "🐼","🌸","🦋","🍀","🌹","🦚","🎋","🌿","🦩","🌺","🎍","🐝",
     "🦊","🐱","🐰","🦁","🐨","🦄","🐸","🦜","🌙","⭐","🌊","🍵",
@@ -1314,10 +1350,8 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
   const toggleNotifications = async () => {
     if (!notifEnabled) {
       if (notifUnsupported) {
-        // Save preference anyway so FCM can still deliver via service worker
         await updateDoc(doc(db, "users", uid), { notificationsEnabled: true });
         setNotifEnabled(true);
-        // Show platform-specific guidance
         if (isIOS) {
           flash("On iPhone, add app to Home Screen first", "📱");
         } else {
@@ -1325,7 +1359,15 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
         }
         return;
       }
-      const result = await enablePushNotifications(uid);
+
+      // Collect a step-by-step log for in-UI debugging (no dev tools needed)
+      const log = [];
+      log.push(`UA: ${navigator.userAgent.slice(0, 80)}`);
+      log.push(`Permission before: ${Notification.permission}`);
+
+      const result = await enablePushNotificationsWithLog(uid, log);
+      setNotifDebug(log);
+
       if (result === "ok") {
         setNotifEnabled(true);
         flash("Notifications enabled!", "🔔");
@@ -1343,6 +1385,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
     } else {
       await updateDoc(doc(db, "users", uid), { notificationsEnabled: false });
       setNotifEnabled(false);
+      setNotifDebug(null);
       flash("Notifications disabled", "🔕");
     }
   };
@@ -1473,6 +1516,17 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
               </div>
             </div>
           </div>
+
+          {/* FCM debug log — shows after a failed enable attempt */}
+          {notifDebug && (
+            <div style={{ marginTop: 10, background: "rgba(0,0,0,0.06)", borderRadius: 12, padding: "10px 14px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginBottom: 6, letterSpacing: "0.05em", textTransform: "uppercase" }}>Notification Debug</div>
+              {notifDebug.map((line, i) => (
+                <div key={i} style={{ fontSize: 11, fontFamily: "monospace", color: line.startsWith("FAIL") ? "#e05050" : "var(--text-body)", lineHeight: 1.6, wordBreak: "break-all" }}>{line}</div>
+              ))}
+              <div onClick={() => setNotifDebug(null)} style={{ marginTop: 8, fontSize: 11, color: "var(--text-muted)", cursor: "pointer", textDecoration: "underline" }}>Dismiss</div>
+            </div>
+          )}
         </div>
 
         {/* Theme picker */}
