@@ -21,9 +21,11 @@
 
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { initializeApp } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const { getAuth } = require("firebase-admin/auth");
 
 initializeApp();
 const db = getFirestore();
@@ -240,4 +242,118 @@ exports.sendGameReminders = onSchedule("every 60 minutes", async () => {
 
   await Promise.all(sends);
   await batch.commit();
+});
+
+// ── 5. Delete a user (admin only) ────────────────────────────────────────────
+// Callable function: cleans up all Firestore references then deletes the
+// Firebase Auth record.  Only callable by users with isAdmin === true.
+//
+// Cleanup steps:
+//   1. For each group the user is a member of:
+//      a. Remove from memberIds and members arrays
+//      b. If they were the sole host → transfer host to first remaining member
+//         If no remaining members → delete the group and its sub-collections
+//      c. For each game in the group → remove from memberIds, rsvps, waitlist,
+//         guestIds, guests; if they were the hostId → reassign to first
+//         remaining member
+//   2. Delete the users/{uid} Firestore document
+//   3. Delete the Firebase Auth user record
+exports.deleteUser = onCall(async (request) => {
+  // Verify caller is authenticated
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+
+  // Verify caller is an admin
+  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
+  if (callerSnap.data()?.isAdmin !== true) {
+    throw new HttpsError("permission-denied", "Only admins can delete users.");
+  }
+
+  const { uid } = request.data;
+  if (!uid || typeof uid !== "string") {
+    throw new HttpsError("invalid-argument", "uid is required.");
+  }
+  if (uid === request.auth.uid) {
+    throw new HttpsError("invalid-argument", "Admins cannot delete their own account.");
+  }
+
+  // 1. Find all groups where this user is a member
+  const groupsSnap = await db.collection("groups")
+    .where("memberIds", "array-contains", uid)
+    .get();
+
+  for (const groupDoc of groupsSnap.docs) {
+    const g = groupDoc.data();
+    const remainingMemberIds = (g.memberIds || []).filter((id) => id !== uid);
+    const remainingMembers   = (g.members   || []).filter((m) => m.id !== uid);
+    const wasHost = (g.members || []).some((m) => m.id === uid && m.host);
+
+    // If no remaining members → delete games sub-collection then the group
+    if (remainingMemberIds.length === 0) {
+      const gamesSnap = await groupDoc.ref.collection("games").get();
+      const deleteBatch = db.batch();
+      gamesSnap.docs.forEach((d) => deleteBatch.delete(d.ref));
+      deleteBatch.delete(groupDoc.ref);
+      await deleteBatch.commit();
+      continue;
+    }
+
+    // Build the updated members array, promoting a new host if needed
+    let updatedMembers = remainingMembers;
+    if (wasHost) {
+      updatedMembers = updatedMembers.map((m, i) =>
+        i === 0 ? { ...m, host: true } : m
+      );
+    }
+
+    // Update the group document
+    await groupDoc.ref.update({
+      memberIds: remainingMemberIds,
+      members:   updatedMembers,
+    });
+
+    // Clean up every game in this group
+    const gamesSnap = await groupDoc.ref.collection("games").get();
+    const gameBatch = db.batch();
+    for (const gameDoc of gamesSnap.docs) {
+      const game = gameDoc.data();
+      const updates = {};
+
+      if ((game.memberIds || []).includes(uid)) {
+        updates.memberIds = (game.memberIds || []).filter((id) => id !== uid);
+      }
+      if (game.rsvps && uid in game.rsvps) {
+        updates[`rsvps.${uid}`] = FieldValue.delete();
+      }
+      if ((game.waitlist || []).includes(uid)) {
+        updates.waitlist = (game.waitlist || []).filter((id) => id !== uid);
+      }
+      if ((game.guestIds || []).includes(uid)) {
+        updates.guestIds = (game.guestIds || []).filter((id) => id !== uid);
+      }
+      if ((game.guests || []).some((g) => g.id === uid)) {
+        updates.guests = (game.guests || []).filter((g) => g.id !== uid);
+      }
+      // Reassign hostId if this user was the game host
+      if (game.hostId === uid) {
+        const nextHost = (updates.memberIds ?? game.memberIds ?? []).find((id) => id !== uid);
+        updates.hostId = nextHost || null;
+      }
+
+      if (Object.keys(updates).length > 0) gameBatch.update(gameDoc.ref, updates);
+    }
+    await gameBatch.commit();
+  }
+
+  // 2. Delete the Firestore user document
+  await db.doc(`users/${uid}`).delete();
+
+  // 3. Delete the Firebase Auth record
+  try {
+    await getAuth().deleteUser(uid);
+  } catch (e) {
+    // Auth record may not exist (e.g. created via Firestore only) — not fatal
+    if (e.code !== "auth/user-not-found") throw e;
+  }
+
+  return { success: true };
 });

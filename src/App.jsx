@@ -10,6 +10,7 @@ import {
 } from "firebase/firestore";
 import { auth, db, googleProvider, messagingReady } from "./firebase";
 import { getToken, onMessage } from "firebase/messaging";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { sakura as defaultTheme, themes, buildCSSVars } from "./theme";
 
 // VAPID key — get from Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
@@ -3909,6 +3910,8 @@ function AdminUsers({ onImpersonate, go, flash }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [promoting, setPromoting] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null); // user object pending deletion
+  const [deleting, setDeleting] = useState(null); // uid currently being deleted
 
   useEffect(() => {
     getDocs(collection(db, "users"))
@@ -3929,6 +3932,21 @@ function AdminUsers({ onImpersonate, go, flash }) {
       flash(`${u.name} is now ${!u.isAdmin ? "an Admin" : "a Standard user"}`);
     } catch { flash("Failed to update user role"); }
     setPromoting(null);
+  };
+
+  const handleDeleteUser = async (u) => {
+    setConfirmDelete(null);
+    setDeleting(u.uid);
+    try {
+      const fns = getFunctions();
+      const deleteUser = httpsCallable(fns, "deleteUser");
+      await deleteUser({ uid: u.uid });
+      setUsers((prev) => prev.filter((x) => x.uid !== u.uid));
+      flash(`${u.name} has been deleted`, "🗑️");
+    } catch (e) {
+      flash(`Failed to delete user: ${e.message}`, "❌");
+    }
+    setDeleting(null);
   };
 
   const filtered = users.filter((u) => {
@@ -3984,12 +4002,51 @@ function AdminUsers({ onImpersonate, go, flash }) {
             >
               View as
             </button>
+            <button
+              onClick={() => setConfirmDelete(u)}
+              disabled={deleting === u.uid}
+              style={{ background: "rgba(220,60,60,0.15)", border: "1px solid rgba(220,60,60,0.35)", borderRadius: 10, padding: "6px 12px", color: "#ff8080", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: deleting === u.uid ? 0.5 : 1 }}
+            >
+              {deleting === u.uid ? "Deleting…" : "Delete"}
+            </button>
           </div>
         </div>
       ))}
 
       {!loading && filtered.length === 0 && (
         <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>No users match your search.</div>
+      )}
+
+      {/* Delete confirmation dialog */}
+      {confirmDelete && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ background: "#1e1030", border: "1px solid rgba(220,60,60,0.4)", borderRadius: 20, padding: "28px 24px", maxWidth: 380, width: "100%" }}>
+            <div style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}>🗑️</div>
+            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 20, fontWeight: 700, color: "#fff", textAlign: "center", marginBottom: 8 }}>
+              Delete {confirmDelete.name}?
+            </div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", textAlign: "center", lineHeight: 1.6, marginBottom: 8 }}>
+              {confirmDelete.email}
+            </div>
+            <div style={{ fontSize: 13, color: "rgba(255,140,140,0.85)", textAlign: "center", lineHeight: 1.6, marginBottom: 24 }}>
+              This will permanently delete their account and remove them from all groups and games. This cannot be undone.
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => setConfirmDelete(null)}
+                style={{ flex: 1, padding: "12px 0", borderRadius: 12, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteUser(confirmDelete)}
+                style={{ flex: 1, padding: "12px 0", borderRadius: 12, background: "linear-gradient(135deg,#c0392b,#e74c3c)", border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
+              >
+                Delete permanently
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
