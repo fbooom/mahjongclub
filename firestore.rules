@@ -60,14 +60,24 @@ service cloud.firestore {
 
       // Games sub-collection
       match /games/{gameId} {
-        allow read: if isSignedIn() &&
-          (request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds || isAdmin());
+        allow read: if isSignedIn() && (
+          isAdmin() ||
+          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds ||
+          request.auth.uid in resource.data.get('guestIds', [])
+        );
 
         allow create: if isSignedIn() &&
           request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
 
-        allow update: if isSignedIn() &&
-          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+        allow update: if isSignedIn() && (
+          isAdmin() ||
+          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds ||
+          // Non-members joining via game invite: may only write guestIds and their own rsvp entry
+          (
+            request.auth.uid in request.resource.data.get('guestIds', []) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestIds', 'rsvps'])
+          )
+        );
 
         allow delete: if isAdmin() ||
           (isSignedIn() && request.auth.uid == resource.data.hostId);
