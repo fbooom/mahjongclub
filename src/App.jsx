@@ -1651,18 +1651,12 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
         </div>
       </div>
 
-      {/* Content panel — glassy frosted */}
+      {/* Content panel */}
       <div style={{
-        background: "var(--bg-card-base)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
         borderRadius: "28px 28px 0 0",
         marginTop: -18,
         padding: "26px 16px 40px",
         minHeight: "68vh",
-        border: "1px solid var(--border-card)",
-        borderBottom: "none",
-        boxShadow: "0 -4px 24px rgba(var(--shadow-rgb),0.08)",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h2 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5 }}>Your Groups</h2>
