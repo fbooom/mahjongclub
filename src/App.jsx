@@ -674,6 +674,22 @@ export default function App() {
                 });
                 go("groups"); flash("Left group");
               } catch { flash("Error leaving group", "❌"); }
+            }}
+            onTransferAndLeave={async (newHostId) => {
+              try {
+                await runTransaction(db, async (tx) => {
+                  const ref = doc(db, "groups", group.id);
+                  const snap = await tx.get(ref);
+                  const data = snap.data();
+                  tx.update(ref, {
+                    memberIds: (data.memberIds || []).filter((id) => id !== uid),
+                    members: (data.members || [])
+                      .filter((m) => m.id !== uid)
+                      .map((m) => m.id === newHostId ? { ...m, host: true } : m),
+                  });
+                });
+                go("groups"); flash("Host transferred — group left", "👑");
+              } catch { flash("Error leaving group", "❌"); }
             }} />
         )}
         {page === "newGame" && group && (
@@ -2187,16 +2203,28 @@ function JoinGroup({ uid, groups, onBack, onJoin }) {
 }
 
 /* GROUP DETAIL */
-function Group({ uid, group, go, flash, onLeave }) {
+function Group({ uid, group, go, flash, onLeave, onTransferAndLeave }) {
   const [tab, setTab] = useState("games");
   const [gamesTab, setGamesTab] = useState("upcoming");
   const [chatOpen, setChatOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [selectedNewHost, setSelectedNewHost] = useState(null);
   const upcoming = group.games.filter((g) => g.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
   const past = group.games.filter((g) => g.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
   const gamesList = gamesTab === "upcoming" ? upcoming : past;
   const isCreator = group.members.some((m) => m.id === uid && m.host);
   const canInvite = isCreator || (group.openInvites ?? false);
+  const otherMembers = group.members.filter((m) => m.id !== uid);
+
+  const handleLeaveClick = () => {
+    if (isCreator && otherMembers.length > 0) {
+      setSelectedNewHost(null);
+      setShowTransfer(true);
+    } else {
+      setConfirmLeave(true);
+    }
+  };
   return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
       <div style={{
@@ -2285,7 +2313,7 @@ function Group({ uid, group, go, flash, onLeave }) {
               </div>
             ))}
             <div style={{ marginTop: 18 }}>
-              <Btn full outline danger onClick={() => setConfirmLeave(true)}>Leave Group</Btn>
+              <Btn full outline danger onClick={handleLeaveClick}>Leave Group</Btn>
             </div>
           </>
         )}
@@ -2303,6 +2331,52 @@ function Group({ uid, group, go, flash, onLeave }) {
           onConfirm={() => { setConfirmLeave(false); onLeave(); }}
           onCancel={() => setConfirmLeave(false)}
         />
+      )}
+      {showTransfer && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 2000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          onClick={() => setShowTransfer(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            width: "100%", maxWidth: 480, background: "var(--bg-popup)",
+            borderRadius: "24px 24px 0 0", padding: "24px 20px 40px",
+            boxShadow: "0 -8px 40px rgba(0,0,0,0.22)",
+          }}>
+            <div style={{ width: 36, height: 4, borderRadius: 999, background: "rgba(var(--primary-rgb),0.2)", margin: "0 auto 20px" }} />
+            <div style={{ fontSize: 28, textAlign: "center", marginBottom: 8 }}>👑</div>
+            <h3 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 20, color: "var(--text-body)", textAlign: "center", marginBottom: 6 }}>Transfer Host</h3>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", marginBottom: 20, lineHeight: 1.5, fontFamily: "'Noto Sans JP',sans-serif" }}>
+              You must assign a new host before leaving.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+              {otherMembers.map((m) => {
+                const selected = selectedNewHost === m.id;
+                return (
+                  <div key={m.id} onClick={() => setSelectedNewHost(m.id)} style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "11px 14px", borderRadius: 14, cursor: "pointer", transition: "all .16s",
+                    background: selected ? `${group.color}14` : "var(--bg-surface)",
+                    border: selected ? `1.5px solid ${group.color}55` : "1.5px solid rgba(var(--primary-rgb),0.12)",
+                    boxShadow: selected ? `0 2px 10px ${group.color}22` : "none",
+                  }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, border: selected ? `1.5px solid ${group.color}44` : "1.5px solid var(--border-card)", transition: "all .16s" }}>{m.avatar}</div>
+                    <span style={{ flex: 1, fontWeight: 600, fontSize: 15, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{m.name}</span>
+                    <div style={{
+                      width: 22, height: 22, borderRadius: 999, flexShrink: 0, transition: "all .16s",
+                      background: selected ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "transparent",
+                      border: selected ? "none" : "2px solid rgba(var(--primary-rgb),0.2)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 12, color: "#fff", fontWeight: 800,
+                    }}>{selected ? "✓" : ""}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <Btn full disabled={!selectedNewHost} onClick={() => { setShowTransfer(false); onTransferAndLeave(selectedNewHost); }}
+              style={{ background: selectedNewHost ? `linear-gradient(135deg,${group.color},${group.color}cc)` : undefined }}>
+              👑 Transfer & Leave
+            </Btn>
+            <button onClick={() => setShowTransfer(false)} style={{ width: "100%", marginTop: 10, padding: "12px 0", background: "none", border: "none", fontSize: 14, fontWeight: 700, color: "var(--text-muted)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
+          </div>
+        </div>
       )}
     </div>
   );
