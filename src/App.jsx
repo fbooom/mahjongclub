@@ -523,8 +523,10 @@ export default function App() {
 
   const NAV_ITEMS = [
     { id: "home",    icon: "🀄", label: "Home"    },
+    { id: "groups",  icon: "👥", label: "Groups"  },
     { id: "account", icon: "👤", label: "Account" },
   ];
+  const GROUP_PAGES = ["groups","group","newGroup","joinGroup","editGroup","newGame","game","editGame","invite"];
 
   // Admin hub renders outside the app shell (full viewport)
   if (page === "adminHub" && user?.isAdmin) {
@@ -613,9 +615,10 @@ export default function App() {
       {/* Page content */}
       <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 90, paddingTop: impersonating ? 52 : 0 }}>
         {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} activeTheme={activeTheme} />}
+        {page === "groups" && <GroupsPage groups={groups} go={go} />}
         {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} activeThemeId={activeTheme.id} onThemeChange={handleThemeChange} />}
         {page === "newGroup" && (
-          <NewGroup onBack={() => go("home")}
+          <NewGroup onBack={() => go("groups")}
             onSave={async (g) => {
               try {
                 const groupData = { ...g, members: [{ id: uid, name: user.name, avatar: user.avatar, host: true }], memberIds: [uid] };
@@ -625,7 +628,7 @@ export default function App() {
             }} />
         )}
         {page === "joinGroup" && (
-          <JoinGroup uid={uid} groups={groups} onBack={() => go("home")}
+          <JoinGroup uid={uid} groups={groups} onBack={() => go("groups")}
             onJoin={async (id) => {
               try {
                 await runTransaction(db, async (tx) => {
@@ -664,7 +667,7 @@ export default function App() {
                     members: (data.members || []).filter((m) => m.id !== uid),
                   });
                 });
-                go("home"); flash("Left group");
+                go("groups"); flash("Left group");
               } catch { flash("Error leaving group", "❌"); }
             }} />
         )}
@@ -737,7 +740,7 @@ export default function App() {
       {/* Bottom nav */}
       <div className="bottom-nav">
         {NAV_ITEMS.map((item) => {
-          const active = item.id === "account" ? page === "account" : page !== "account";
+          const active = item.id === "account" ? page === "account" : item.id === "groups" ? GROUP_PAGES.includes(page) : page === "home";
           return (
             <button key={item.id} onClick={() => go(item.id)} style={{
               flex: 1, padding: "10px 0 12px", background: "none", border: "none",
@@ -1718,6 +1721,212 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
   );
 }
 
+/* GROUPS PAGE */
+function GroupsPage({ groups, go }) {
+  const totalUpcoming = groups.reduce((sum, g) => sum + g.games.filter((gm) => gm.date > NOW).length, 0);
+
+  return (
+    <div style={{ minHeight: "100vh", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)" }}>
+
+      {/* ── Header ── */}
+      <div style={{
+        background: "var(--header-gradient2)",
+        padding: "54px 22px 30px",
+        position: "relative", overflow: "hidden",
+      }}>
+        {/* Decorative tile glyphs */}
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+          {["🀇","🀙","🀀","🀄","🀅"].map((t, i) => (
+            <span key={i} style={{
+              position: "absolute", fontSize: [38,28,44,32,36][i], opacity: [0.07,0.05,0.09,0.06,0.05][i],
+              top: ["18%","60%","10%","70%","38%"][i], left: ["8%","72%","58%","18%","88%"][i],
+              transform: [`rotate(${[-12,18,-8,22,-15][i]}deg)`],
+              userSelect: "none",
+            }}>{t}</span>
+          ))}
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.10) 0%,transparent 60%)", pointerEvents: "none" }} />
+        </div>
+
+        <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.60)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Your Groups</div>
+            <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 34, color: "#fff", textShadow: "0 2px 16px rgba(0,0,0,0.22)", lineHeight: 1, letterSpacing: 0.5 }}>
+              {groups.length} {groups.length === 1 ? "Group" : "Groups"}
+            </h1>
+            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.15)", borderRadius: 999, padding: "4px 11px", backdropFilter: "blur(8px)" }}>
+                <span style={{ fontSize: 13 }}>👥</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>
+                  {groups.reduce((s, g) => s + g.members.length, 0)} members
+                </span>
+              </div>
+              {totalUpcoming > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.15)", borderRadius: 999, padding: "4px 11px", backdropFilter: "blur(8px)" }}>
+                  <span style={{ fontSize: 13 }}>🀄</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>
+                    {totalUpcoming} upcoming
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+            <button onClick={() => go("newGroup")} style={{
+              background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.40)",
+              borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
+              color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 5,
+            }}>＋ New</button>
+            <button onClick={() => go("joinGroup")} style={{
+              background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.25)",
+              borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
+              color: "rgba(255,255,255,0.85)", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
+            }}>Join</button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── List ── */}
+      <div style={{ padding: "18px 16px 24px" }}>
+        {groups.length === 0 ? (
+          /* ── Empty state ── */
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "52px 24px 24px", textAlign: "center" }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
+              {["🀇","🀙","🀅"].map((t, i) => (
+                <div key={i} className="sUp" style={{ animationDelay: `${i * 0.12}s`, fontSize: 44, opacity: 0.35,
+                  background: "linear-gradient(135deg,var(--bg-card-base),var(--bg-card-alt))",
+                  borderRadius: 14, width: 68, height: 68, display: "flex", alignItems: "center",
+                  justifyContent: "center", boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.10)",
+                  border: "1px solid var(--border-card)",
+                }}>{t}</div>
+              ))}
+            </div>
+            <h2 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 22, color: "var(--primary-muted)", marginBottom: 8 }}>Your table awaits</h2>
+            <p style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 28, maxWidth: 260 }}>
+              Create a group to start scheduling games and inviting your players.
+            </p>
+            <div style={{ display: "flex", gap: 10, width: "100%" }}>
+              <button onClick={() => go("newGroup")} style={{
+                flex: 1, padding: "14px 0", borderRadius: 999, fontSize: 15, fontWeight: 700,
+                fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer",
+                background: "var(--active-tab-gradient)", color: "#fff",
+                border: "none", boxShadow: "0 4px 16px var(--shadow-btn)",
+              }}>＋ Create Group</button>
+              <button onClick={() => go("joinGroup")} style={{
+                flex: 1, padding: "14px 0", borderRadius: 999, fontSize: 15, fontWeight: 700,
+                fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer",
+                background: "var(--bg-surface)", color: "var(--primary)",
+                border: "1.5px solid rgba(var(--primary-rgb),0.25)",
+              }}>Join Group</button>
+            </div>
+          </div>
+        ) : (
+          groups.map((g, i) => {
+            const upcoming = g.games.filter((gm) => gm.date > NOW).sort((a, b) => a.date - b.date);
+            const nextGame = upcoming[0] || null;
+            const isHost = g.members.some((m) => m.id === undefined ? false : m.host);
+            return (
+              <div key={g.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer", marginBottom: 14 }}
+                onClick={() => go("group", g.id)}>
+                <div style={{
+                  background: "linear-gradient(135deg,var(--bg-card-base) 0%,var(--bg-card-alt) 100%)",
+                  backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+                  borderRadius: 20, padding: "17px 16px",
+                  boxShadow: `0 4px 22px rgba(var(--shadow-rgb),0.09), inset 0 1px 0 var(--shadow-inset)`,
+                  border: "1px solid var(--border-card)",
+                  borderLeft: `4px solid ${g.color}`,
+                }}>
+                  {/* Row 1: emoji + name + badge + chevron */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{
+                      width: 52, height: 52, borderRadius: 15, flexShrink: 0,
+                      background: `linear-gradient(135deg,${g.color}30,${g.color}14)`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 27, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.6), 0 2px 10px ${g.color}28`,
+                      border: `1.5px solid ${g.color}22`,
+                    }}>{g.emoji}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 18, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.name}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                        {g.members.length} {g.members.length === 1 ? "member" : "members"}
+                        {g.code && <span style={{ marginLeft: 8, color: g.color, fontWeight: 700 }}>#{g.code}</span>}
+                      </div>
+                    </div>
+                    {upcoming.length > 0 && (
+                      <div style={{
+                        background: `linear-gradient(135deg,${g.color},${g.color}cc)`,
+                        color: "#fff", borderRadius: 999, minWidth: 26, height: 26,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 12, fontWeight: 900, padding: "0 8px",
+                        boxShadow: `0 2px 8px ${g.color}55`, flexShrink: 0,
+                      }}>{upcoming.length}</div>
+                    )}
+                    <span style={{ color: "var(--primary-faint)", fontSize: 22, flexShrink: 0 }}>›</span>
+                  </div>
+
+                  {/* Row 2: member avatar stack */}
+                  <div style={{ display: "flex", alignItems: "center", marginTop: 13, gap: 0 }}>
+                    {g.members.slice(0, 6).map((m, idx) => (
+                      <div key={m.id || idx} style={{
+                        width: 28, height: 28, borderRadius: 999,
+                        background: "var(--avatar-bubble-bg)",
+                        border: "2.5px solid var(--bg-card-base)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 14, marginLeft: idx > 0 ? -9 : 0,
+                        position: "relative", zIndex: 10 - idx,
+                        boxShadow: "0 1px 4px rgba(var(--shadow-rgb),0.12)",
+                      }}>{m.avatar}</div>
+                    ))}
+                    {g.members.length > 6 && (
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 999,
+                        background: `${g.color}22`,
+                        border: `2.5px solid var(--bg-card-base)`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 10, fontWeight: 800, color: g.color,
+                        marginLeft: -9, position: "relative", zIndex: 3,
+                      }}>+{g.members.length - 6}</div>
+                    )}
+                  </div>
+
+                  {/* Row 3: next game preview */}
+                  {nextGame ? (
+                    <div style={{
+                      marginTop: 12, padding: "10px 13px",
+                      background: `${g.color}0e`, borderRadius: 12,
+                      border: `1px solid ${g.color}28`,
+                      display: "flex", alignItems: "center", gap: 10,
+                    }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 10, background: `${g.color}20`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>📅</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nextGame.title}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                          {fmt(nextGame.date)}{nextGame.time ? ` · ${fmtT(nextGame.time)}` : ""}
+                          {upcoming.length > 1 && <span style={{ marginLeft: 6, color: g.color, fontWeight: 700 }}>+{upcoming.length - 1} more</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{
+                      marginTop: 12, padding: "10px 13px",
+                      background: "rgba(var(--primary-rgb),0.03)", borderRadius: 12,
+                      border: "1px dashed rgba(var(--primary-rgb),0.14)",
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                    }}>
+                      <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>No upcoming games</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)", fontFamily: "'Noto Sans JP',sans-serif" }}>Schedule →</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* NEW GROUP */
 function NewGroup({ onBack, onSave }) {
   const [name, setName] = useState("");
@@ -1875,7 +2084,7 @@ function Group({ uid, group, go, flash, onLeave }) {
         boxShadow: `0 8px 32px ${group.color}44`,
       }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.18) 0%,transparent 55%)", pointerEvents: "none" }} />
-        <button onClick={() => go("home")} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)" }}>‹</button>
+        <button onClick={() => go("groups")} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)" }}>‹</button>
         <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 8 }}>
           {isCreator && <button onClick={() => go("editGroup", group.id)} style={{ background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✏️ Edit</button>}
           {canInvite && <button onClick={() => go("invite", group.id)} style={{ background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✉️ Invite</button>}
