@@ -1722,7 +1722,7 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
                   <div style={{ width: 50, height: 50, borderRadius: 15, flexShrink: 0, background: `linear-gradient(135deg,${g.color}33,${g.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 27, boxShadow: "inset 0 1px 0 var(--border-card)" }}>{g.emoji}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>{g.name}</div>
-                    <div style={{ fontSize: 13, color: "#b08090", marginTop: 2 }}>{g.members.length} members · Code: <b style={{ color: g.color }}>{g.code}</b></div>
+                    <div style={{ fontSize: 13, color: "#b08090", marginTop: 2 }}>{g.members.length} members</div>
                   </div>
                   {g.games.filter((gm) => gm.date > NOW).length > 0 && (
                     <div style={{ background: `linear-gradient(135deg,${g.color},${g.color}cc)`, color: "#fff", borderRadius: 999, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, boxShadow: `0 2px 8px ${g.color}55` }}>{g.games.filter((gm) => gm.date > NOW).length}</div>
@@ -2003,7 +2003,6 @@ function GroupsPage({ groups, go }) {
                       <div style={{ fontWeight: 700, fontSize: 18, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.name}</div>
                       <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>
                         {g.members.length} {g.members.length === 1 ? "member" : "members"}
-                        {g.code && <span style={{ marginLeft: 8, color: g.color, fontWeight: 700 }}>#{g.code}</span>}
                       </div>
                     </div>
                     {upcoming.length > 0 && (
