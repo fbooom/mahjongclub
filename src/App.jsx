@@ -2653,7 +2653,7 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
           <button onClick={() => go("editGame", group.id, game.id)} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✏️ Edit</button>
         )}
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{group.name}</div>
+          {!isGuestView && <div style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{group.name}</div>}
           <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 25, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.2)" }}>{game.title}</h1>
         </div>
       </div>
