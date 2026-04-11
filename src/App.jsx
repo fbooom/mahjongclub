@@ -53,7 +53,10 @@ async function enablePushNotifications(uid) {
     }
   }
   const messaging = await messagingReady;
-  if (!messaging) return "unsupported";
+  if (!messaging) {
+    console.warn("[FCM] isSupported() returned false — browser does not support FCM");
+    return "unsupported";
+  }
   try {
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
     if (token) {
@@ -64,10 +67,10 @@ async function enablePushNotifications(uid) {
       console.log("[FCM] token registered:", token.slice(0, 20) + "…");
       return "ok";
     }
-    console.warn("[FCM] getToken returned empty token");
+    console.warn("[FCM] getToken returned empty — service worker may not be registered yet");
     return "empty-token";
   } catch (e) {
-    console.error("[FCM] getToken failed:", e);
+    console.error("[FCM] getToken failed:", e.code || e.name, e.message);
     return "error:" + e.message;
   }
 }
@@ -1323,17 +1326,19 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
         return;
       }
       const result = await enablePushNotifications(uid);
-      if (result === "denied") { flash("Notifications blocked — check browser settings", "🔕"); return; }
-      if (result === "no-permission") { flash("Permission not granted — check browser settings", "🔕"); return; }
-      setNotifEnabled(true);
       if (result === "ok") {
+        setNotifEnabled(true);
         flash("Notifications enabled!", "🔔");
+      } else if (result === "denied") {
+        flash("Notifications blocked — check browser settings", "🔕");
+      } else if (result === "no-permission") {
+        flash("Notifications not granted — tap Allow when the browser asks", "🔕");
       } else if (result === "unsupported") {
-        flash("Push notifications not supported in this browser", "⚠️");
+        flash("Push notifications not supported in this browser. Try Chrome on desktop or Android.", "⚠️");
       } else if (result === "empty-token") {
-        flash("Could not get push token — try reinstalling the app to Home Screen", "⚠️");
+        flash("Could not get a push token — on iPhone, add to Home Screen first", "⚠️");
       } else {
-        flash("Notifications saved, but push token failed — check console", "⚠️");
+        flash(`Could not enable notifications (${result})`, "⚠️");
       }
     } else {
       await updateDoc(doc(db, "users", uid), { notificationsEnabled: false });
