@@ -20,15 +20,31 @@ const showBrowserNotif = (title, body, tag) => {
   try { new Notification(title, { body, icon: "/favicon.ico", tag }); } catch(e) {}
 };
 
-// Register/refresh the FCM token for a user and persist it to Firestore.
-// Requests permission if not yet decided. Skips if already denied.
-// Returns a status string for debugging.
-async function registerForPushNotifications(uid) {
-  if (typeof Notification === "undefined") return "unsupported";
-  if (Notification.permission === "denied") {
-    console.warn("[FCM] notifications denied by user");
-    return "denied";
+// Silent token refresh — called on every sign-in.
+// Only runs if the user has already granted notification permission.
+// Never shows a browser dialog. Does NOT set notificationsEnabled.
+// This keeps the stored token fresh (tokens rotate periodically).
+async function silentlyRefreshFcmToken(uid) {
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  const messaging = await messagingReady;
+  if (!messaging) return;
+  try {
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+    if (token) {
+      await updateDoc(doc(db, "users", uid), { fcmTokens: arrayUnion(token) });
+      console.log("[FCM] token refreshed:", token.slice(0, 20) + "…");
+    }
+  } catch (e) {
+    console.error("[FCM] silent refresh failed:", e);
   }
+}
+
+// Explicit enable — called only when the user clicks "Enable notifications".
+// Prompts for permission if not yet decided. Gets token and sets notificationsEnabled: true.
+// Returns a status string for the UI to act on.
+async function enablePushNotifications(uid) {
+  if (typeof Notification === "undefined") return "unsupported";
+  if (Notification.permission === "denied") return "denied";
   if (Notification.permission === "default") {
     const result = await Notification.requestPermission();
     if (result !== "granted") {
@@ -37,10 +53,7 @@ async function registerForPushNotifications(uid) {
     }
   }
   const messaging = await messagingReady;
-  if (!messaging) {
-    console.warn("[FCM] messaging not supported in this browser");
-    return "unsupported";
-  }
+  if (!messaging) return "unsupported";
   try {
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
     if (token) {
@@ -50,10 +63,9 @@ async function registerForPushNotifications(uid) {
       });
       console.log("[FCM] token registered:", token.slice(0, 20) + "…");
       return "ok";
-    } else {
-      console.warn("[FCM] getToken returned empty token");
-      return "empty-token";
     }
+    console.warn("[FCM] getToken returned empty token");
+    return "empty-token";
   } catch (e) {
     console.error("[FCM] getToken failed:", e);
     return "error:" + e.message;
@@ -266,8 +278,8 @@ export default function App() {
             const data = snap.data();
             setUser({ uid: fbUser.uid, ...data });
             if (data.theme && themes[data.theme]) setActiveTheme(themes[data.theme]);
-            // Refresh FCM token on every sign-in (skips internally if denied)
-            registerForPushNotifications(fbUser.uid);
+            // Silently refresh FCM token — no dialog, only runs if permission already granted
+            silentlyRefreshFcmToken(fbUser.uid);
           } else {
             const profile = { name: fbUser.displayName || fbUser.email.split("@")[0], email: fbUser.email, avatar: randAvatar(), phone: "" };
             await setDoc(doc(db, "users", fbUser.uid), profile);
@@ -969,7 +981,7 @@ function AuthScreen() {
     setLoading(true);
     try {
       const { user: fbUser } = await signInWithEmailAndPassword(auth, email.trim(), password);
-      registerForPushNotifications(fbUser.uid);
+      silentlyRefreshFcmToken(fbUser.uid);
     } catch (e) {
       setError(fmtFirebaseError(e.code));
     } finally {
@@ -995,7 +1007,7 @@ function AuthScreen() {
         avatar: chosenAvatar,
       };
       await setDoc(doc(db, "users", fbUser.uid), profile);
-      registerForPushNotifications(fbUser.uid);
+      silentlyRefreshFcmToken(fbUser.uid);
     } catch (e) {
       setError(fmtFirebaseError(e.code));
     } finally {
@@ -1008,7 +1020,7 @@ function AuthScreen() {
     setLoading(true);
     try {
       const { user: fbUser } = await signInWithPopup(auth, googleProvider);
-      registerForPushNotifications(fbUser.uid);
+      silentlyRefreshFcmToken(fbUser.uid);
     } catch (e) {
       setError(fmtFirebaseError(e.code));
     } finally {
@@ -1310,9 +1322,9 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
         }
         return;
       }
-      const perm = await Notification.requestPermission();
-      if (perm === "denied") { flash("Notifications blocked — check browser settings", "🔕"); return; }
-      const result = await registerForPushNotifications(uid);
+      const result = await enablePushNotifications(uid);
+      if (result === "denied") { flash("Notifications blocked — check browser settings", "🔕"); return; }
+      if (result === "no-permission") { flash("Permission not granted — check browser settings", "🔕"); return; }
       setNotifEnabled(true);
       if (result === "ok") {
         flash("Notifications enabled!", "🔔");
@@ -1320,8 +1332,6 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
         flash("Push notifications not supported in this browser", "⚠️");
       } else if (result === "empty-token") {
         flash("Could not get push token — try reinstalling the app to Home Screen", "⚠️");
-      } else if (result === "no-permission") {
-        flash("Permission not granted — check browser settings", "🔕");
       } else {
         flash("Notifications saved, but push token failed — check console", "⚠️");
       }
@@ -2500,12 +2510,8 @@ function GroupChat({ group, uid, user, onClose }) {
   };
 
   const requestNotifications = async () => {
-    if (typeof Notification === "undefined") return;
-    const perm = await Notification.requestPermission();
     setNotifBanner(false);
-    if (perm === "granted") {
-      await updateDoc(doc(db, "users", uid), { notificationsEnabled: true });
-    }
+    await enablePushNotifications(uid);
   };
 
   const fmtTime = (ts) => {
