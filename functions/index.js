@@ -258,7 +258,7 @@ exports.sendGameReminders = onSchedule("every 60 minutes", async () => {
 //         remaining member
 //   2. Delete the users/{uid} Firestore document
 //   3. Delete the Firebase Auth user record
-exports.deleteUser = onCall(async (request) => {
+exports.deleteUser = onCall({ invoker: "public" }, async (request) => {
   // Verify caller is authenticated
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
 
