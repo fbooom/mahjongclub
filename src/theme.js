@@ -14,10 +14,10 @@
  *   3. The theme picker in Account will display it automatically.
  */
 
-// ── Default theme: Sakura ────────────────────────────────────────────────────
+// ── Default theme: Flowers ───────────────────────────────────────────────────
 export const sakura = {
   id: "sakura",
-  name: "Sakura",
+  name: "Flowers",
   emoji: "🌸",
 
   // ── Palette ────────────────────────────────────────────────────────────────
