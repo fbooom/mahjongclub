@@ -100,10 +100,10 @@ export const sakura = {
   scrollbarThumb:      "rgba(201,96,122,0.25)",
 };
 
-// ── Theme: Bamboo Forest ─────────────────────────────────────────────────────
+// ── Theme: Bam Bird ──────────────────────────────────────────────────────────
 export const forest = {
   id: "forest",
-  name: "Bamboo Forest",
+  name: "Bam Bird",
   emoji: "🎋",
 
   primary:             "#5a8a5c",

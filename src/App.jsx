@@ -1738,9 +1738,10 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
 /* HOME */
 function Home({ groups, guestGames, go, user, activeTheme }) {
 
-  // Background pattern — plum blossoms for the Flowers theme, mahjong tiles for all others
+  // Background pattern — roses for Flowers, birds for Bam Bird, tiles for all others
   const color = activeTheme?.primary || "#a0456e";
   const isFlowers = activeTheme?.id === "sakura";
+  const isBamBird = activeTheme?.id === "forest";
 
   // Rose SVG — teardrop petals (5 outer + 5 inner), curved stem, and two leaves.
   // Two roses per 160px tile: main (top-left area) and accent (bottom-right, 68% scale).
@@ -1775,11 +1776,45 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
   ].join("");
   const flowerSVG = `url("data:image/svg+xml,${encodeURIComponent(flowerSvg)}")`;
 
-  // Mahjong tile SVG pattern — used by all themes except Flowers
+  // Bird SVG — small songbird silhouette: oval body, raised crescent wing, round head,
+  // pointed beak, and a two-feather spread tail. Three birds per 180px tile at varied
+  // positions and scales; every other bird faces the opposite direction for variety.
+  // Body + head + beak + wing + tail are all filled paths so they read as solid silhouettes.
+  const birdMotif = (tx, ty, s, flipX = false) => {
+    const sx = (flipX ? -s : s).toFixed(3);
+    return [
+      `<g transform="translate(${tx},${ty}) scale(${sx},${s})">`,
+      // Body — oval tilted nose-up slightly
+      `<ellipse rx="10" ry="5.5" transform="rotate(-8)"/>`,
+      // Head — circle offset forward and up
+      `<circle cx="13" cy="-7" r="4.5"/>`,
+      // Beak — small pointed triangle
+      `<polygon points="17,-9 25,-7 17,-5"/>`,
+      // Wing — filled crescent raised above body
+      `<path d="M-2,-3 C1,-14 12,-14 13,-4 C8,-7 2,-7 -2,-3Z"/>`,
+      // Tail upper feather
+      `<path d="M-8,1 C-15,-5 -21,0 -17,5 C-14,2 -11,1 -9,3Z"/>`,
+      // Tail lower feather
+      `<path d="M-8,2 C-13,4 -20,8 -16,12 C-12,9 -10,6 -9,3Z"/>`,
+      `</g>`,
+    ].join("");
+  };
+
+  const birdSvg = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180">`,
+    `<g opacity="0.11" fill="${color}">`,
+    birdMotif(58,  72,  1.00, false),  // main bird, facing right, upper-left quadrant
+    birdMotif(140, 36,  0.65, true),   // small bird, facing left,  upper-right
+    birdMotif(32,  148, 0.52, false),  // tiny bird,  facing right, lower-left
+    `</g></svg>`,
+  ].join("");
+  const birdSVG = `url("data:image/svg+xml,${encodeURIComponent(birdSvg)}")`;
+
+  // Mahjong tile SVG pattern — used by all themes except Flowers and Bam Bird
   const tileColor = encodeURIComponent(color);
   const tileSVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='none'/%3E%3Cg opacity='0.07' fill='${tileColor}'%3E%3Crect x='10' y='10' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Crect x='14' y='16' width='20' height='4' rx='2'/%3E%3Crect x='14' y='23' width='20' height='4' rx='2'/%3E%3Crect x='14' y='30' width='20' height='4' rx='2'/%3E%3Crect x='64' y='10' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Ccircle cx='78' cy='24' r='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Ccircle cx='78' cy='37' r='3'/%3E%3Crect x='10' y='68' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Cpath d='M18 78 Q24 72 30 78 Q24 84 18 78Z'/%3E%3Cpath d='M18 90 Q24 84 30 90 Q24 96 18 90Z'/%3E%3Crect x='64' y='68' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Crect x='70' y='75' width='16' height='18' rx='3' fill='none' stroke='${tileColor}' stroke-width='1.5'/%3E%3Cline x1='78' y1='75' x2='78' y2='93' stroke='${tileColor}' stroke-width='1.5'/%3E%3C/g%3E%3C/svg%3E")`;
 
-  const bgSVG = isFlowers ? flowerSVG : tileSVG;
+  const bgSVG = isFlowers ? flowerSVG : isBamBird ? birdSVG : tileSVG;
 
   const BT = ["🀄","🀇","🀅","🀙","🀃","🀆"];
   const pos = [
@@ -1789,7 +1824,7 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: `${bgSVG}, linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)`, backgroundSize: `${isFlowers ? "160px 160px" : "120px 120px"}, cover` }}>
+    <div style={{ minHeight: "100vh", background: `${bgSVG}, linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)`, backgroundSize: `${isFlowers ? "160px 160px" : isBamBird ? "180px 180px" : "120px 120px"}, cover` }}>
       {/* Hero header — glassy */}
       <div style={{
         background: "var(--header-gradient2)",
