@@ -104,7 +104,7 @@ export const sakura = {
 export const forest = {
   id: "forest",
   name: "Bam Bird",
-  emoji: "🎋",
+  emoji: "🐦",
 
   primary:             "#5a8a5c",
   primaryDark:         "#3d6b3e",

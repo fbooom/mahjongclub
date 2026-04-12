@@ -1776,26 +1776,27 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
   ].join("");
   const flowerSVG = `url("data:image/svg+xml,${encodeURIComponent(flowerSvg)}")`;
 
-  // Bird SVG — small songbird silhouette: oval body, raised crescent wing, round head,
-  // pointed beak, and a two-feather spread tail. Three birds per 180px tile at varied
-  // positions and scales; every other bird faces the opposite direction for variety.
-  // Body + head + beak + wing + tail are all filled paths so they read as solid silhouettes.
+  // Bird silhouette — each motif has 6 clearly connected parts:
+  //   body (ellipse), head (circle that overlaps body's front-top), beak (triangle
+  //   extending from head), raised wing (crescent arch above body), and two spread
+  //   tail feathers (wedges off the body's rear). Bird faces right by default;
+  //   flipX mirrors it left. bounding box at scale 1: ~56px wide × 32px tall.
   const birdMotif = (tx, ty, s, flipX = false) => {
     const sx = (flipX ? -s : s).toFixed(3);
     return [
       `<g transform="translate(${tx},${ty}) scale(${sx},${s})">`,
-      // Body — oval tilted nose-up slightly
-      `<ellipse rx="10" ry="5.5" transform="rotate(-8)"/>`,
-      // Head — circle offset forward and up
-      `<circle cx="13" cy="-7" r="4.5"/>`,
-      // Beak — small pointed triangle
-      `<polygon points="17,-9 25,-7 17,-5"/>`,
-      // Wing — filled crescent raised above body
-      `<path d="M-2,-3 C1,-14 12,-14 13,-4 C8,-7 2,-7 -2,-3Z"/>`,
-      // Tail upper feather
-      `<path d="M-8,1 C-15,-5 -21,0 -17,5 C-14,2 -11,1 -9,3Z"/>`,
-      // Tail lower feather
-      `<path d="M-8,2 C-13,4 -20,8 -16,12 C-12,9 -10,6 -9,3Z"/>`,
+      // Body — pear-shaped oval, body center at (0,2)
+      `<ellipse cx="0" cy="2" rx="16" ry="8"/>`,
+      // Head — circle overlapping the front-top of body
+      `<circle cx="14" cy="-7" r="8"/>`,
+      // Beak — triangle extending from front of head, pointing forward (right)
+      `<path d="M22,-9 L30,-7 L22,-5Z"/>`,
+      // Wing — crescent arch raised well above body
+      `<path d="M-8,-5 C-4,-18 8,-18 10,-6 C5,-10 0,-10 -8,-5Z"/>`,
+      // Upper tail feather — wedge fanning back and up from body rear
+      `<path d="M-14,0 C-20,-6 -26,-4 -24,2 C-20,2 -18,0 -14,4Z"/>`,
+      // Lower tail feather — wedge fanning back and down from body rear
+      `<path d="M-14,4 C-20,4 -26,8 -24,14 C-20,12 -16,8 -14,4Z"/>`,
       `</g>`,
     ].join("");
   };
@@ -1803,9 +1804,9 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
   const birdSvg = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180">`,
     `<g opacity="0.11" fill="${color}">`,
-    birdMotif(58,  72,  1.00, false),  // main bird, facing right, upper-left quadrant
-    birdMotif(140, 36,  0.65, true),   // small bird, facing left,  upper-right
-    birdMotif(32,  148, 0.52, false),  // tiny bird,  facing right, lower-left
+    birdMotif(65,  68,  1.00, false),  // main bird,  facing right, upper-left
+    birdMotif(130, 34,  0.68, true),   // medium bird, facing left,  upper-right
+    birdMotif(34,  148, 0.52, false),  // small bird,  facing right, lower-left
     `</g></svg>`,
   ].join("");
   const birdSVG = `url("data:image/svg+xml,${encodeURIComponent(birdSvg)}")`;
