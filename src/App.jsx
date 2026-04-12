@@ -1812,60 +1812,11 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
   ].join("");
   const birdSVG = `url("data:image/svg+xml,${encodeURIComponent(birdSvg)}")`;
 
-  // Chinese dragon SVG — 140px tile.
-  //
-  // Head is built from clearly separated shapes so the silhouette reads immediately:
-  //   skull  — single closed path: neck → skull dome (y≈-22 peak) → snout tip (x≈30) → chin (y≈6)
-  //   jaw    — separate path sitting 6-12px BELOW skull chin, creating a visible open-mouth gap
-  //   horn1  — large backward-curving teardrop off the skull dome (#1 "dragon" identifier)
-  //   horn2  — shorter secondary horn, gives the classic two-horn Chinese dragon look
-  //   whi1/2 — whisker strokes from snout (dragon's iconic facial feature)
-  //
-  // Spine: M110,30 → (71,34) → (26,94) → (25,115)
-  // Claw clusters placed at each segment's bezier midpoint.
-  const dragonSvg = (() => {
-    const c = color;
-    const spine = `M110,30 C90,20 50,40 35,62 C20,84 30,108 25,115`;
-
-    // skull: from neck (0,0) arches up to skull peak at (14,-22), curves forward to snout tip
-    //        at (30,2), returns under snout along chin to close at neck
-    const skull = `<path d="M0,0 C-4,-14 4,-24 14,-22 C22,-20 26,-12 28,-6 C30,-2 30,2 28,4 C26,6 22,6 20,4 C16,2 10,0 6,0 Z"/>`;
-    // jaw: hinge at (2,10) — 10px below skull chin — curves forward to jaw tip at (24,8),
-    //      returns along inner edge; the gap between chin (y≈0-6) and jaw (y≈8-18) = open mouth
-    const jaw   = `<path d="M2,10 C6,16 16,18 22,14 C24,12 26,10 24,8 C20,10 14,12 8,12 Z"/>`;
-    // horn1: main backward-curving horn from skull dome (6,-18) to tip around (-2,-28)
-    const horn1 = `<path d="M6,-18 C2,-26 -2,-30 2,-26 C4,-22 6,-20 6,-18Z"/>`;
-    // horn2: shorter secondary horn forward of horn1 (14,-20) to tip around (10,-28)
-    const horn2 = `<path d="M14,-20 C12,-26 10,-30 13,-26 C14,-24 14,-22 14,-20Z"/>`;
-    // whiskers from snout
-    const whi1  = `<path d="M28,-4 C32,-7 34,-4 32,2" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round"/>`;
-    const whi2  = `<path d="M28,4 C32,7 34,4 32,10" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round"/>`;
-
-    // Three-toed spread claw cluster
-    const claws = `<path d="M-4,-6 C-10,-13 -14,-7 -10,0Z"/><path d="M2,-8 C2,-17 6,-17 8,-8Z"/><path d="M8,-6 C12,-14 16,-9 14,-3Z"/>`;
-    // Forked tail spike at spine end
-    const tail  = `<path d="M25,115 C19,124 16,128 22,122 C16,127 26,126 25,115Z"/>`;
-
-    return [
-      `<svg xmlns="http://www.w3.org/2000/svg" width="140" height="140">`,
-      `<g opacity="0.15" fill="${c}">`,
-      `<path d="${spine}" fill="none" stroke="${c}" stroke-width="12" stroke-linecap="round"/>`,
-      `<g transform="translate(110,30) rotate(27)">${skull}${jaw}${horn1}${horn2}${whi1}${whi2}</g>`,
-      // front claws at seg-1 bezier midpoint (71,34)
-      `<g transform="translate(71,34)">${claws}</g>`,
-      // rear claws at seg-2 bezier midpoint (26,94)
-      `<g transform="translate(26,94)">${claws}</g>`,
-      tail,
-      `</g></svg>`,
-    ].join("");
-  })();
-  const dragonSVG = `url("data:image/svg+xml,${encodeURIComponent(dragonSvg)}")`;
-
-  // Mahjong tile SVG pattern — used by all themes except Flowers, Bam Bird, and Dragons
+  // Mahjong tile SVG pattern — used by all themes except Flowers and Bam Bird
   const tileColor = encodeURIComponent(color);
   const tileSVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='none'/%3E%3Cg opacity='0.07' fill='${tileColor}'%3E%3Crect x='10' y='10' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Crect x='14' y='16' width='20' height='4' rx='2'/%3E%3Crect x='14' y='23' width='20' height='4' rx='2'/%3E%3Crect x='14' y='30' width='20' height='4' rx='2'/%3E%3Crect x='64' y='10' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Ccircle cx='78' cy='24' r='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Ccircle cx='78' cy='37' r='3'/%3E%3Crect x='10' y='68' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Cpath d='M18 78 Q24 72 30 78 Q24 84 18 78Z'/%3E%3Cpath d='M18 90 Q24 84 30 90 Q24 96 18 90Z'/%3E%3Crect x='64' y='68' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Crect x='70' y='75' width='16' height='18' rx='3' fill='none' stroke='${tileColor}' stroke-width='1.5'/%3E%3Cline x1='78' y1='75' x2='78' y2='93' stroke='${tileColor}' stroke-width='1.5'/%3E%3C/g%3E%3C/svg%3E")`;
 
-  const bgSVG = isFlowers ? flowerSVG : isBamBird ? birdSVG : isDragons ? dragonSVG : tileSVG;
+  const bgSVG = isFlowers ? flowerSVG : isBamBird ? birdSVG : isDragons ? null : tileSVG;
 
   const BT = ["🀄","🀇","🀅","🀙","🀃","🀆"];
   const pos = [
@@ -1875,7 +1826,7 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: `${bgSVG}, linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)`, backgroundSize: `${isFlowers ? "160px 160px" : isBamBird ? "180px 180px" : isDragons ? "140px 140px" : "120px 120px"}, cover` }}>
+    <div style={{ minHeight: "100vh", background: bgSVG ? `${bgSVG}, linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` : `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)`, backgroundSize: bgSVG ? `${isFlowers ? "160px 160px" : isBamBird ? "180px 180px" : "120px 120px"}, cover` : "cover" }}>
       {/* Hero header — glassy */}
       <div style={{
         background: "var(--header-gradient2)",
