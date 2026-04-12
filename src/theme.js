@@ -174,12 +174,12 @@ export const forest = {
   scrollbarThumb:      "rgba(90,138,92,0.28)",
 };
 
-// ── Theme: Jade Dragon (dark) ─────────────────────────────────────────────────
+// ── Theme: Dragons (dark) ────────────────────────────────────────────────────
 // Inspired by the Dragon tiles (中發白) and the traditional jade mahjong set —
 // deep obsidian backgrounds lit by warm gold and amethyst accents.
 export const jadeDragon = {
   id: "jadeDragon",
-  name: "Jade Dragon",
+  name: "Dragons",
   emoji: "🐉",
 
   primary:             "#d4a843",   // warm gold — lit mahjong tile

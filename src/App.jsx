@@ -1738,10 +1738,11 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
 /* HOME */
 function Home({ groups, guestGames, go, user, activeTheme }) {
 
-  // Background pattern — roses for Flowers, birds for Bam Bird, tiles for all others
+  // Background pattern — roses for Flowers, birds for Bam Bird, dragons for Dragons, tiles for all others
   const color = activeTheme?.primary || "#a0456e";
   const isFlowers = activeTheme?.id === "sakura";
   const isBamBird = activeTheme?.id === "forest";
+  const isDragons = activeTheme?.id === "jadeDragon";
 
   // Rose SVG — teardrop petals (5 outer + 5 inner), curved stem, and two leaves.
   // Two roses per 160px tile: main (top-left area) and accent (bottom-right, 68% scale).
@@ -1811,11 +1812,50 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
   ].join("");
   const birdSVG = `url("data:image/svg+xml,${encodeURIComponent(birdSvg)}")`;
 
-  // Mahjong tile SVG pattern — used by all themes except Flowers and Bam Bird
+  // Chinese dragon SVG — one dragon per 220px tile.
+  // Anatomy: thick sinuous body stroke + distinct head (domed skull, open lower jaw,
+  // 2 backward-curving horns, 2 long whiskers, a fang) + claws at two body points
+  // + forked tail tip. Body spine is a two-segment cubic bezier (upper-left → lower-right).
+  // Head is translated to the start of the spine and rotated ~30° to face that direction.
+  // Opacity 0.14 chosen for the dark obsidian background (gold at 14% is clearly visible).
+  const dragonSvg = (() => {
+    const c = color;
+    // Body spine: starts at (40,42), curves to (150,92) then sweeps to (178,186)
+    const spine = `M40,42 C72,62 122,62 150,92 C178,122 168,166 178,186`;
+    // Head parts in LOCAL coords (dragon faces +x right; group rotated 30° to match spine tangent)
+    const skull    = `<ellipse cx="10" cy="-10" rx="18" ry="12" transform="rotate(-15,10,-10)"/>`;
+    const jaw      = `<path d="M-4,2 C4,10 18,12 22,8 C20,16 10,18 2,14 C-2,12 -5,8 -4,2Z"/>`;
+    const fang     = `<path d="M10,0 L13,-7 L16,0Z"/>`;
+    const horn1    = `<path d="M8,-20 C6,-30 11,-35 14,-24 C12,-22 10,-20 8,-20Z"/>`;
+    const horn2    = `<path d="M1,-18 C-1,-28 4,-33 7,-23 C5,-21 3,-19 1,-18Z"/>`;
+    const whi1     = `<path d="M22,-4 C28,-8 35,-5 32,2" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/>`;
+    const whi2     = `<path d="M21,8 C27,12 34,8 31,16" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/>`;
+    // Three-toed claw cluster (points upward, placed at each claw site)
+    const claws    = `<path d="M-4,-6 C-10,-13 -14,-7 -10,0Z"/><path d="M2,-8 C2,-17 6,-17 8,-8Z"/><path d="M8,-6 C12,-14 16,-9 14,-3Z"/>`;
+    // Forked tail spike at end of spine
+    const tail     = `<path d="M178,186 C171,198 167,203 175,196 C169,203 181,201 178,186Z"/>`;
+    return [
+      `<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220">`,
+      `<g opacity="0.14" fill="${c}">`,
+      // Body stroke
+      `<path d="${spine}" fill="none" stroke="${c}" stroke-width="16" stroke-linecap="round"/>`,
+      // Head at spine start (40,42), rotated 30° so it faces the spine direction
+      `<g transform="translate(40,42) rotate(30)">${skull}${jaw}${fang}${horn1}${horn2}${whi1}${whi2}</g>`,
+      // Front claws at ~t=0.5 of first segment (~95,63)
+      `<g transform="translate(95,63)">${claws}</g>`,
+      // Rear claws at ~t=0.5 of second segment (~163,143)
+      `<g transform="translate(163,143)">${claws}</g>`,
+      tail,
+      `</g></svg>`,
+    ].join("");
+  })();
+  const dragonSVG = `url("data:image/svg+xml,${encodeURIComponent(dragonSvg)}")`;
+
+  // Mahjong tile SVG pattern — used by all themes except Flowers, Bam Bird, and Dragons
   const tileColor = encodeURIComponent(color);
   const tileSVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='none'/%3E%3Cg opacity='0.07' fill='${tileColor}'%3E%3Crect x='10' y='10' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Crect x='14' y='16' width='20' height='4' rx='2'/%3E%3Crect x='14' y='23' width='20' height='4' rx='2'/%3E%3Crect x='14' y='30' width='20' height='4' rx='2'/%3E%3Crect x='64' y='10' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Ccircle cx='78' cy='24' r='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Ccircle cx='78' cy='37' r='3'/%3E%3Crect x='10' y='68' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Cpath d='M18 78 Q24 72 30 78 Q24 84 18 78Z'/%3E%3Cpath d='M18 90 Q24 84 30 90 Q24 96 18 90Z'/%3E%3Crect x='64' y='68' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Crect x='70' y='75' width='16' height='18' rx='3' fill='none' stroke='${tileColor}' stroke-width='1.5'/%3E%3Cline x1='78' y1='75' x2='78' y2='93' stroke='${tileColor}' stroke-width='1.5'/%3E%3C/g%3E%3C/svg%3E")`;
 
-  const bgSVG = isFlowers ? flowerSVG : isBamBird ? birdSVG : tileSVG;
+  const bgSVG = isFlowers ? flowerSVG : isBamBird ? birdSVG : isDragons ? dragonSVG : tileSVG;
 
   const BT = ["🀄","🀇","🀅","🀙","🀃","🀆"];
   const pos = [
@@ -1825,7 +1865,7 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: `${bgSVG}, linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)`, backgroundSize: `${isFlowers ? "160px 160px" : isBamBird ? "180px 180px" : "120px 120px"}, cover` }}>
+    <div style={{ minHeight: "100vh", background: `${bgSVG}, linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)`, backgroundSize: `${isFlowers ? "160px 160px" : isBamBird ? "180px 180px" : isDragons ? "220px 220px" : "120px 120px"}, cover` }}>
       {/* Hero header — glassy */}
       <div style={{
         background: "var(--header-gradient2)",
