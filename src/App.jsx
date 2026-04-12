@@ -1742,43 +1742,35 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
   const color = activeTheme?.primary || "#a0456e";
   const isFlowers = activeTheme?.id === "sakura";
 
-  // Plum blossom SVG — each flower is 5 CIRCLES positioned away from the centre,
-  // matching the real mahjong tile flower motif. Three blossoms per tile cell:
-  // large (top-left), medium (bottom-right), small accent (top-right).
-  // Petals at angles -90°, -18°, 54°, 126°, 198° (72° apart, first pointing up).
-  // Stamen dots at 54% of the petal-distance, same angles.
+  // Rose SVG — teardrop petals (5 outer + 5 inner), curved stem, and two leaves.
+  // Two roses per 160px tile: main (top-left area) and accent (bottom-right, 68% scale).
+  // Petal path: M0,0 symmetric cubic bezier to tip then back — true teardrop shape.
+  const roseMotif = (r) => [
+    // 5 outer petals at 72° intervals (first pointing up)
+    ...[0,72,144,216,288].map(a =>
+      `<path d="M0,0 C-7,-5 -3.5,-${r} 0,-${r} C3.5,-${r} 7,-5 0,0Z" transform="rotate(${a})"/>`
+    ),
+    // 5 inner petals offset 36°, shorter
+    ...[36,108,180,252,324].map(a =>
+      `<path d="M0,0 C-4.5,-3 -2,-${Math.round(r*0.68)} 0,-${Math.round(r*0.68)} C2,-${Math.round(r*0.68)} 4.5,-3 0,0Z" transform="rotate(${a})"/>`
+    ),
+    // Centre
+    `<circle r="${Math.round(r*0.24)}"/>`,
+    // Curved stem
+    `<path d="M0,${Math.round(r*0.28)} Q${Math.round(r*0.18)},${Math.round(r*1.1)} ${Math.round(r*0.06)},${Math.round(r*2.3)}" fill="none" stroke="${color}" stroke-width="${(r*0.115).toFixed(1)}" stroke-linecap="round"/>`,
+    // Right leaf (upper, pointing up-right from stem)
+    `<path d="M${Math.round(r*0.1)},${Math.round(r*0.9)} C${Math.round(r*0.25)},${Math.round(r*0.6)} ${Math.round(r*0.95)},${Math.round(r*0.55)} ${Math.round(r*0.8)},${Math.round(r*0.78)} C${Math.round(r*0.55)},${Math.round(r*0.95)} ${Math.round(r*0.15)},${Math.round(r*0.96)} ${Math.round(r*0.1)},${Math.round(r*0.9)}Z"/>`,
+    // Left leaf (lower, pointing down-left from stem)
+    `<path d="M${Math.round(r*0.12)},${Math.round(r*1.46)} C-${Math.round(r*0.1)},${Math.round(r*1.16)} -${Math.round(r*0.92)},${Math.round(r*1.14)} -${Math.round(r*0.76)},${Math.round(r*1.38)} C-${Math.round(r*0.5)},${Math.round(r*1.54)} ${Math.round(r*0.08)},${Math.round(r*1.54)} ${Math.round(r*0.12)},${Math.round(r*1.46)}Z"/>`,
+  ].join("");
+
   const flowerSvg = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><g opacity="0.12" fill="${color}">`,
-    // ── Large blossom  centre (38,38)  d=13  petal-r=10 ──
-    `<circle cx="38"   cy="25"   r="10"/>`,  // 0° (up)
-    `<circle cx="50.4" cy="34"   r="10"/>`,  // 72°
-    `<circle cx="45.6" cy="48.5" r="10"/>`,  // 144°
-    `<circle cx="30.4" cy="48.5" r="10"/>`,  // 216°
-    `<circle cx="25.6" cy="34"   r="10"/>`,  // 288°
-    `<circle cx="38"   cy="38"   r="5"/>`,   // centre
-    `<circle cx="38"   cy="31"   r="1.5"/><circle cx="44.7" cy="35.8" r="1.5"/>`,  // stamens
-    `<circle cx="42.1" cy="43.7" r="1.5"/><circle cx="33.9" cy="43.7" r="1.5"/>`,
-    `<circle cx="31.3" cy="35.8" r="1.5"/>`,
-    // ── Medium blossom  centre (120,116)  d=9  petal-r=7 ──
-    `<circle cx="120"   cy="107"   r="7"/>`,
-    `<circle cx="128.6" cy="113.2" r="7"/>`,
-    `<circle cx="125.3" cy="123.3" r="7"/>`,
-    `<circle cx="114.7" cy="123.3" r="7"/>`,
-    `<circle cx="111.4" cy="113.2" r="7"/>`,
-    `<circle cx="120"   cy="116"   r="3.5"/>`,
-    `<circle cx="120"   cy="111.5" r="1.2"/><circle cx="124.3" cy="114.6" r="1.2"/>`,
-    `<circle cx="122.6" cy="119.6" r="1.2"/><circle cx="117.4" cy="119.6" r="1.2"/>`,
-    `<circle cx="115.7" cy="114.6" r="1.2"/>`,
-    // ── Small blossom  centre (116,36)  d=6  petal-r=4.5  rotated 36° ──
-    `<circle cx="119.5" cy="31.2" r="4.5"/>`,
-    `<circle cx="121.7" cy="37.9" r="4.5"/>`,
-    `<circle cx="116"   cy="42"   r="4.5"/>`,
-    `<circle cx="110.3" cy="37.9" r="4.5"/>`,
-    `<circle cx="112.5" cy="31.2" r="4.5"/>`,
-    `<circle cx="116"   cy="36"   r="2.5"/>`,
-    `<circle cx="117.8" cy="33.6" r="1"/><circle cx="118.9" cy="36.9" r="1"/>`,
-    `<circle cx="116"   cy="39"   r="1"/><circle cx="113.2" cy="36.9" r="1"/>`,
-    `<circle cx="114.2" cy="33.6" r="1"/>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160">`,
+    `<g opacity="0.13" fill="${color}">`,
+    // Main rose — head at (48, 34), petal radius 19
+    `<g transform="translate(48,34)">${roseMotif(19)}</g>`,
+    // Accent rose — head at (118, 112), scaled 68%
+    `<g transform="translate(118,112) scale(0.68)">${roseMotif(19)}</g>`,
     `</g></svg>`,
   ].join("");
   const flowerSVG = `url("data:image/svg+xml,${encodeURIComponent(flowerSvg)}")`;
