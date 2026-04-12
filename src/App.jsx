@@ -1738,15 +1738,54 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
 /* HOME */
 function Home({ groups, guestGames, go, user, activeTheme }) {
 
-  // Background pattern — flowers for the Flowers theme, mahjong tiles for all others
-  const patternColor = encodeURIComponent(activeTheme?.primary || "#a0456e");
+  // Background pattern — plum blossoms for the Flowers theme, mahjong tiles for all others
+  const color = activeTheme?.primary || "#a0456e";
   const isFlowers = activeTheme?.id === "sakura";
 
-  // Flower SVG: 5-petal blossom with centre dot, scattered lightly at two sizes
-  const flowerSVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cg opacity='0.09' fill='${patternColor}'%3E%3Cg transform='translate(32,36)'%3E%3Cellipse rx='7' ry='12' transform='rotate(0)'/%3E%3Cellipse rx='7' ry='12' transform='rotate(72)'/%3E%3Cellipse rx='7' ry='12' transform='rotate(144)'/%3E%3Cellipse rx='7' ry='12' transform='rotate(216)'/%3E%3Cellipse rx='7' ry='12' transform='rotate(288)'/%3E%3Ccircle r='4'/%3E%3C/g%3E%3Cg transform='translate(112,112)'%3E%3Cellipse rx='7' ry='12' transform='rotate(36)'/%3E%3Cellipse rx='7' ry='12' transform='rotate(108)'/%3E%3Cellipse rx='7' ry='12' transform='rotate(180)'/%3E%3Cellipse rx='7' ry='12' transform='rotate(252)'/%3E%3Cellipse rx='7' ry='12' transform='rotate(324)'/%3E%3Ccircle r='4'/%3E%3C/g%3E%3Cg transform='translate(112,36)' opacity='0.55'%3E%3Cellipse rx='4.5' ry='8' transform='rotate(18)'/%3E%3Cellipse rx='4.5' ry='8' transform='rotate(90)'/%3E%3Cellipse rx='4.5' ry='8' transform='rotate(162)'/%3E%3Cellipse rx='4.5' ry='8' transform='rotate(234)'/%3E%3Cellipse rx='4.5' ry='8' transform='rotate(306)'/%3E%3Ccircle r='2.5'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`;
+  // Plum blossom SVG — each flower is 5 CIRCLES positioned away from the centre,
+  // matching the real mahjong tile flower motif. Three blossoms per tile cell:
+  // large (top-left), medium (bottom-right), small accent (top-right).
+  // Petals at angles -90°, -18°, 54°, 126°, 198° (72° apart, first pointing up).
+  // Stamen dots at 54% of the petal-distance, same angles.
+  const flowerSvg = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><g opacity="0.12" fill="${color}">`,
+    // ── Large blossom  centre (38,38)  d=13  petal-r=10 ──
+    `<circle cx="38"   cy="25"   r="10"/>`,  // 0° (up)
+    `<circle cx="50.4" cy="34"   r="10"/>`,  // 72°
+    `<circle cx="45.6" cy="48.5" r="10"/>`,  // 144°
+    `<circle cx="30.4" cy="48.5" r="10"/>`,  // 216°
+    `<circle cx="25.6" cy="34"   r="10"/>`,  // 288°
+    `<circle cx="38"   cy="38"   r="5"/>`,   // centre
+    `<circle cx="38"   cy="31"   r="1.5"/><circle cx="44.7" cy="35.8" r="1.5"/>`,  // stamens
+    `<circle cx="42.1" cy="43.7" r="1.5"/><circle cx="33.9" cy="43.7" r="1.5"/>`,
+    `<circle cx="31.3" cy="35.8" r="1.5"/>`,
+    // ── Medium blossom  centre (120,116)  d=9  petal-r=7 ──
+    `<circle cx="120"   cy="107"   r="7"/>`,
+    `<circle cx="128.6" cy="113.2" r="7"/>`,
+    `<circle cx="125.3" cy="123.3" r="7"/>`,
+    `<circle cx="114.7" cy="123.3" r="7"/>`,
+    `<circle cx="111.4" cy="113.2" r="7"/>`,
+    `<circle cx="120"   cy="116"   r="3.5"/>`,
+    `<circle cx="120"   cy="111.5" r="1.2"/><circle cx="124.3" cy="114.6" r="1.2"/>`,
+    `<circle cx="122.6" cy="119.6" r="1.2"/><circle cx="117.4" cy="119.6" r="1.2"/>`,
+    `<circle cx="115.7" cy="114.6" r="1.2"/>`,
+    // ── Small blossom  centre (116,36)  d=6  petal-r=4.5  rotated 36° ──
+    `<circle cx="119.5" cy="31.2" r="4.5"/>`,
+    `<circle cx="121.7" cy="37.9" r="4.5"/>`,
+    `<circle cx="116"   cy="42"   r="4.5"/>`,
+    `<circle cx="110.3" cy="37.9" r="4.5"/>`,
+    `<circle cx="112.5" cy="31.2" r="4.5"/>`,
+    `<circle cx="116"   cy="36"   r="2.5"/>`,
+    `<circle cx="117.8" cy="33.6" r="1"/><circle cx="118.9" cy="36.9" r="1"/>`,
+    `<circle cx="116"   cy="39"   r="1"/><circle cx="113.2" cy="36.9" r="1"/>`,
+    `<circle cx="114.2" cy="33.6" r="1"/>`,
+    `</g></svg>`,
+  ].join("");
+  const flowerSVG = `url("data:image/svg+xml,${encodeURIComponent(flowerSvg)}")`;
 
-  // Mahjong tile SVG pattern (unchanged — used by all other themes)
-  const tileSVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='none'/%3E%3Cg opacity='0.07' fill='${patternColor}'%3E%3Crect x='10' y='10' width='28' height='38' rx='5' fill='none' stroke='${patternColor}' stroke-width='2'/%3E%3Crect x='14' y='16' width='20' height='4' rx='2'/%3E%3Crect x='14' y='23' width='20' height='4' rx='2'/%3E%3Crect x='14' y='30' width='20' height='4' rx='2'/%3E%3Crect x='64' y='10' width='28' height='38' rx='5' fill='none' stroke='${patternColor}' stroke-width='2'/%3E%3Ccircle cx='78' cy='24' r='5' fill='none' stroke='${patternColor}' stroke-width='2'/%3E%3Ccircle cx='78' cy='37' r='3'/%3E%3Crect x='10' y='68' width='28' height='38' rx='5' fill='none' stroke='${patternColor}' stroke-width='2'/%3E%3Cpath d='M18 78 Q24 72 30 78 Q24 84 18 78Z'/%3E%3Cpath d='M18 90 Q24 84 30 90 Q24 96 18 90Z'/%3E%3Crect x='64' y='68' width='28' height='38' rx='5' fill='none' stroke='${patternColor}' stroke-width='2'/%3E%3Crect x='70' y='75' width='16' height='18' rx='3' fill='none' stroke='${patternColor}' stroke-width='1.5'/%3E%3Cline x1='78' y1='75' x2='78' y2='93' stroke='${patternColor}' stroke-width='1.5'/%3E%3C/g%3E%3C/svg%3E")`;
+  // Mahjong tile SVG pattern — used by all themes except Flowers
+  const tileColor = encodeURIComponent(color);
+  const tileSVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect width='120' height='120' fill='none'/%3E%3Cg opacity='0.07' fill='${tileColor}'%3E%3Crect x='10' y='10' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Crect x='14' y='16' width='20' height='4' rx='2'/%3E%3Crect x='14' y='23' width='20' height='4' rx='2'/%3E%3Crect x='14' y='30' width='20' height='4' rx='2'/%3E%3Crect x='64' y='10' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Ccircle cx='78' cy='24' r='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Ccircle cx='78' cy='37' r='3'/%3E%3Crect x='10' y='68' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Cpath d='M18 78 Q24 72 30 78 Q24 84 18 78Z'/%3E%3Cpath d='M18 90 Q24 84 30 90 Q24 96 18 90Z'/%3E%3Crect x='64' y='68' width='28' height='38' rx='5' fill='none' stroke='${tileColor}' stroke-width='2'/%3E%3Crect x='70' y='75' width='16' height='18' rx='3' fill='none' stroke='${tileColor}' stroke-width='1.5'/%3E%3Cline x1='78' y1='75' x2='78' y2='93' stroke='${tileColor}' stroke-width='1.5'/%3E%3C/g%3E%3C/svg%3E")`;
 
   const bgSVG = isFlowers ? flowerSVG : tileSVG;
 
