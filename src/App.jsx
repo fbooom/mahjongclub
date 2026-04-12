@@ -1812,39 +1812,48 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
   ].join("");
   const birdSVG = `url("data:image/svg+xml,${encodeURIComponent(birdSvg)}")`;
 
-  // Chinese dragon SVG — one dragon per 220px tile.
-  // Anatomy: thick sinuous body stroke + distinct head (domed skull, open lower jaw,
-  // 2 backward-curving horns, 2 long whiskers, a fang) + claws at two body points
-  // + forked tail tip. Body spine is a two-segment cubic bezier (upper-left → lower-right).
-  // Head is translated to the start of the spine and rotated ~30° to face that direction.
-  // Opacity 0.14 chosen for the dark obsidian background (gold at 14% is clearly visible).
+  // Chinese dragon SVG — 170px tile, one dragon per tile (smaller, more pattern-like).
+  //
+  // Head anatomy (local coords, dragon faces +x right, group rotated 27° to match spine):
+  //   skull  — single closed path: wide rounded skull tapering to a forward snout
+  //   jaw    — separate closed path BELOW the skull with a visible ~10px open-mouth gap
+  //   horn   — prominent teardrop curving backward off the skull top
+  //   whi1/2 — two long whisker strokes from the snout tip
+  //
+  // Body spine goes from head at (130,40) winding to tail at (40,150).
+  // Claw clusters placed at the bezier midpoints of each body segment.
   const dragonSvg = (() => {
     const c = color;
-    // Body spine: starts at (40,42), curves to (150,92) then sweeps to (178,186)
-    const spine = `M40,42 C72,62 122,62 150,92 C178,122 168,166 178,186`;
-    // Head parts in LOCAL coords (dragon faces +x right; group rotated 30° to match spine tangent)
-    const skull    = `<ellipse cx="10" cy="-10" rx="18" ry="12" transform="rotate(-15,10,-10)"/>`;
-    const jaw      = `<path d="M-4,2 C4,10 18,12 22,8 C20,16 10,18 2,14 C-2,12 -5,8 -4,2Z"/>`;
-    const fang     = `<path d="M10,0 L13,-7 L16,0Z"/>`;
-    const horn1    = `<path d="M8,-20 C6,-30 11,-35 14,-24 C12,-22 10,-20 8,-20Z"/>`;
-    const horn2    = `<path d="M1,-18 C-1,-28 4,-33 7,-23 C5,-21 3,-19 1,-18Z"/>`;
-    const whi1     = `<path d="M22,-4 C28,-8 35,-5 32,2" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/>`;
-    const whi2     = `<path d="M21,8 C27,12 34,8 31,16" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/>`;
-    // Three-toed claw cluster (points upward, placed at each claw site)
-    const claws    = `<path d="M-4,-6 C-10,-13 -14,-7 -10,0Z"/><path d="M2,-8 C2,-17 6,-17 8,-8Z"/><path d="M8,-6 C12,-14 16,-9 14,-3Z"/>`;
-    // Forked tail spike at end of spine
-    const tail     = `<path d="M178,186 C171,198 167,203 175,196 C169,203 181,201 178,186Z"/>`;
+    // Two-segment cubic bezier spine, head upper-right → tail lower-left
+    const spine = `M130,40 C110,30 70,50 55,75 C40,100 50,135 40,150`;
+
+    // ── Head components (local coords, +x = forward/right) ──────────────────
+    // Skull+snout: wide rounded back (skull) tapering to narrower front (snout)
+    const skull = `<path d="M0,6 C-2,-6 4,-16 12,-16 C20,-16 28,-10 30,-4 C32,-2 32,2 30,4 C28,6 22,8 18,6 C12,4 6,6 0,6Z"/>`;
+    // Lower jaw: hangs 8-10px below skull chin, closes at the jaw hinge (back of mouth)
+    const jaw   = `<path d="M8,8 C10,16 20,20 26,18 C30,16 30,14 28,12 C24,14 18,16 12,14 Z"/>`;
+    // Horn: single backward-curving teardrop off the skull top — the clearest dragon marker
+    const horn  = `<path d="M6,-14 C2,-24 -4,-30 0,-26 C2,-22 4,-18 6,-14Z"/>`;
+    // Whiskers: two long curved strokes from the snout
+    const whi1  = `<path d="M30,-4 C34,-8 38,-5 36,2" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/>`;
+    const whi2  = `<path d="M30,4 C34,8 38,4 36,12" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/>`;
+
+    // Three-toed claw cluster: spread left / center / right from attachment point
+    const claws = `<path d="M-4,-6 C-10,-13 -14,-7 -10,0Z"/><path d="M2,-8 C2,-17 6,-17 8,-8Z"/><path d="M8,-6 C12,-14 16,-9 14,-3Z"/>`;
+    // Forked tail spike at spine end (40,150)
+    const tail  = `<path d="M40,150 C34,162 30,167 38,160 C32,167 44,165 40,150Z"/>`;
+
     return [
-      `<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220">`,
+      `<svg xmlns="http://www.w3.org/2000/svg" width="170" height="170">`,
       `<g opacity="0.14" fill="${c}">`,
-      // Body stroke
-      `<path d="${spine}" fill="none" stroke="${c}" stroke-width="16" stroke-linecap="round"/>`,
-      // Head at spine start (40,42), rotated 30° so it faces the spine direction
-      `<g transform="translate(40,42) rotate(30)">${skull}${jaw}${fang}${horn1}${horn2}${whi1}${whi2}</g>`,
-      // Front claws at ~t=0.5 of first segment (~95,63)
-      `<g transform="translate(95,63)">${claws}</g>`,
-      // Rear claws at ~t=0.5 of second segment (~163,143)
-      `<g transform="translate(163,143)">${claws}</g>`,
+      // Sinuous body — thick round-capped stroke along the spine
+      `<path d="${spine}" fill="none" stroke="${c}" stroke-width="14" stroke-linecap="round"/>`,
+      // Head at (130,40), rotated 27° so the skull faces the direction the dragon moves
+      `<g transform="translate(130,40) rotate(27)">${skull}${jaw}${horn}${whi1}${whi2}</g>`,
+      // Front claws at bezier t=0.5 of segment 1 (~91,44)
+      `<g transform="translate(91,44)">${claws}</g>`,
+      // Rear claws at bezier t=0.5 of segment 2 (~46,116)
+      `<g transform="translate(46,116)">${claws}</g>`,
       tail,
       `</g></svg>`,
     ].join("");
@@ -1865,7 +1874,7 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: `${bgSVG}, linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)`, backgroundSize: `${isFlowers ? "160px 160px" : isBamBird ? "180px 180px" : isDragons ? "220px 220px" : "120px 120px"}, cover` }}>
+    <div style={{ minHeight: "100vh", background: `${bgSVG}, linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)`, backgroundSize: `${isFlowers ? "160px 160px" : isBamBird ? "180px 180px" : isDragons ? "170px 170px" : "120px 120px"}, cover` }}>
       {/* Hero header — glassy */}
       <div style={{
         background: "var(--header-gradient2)",
