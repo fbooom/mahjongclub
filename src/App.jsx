@@ -4220,7 +4220,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
                 <span style={{ fontSize: 18 }}>🎲</span>
                 <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>Table Seating</span>
                 {seating && <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(var(--primary-rgb),0.12)", color: "var(--primary)", borderRadius: 999, padding: "2px 9px", fontFamily: "'Noto Sans JP',sans-serif" }}>Assigned</span>}
-                {!isHost && <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(var(--primary-rgb),0.08)", color: "var(--text-muted)", borderRadius: 999, padding: "2px 9px", fontFamily: "'Noto Sans JP',sans-serif" }}>View only</span>}
+
               </div>
               <span style={{ fontSize: 17, color: "var(--primary-faint)", display: "inline-block", transform: seatingOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }}>⌄</span>
             </div>
