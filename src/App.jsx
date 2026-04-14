@@ -3077,14 +3077,16 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
       </div>
       <Lbl mt>Location</Lbl>
       <Fld value={loc} set={setLoc} placeholder="e.g. 12 Oak Street" />
-      <Lbl mt>Tables</Lbl>
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
-        <button onClick={() => setTables((t) => Math.max(1, t - 1))} style={{ width: 42, height: 42, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-input)", fontSize: 22, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, flexShrink: 0 }}>−</button>
-        <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 28, fontWeight: 700, color: group.color }}>{tables}</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{tables === 1 ? "table" : "tables"} · {tables * 4} seats</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-input)", border: "1.5px solid var(--border-input)", borderRadius: "var(--radius-input)", padding: "10px 14px", marginBottom: 14, marginTop: 10 }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>Tables</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 1 }}>{tables * 4} seats total</div>
         </div>
-        <button onClick={() => setTables((t) => t + 1)} style={{ width: 42, height: 42, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-input)", fontSize: 22, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, flexShrink: 0 }}>+</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => setTables((t) => Math.max(1, t - 1))} style={{ width: 32, height: 32, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>−</button>
+          <span style={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: 16, color: group.color, fontFamily: "'Shippori Mincho',serif" }}>{tables}</span>
+          <button onClick={() => setTables((t) => t + 1)} style={{ width: 32, height: 32, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>+</button>
+        </div>
       </div>
       <Lbl mt>Host Notes (optional)</Lbl>
       <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Style of play, what to bring, house rules..." rows={3} style={{ ...inputSt, resize: "none", height: "auto", padding: "12px 14px" }} />
@@ -3093,7 +3095,7 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
       {otherMembers.length > 0 && (
         <div style={{ marginTop: 18, marginBottom: 4 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <SecLbl>Invite Group Players</SecLbl>
+            <SecLbl>Invite Group Members</SecLbl>
             <button onClick={toggleAll} style={{
               background: allSelected ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "var(--bg-surface)",
               border: allSelected ? "none" : `1.5px solid rgba(var(--primary-rgb),0.25)`,
@@ -3653,14 +3655,16 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
           </div>
           <Lbl mt>Location</Lbl>
           <Fld value={loc} set={setLoc} placeholder="e.g. 12 Oak Street" />
-          <Lbl mt>Tables</Lbl>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
-            <button onClick={() => setTables((t) => Math.max(1, t - 1))} style={{ width: 42, height: 42, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-input)", fontSize: 22, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, flexShrink: 0 }}>−</button>
-            <div style={{ flex: 1, textAlign: "center" }}>
-              <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 28, fontWeight: 700, color: group.color }}>{tables}</div>
-              <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{tables === 1 ? "table" : "tables"} · {tables * 4} seats</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-input)", border: "1.5px solid var(--border-input)", borderRadius: "var(--radius-input)", padding: "10px 14px", marginBottom: 14, marginTop: 10 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>Tables</div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 1 }}>{tables * 4} seats total</div>
             </div>
-            <button onClick={() => setTables((t) => t + 1)} style={{ width: 42, height: 42, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-input)", fontSize: 22, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, flexShrink: 0 }}>+</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button onClick={() => setTables((t) => Math.max(1, t - 1))} style={{ width: 32, height: 32, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>−</button>
+              <span style={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: 16, color: group.color, fontFamily: "'Shippori Mincho',serif" }}>{tables}</span>
+              <button onClick={() => setTables((t) => t + 1)} style={{ width: 32, height: 32, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>+</button>
+            </div>
           </div>
           <Lbl>Host Notes (optional)</Lbl>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Style of play, what to bring, house rules..." rows={3} style={{ ...inputSt, resize: "none", height: "auto", padding: "12px 14px" }} />
@@ -3674,7 +3678,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
         <div className="sUp">
           {/* Group members */}
           <div style={glassCard}>
-            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "var(--section-title)", fontWeight: 700, marginBottom: 12 }}>Invite Group Players</div>
+            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "var(--section-title)", fontWeight: 700, marginBottom: 12 }}>Invite Group Members</div>
             {group.members.map((m) => {
               const isIn = invitedIds.has(m.id);
               const isMe = m.id === myUid;
