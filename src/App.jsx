@@ -6,7 +6,7 @@ import {
 import {
   collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
   onSnapshot, query, where, orderBy, addDoc, serverTimestamp,
-  arrayUnion, arrayRemove, runTransaction,
+  arrayUnion, arrayRemove, runTransaction, writeBatch,
 } from "firebase/firestore";
 import { auth, db, googleProvider, messagingReady } from "./firebase";
 import { getToken, onMessage } from "firebase/messaging";
@@ -16,6 +16,16 @@ import { QRCodeSVG } from "qrcode.react";
 
 // VAPID key — get from Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
 const VAPID_KEY = "BKkYCO7TpfkGKyFGFwxP9qv_SqUyey_tLi5yzk5bngZxZ6ZBd3S9IgYSsHwIlRMinuGxmiFK4bQDjwxIPj8M0Bg";
+
+// ── Game join-code utilities ─────────────────────────────────────────────────
+// Unambiguous chars: no O/0, I/1/l confusion
+const GAME_CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+function generateGameCode() {
+  return Array.from({ length: 6 }, () => GAME_CODE_CHARS[Math.floor(Math.random() * GAME_CODE_CHARS.length)]).join("");
+}
+function isValidGameCode(code) {
+  return /^[A-Za-z0-9_-]{3,20}$/.test(code);
+}
 
 const showBrowserNotif = (title, body, tag) => {
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
@@ -513,27 +523,56 @@ export default function App() {
   // then cleared so they don't re-fire.
   const [pendingJoin] = useState(() => {
     const p = new URLSearchParams(window.location.search);
-    let code = p.get("joinGroup"), gameId = p.get("game");
-    if (code) {
+    let code = p.get("joinGroup"), gameId = p.get("game"), gameCode = p.get("gameCode");
+    if (code || gameCode) {
       // Persist so a mid-flow page refresh doesn't lose the invite
-      localStorage.setItem("pendingJoinCode", code);
+      if (code) localStorage.setItem("pendingJoinCode", code);
       if (gameId) localStorage.setItem("pendingJoinGameId", gameId);
+      if (gameCode) localStorage.setItem("pendingGameCode", gameCode.toUpperCase());
       window.history.replaceState({}, "", window.location.pathname);
     } else {
       // Recover from localStorage if URL params were lost (e.g. after refresh)
       code = localStorage.getItem("pendingJoinCode") || null;
       gameId = localStorage.getItem("pendingJoinGameId") || null;
+      gameCode = localStorage.getItem("pendingGameCode") || null;
     }
-    return { code, gameId };
+    return { code, gameId, gameCode };
   });
 
   useEffect(() => {
-    if (!pendingJoin.code || !authUser || !user) return;
-    const { code, gameId } = pendingJoin;
+    if ((!pendingJoin.code && !pendingJoin.gameCode) || !authUser || !user) return;
+    const { code, gameId, gameCode } = pendingJoin;
     const go_ = (p, g, gm) => { setPage(p); setGid(g || null); setGmid(gm || null); };
+
+    // ── Game code invite (direct game join via ?gameCode=) ──
+    if (gameCode && !code) {
+      localStorage.removeItem("pendingGameCode");
+      getDoc(doc(db, "gameCodes", gameCode))
+        .then(async (snap) => {
+          if (!snap.exists() || snap.data().date < Date.now()) {
+            setToast({ msg: "Game code is invalid or expired.", icon: "❌" }); setTimeout(() => setToast(null), 2600); return;
+          }
+          const { groupId, gameId: gId } = snap.data();
+          try {
+            await updateDoc(doc(db, "groups", groupId, "games", gId), {
+              guestIds: arrayUnion(authUser.uid), [`rsvps.${authUser.uid}`]: "yes",
+            });
+            await updateDoc(doc(db, "users", authUser.uid), { guestGameRefs: arrayUnion({ groupId, gameId: gId }) });
+            go_("guestGame", groupId, gId);
+            setToast({ msg: "You're in! See you at the table 🀄", icon: "🎉" }); setTimeout(() => setToast(null), 3000);
+          } catch {
+            setToast({ msg: "Could not join game.", icon: "❌" }); setTimeout(() => setToast(null), 2600);
+          }
+        })
+        .catch(() => { setToast({ msg: "Error processing game invite.", icon: "❌" }); setTimeout(() => setToast(null), 2600); });
+      return;
+    }
+
+    if (!code) return;
     // Clear localStorage now that we're processing the invite
     localStorage.removeItem("pendingJoinCode");
     localStorage.removeItem("pendingJoinGameId");
+    localStorage.removeItem("pendingGameCode");
     getDocs(query(collection(db, "groups"), where("code", "==", code)))
       .then(async (snap) => {
         if (snap.empty) { setToast({ msg: "Invite link is invalid or expired.", icon: "❌" }); setTimeout(() => setToast(null), 2600); return; }
@@ -801,7 +840,14 @@ export default function App() {
             onSave={async (games) => {
               try {
                 const arr = Array.isArray(games) ? games : [games];
-                await Promise.all(arr.map((gm) => setDoc(doc(db, "groups", group.id, "games", gm.id), gm)));
+                const batch = writeBatch(db);
+                arr.forEach((gm) => {
+                  batch.set(doc(db, "groups", group.id, "games", gm.id), gm);
+                  if (gm.joinCode) {
+                    batch.set(doc(db, "gameCodes", gm.joinCode), { groupId: group.id, gameId: gm.id, date: gm.date });
+                  }
+                });
+                await batch.commit();
                 if (arr.length === 1) { go("game", group.id, arr[0].id); flash("Game scheduled!", "🀄"); }
                 else { go("group", group.id); flash(`${arr.length} games scheduled! 🀄`); }
               } catch { flash("Error scheduling game", "❌"); }
@@ -825,7 +871,10 @@ export default function App() {
             }}
             onDelete={async () => {
               try {
-                await deleteDoc(doc(db, "groups", group.id, "games", game.id));
+                const batch = writeBatch(db);
+                batch.delete(doc(db, "groups", group.id, "games", game.id));
+                if (game.joinCode) batch.delete(doc(db, "gameCodes", game.joinCode));
+                await batch.commit();
                 go("group", group.id); flash("Deleted");
               } catch { flash("Error deleting game", "❌"); }
             }} />
@@ -835,7 +884,15 @@ export default function App() {
             onSave={async (updated) => {
               try {
                 const { id: gameId, ...data } = updated;
-                await updateDoc(doc(db, "groups", group.id, "games", gameId), data);
+                const batch = writeBatch(db);
+                batch.update(doc(db, "groups", group.id, "games", gameId), data);
+                const oldCode = game.joinCode || null;
+                const newCode = data.joinCode || null;
+                if (newCode !== oldCode) {
+                  if (oldCode) batch.delete(doc(db, "gameCodes", oldCode));
+                  if (newCode) batch.set(doc(db, "gameCodes", newCode), { groupId: group.id, gameId, date: data.date });
+                }
+                await batch.commit();
                 go("game", group.id, gameId); flash("Game updated!", "✨");
               } catch { flash("Error updating game", "❌"); }
             }}
@@ -3340,6 +3397,22 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
   const [freq, setFreq] = useState("weekly");
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [coHostIds, setCoHostIds] = useState(new Set());
+  const [joinCode, setJoinCode] = useState(() => generateGameCode());
+  const [codeStatus, setCodeStatus] = useState("checking"); // 'checking'|'available'|'taken'|'invalid'
+
+  const checkCode = async (rawCode) => {
+    const code = rawCode.trim().toUpperCase();
+    if (!isValidGameCode(code)) { setCodeStatus("invalid"); return; }
+    setCodeStatus("checking");
+    try {
+      const snap = await getDoc(doc(db, "gameCodes", code));
+      if (!snap.exists()) { setCodeStatus("available"); return; }
+      if (snap.data().date < Date.now()) { setCodeStatus("available"); return; }
+      setCodeStatus("taken");
+    } catch { setCodeStatus("available"); }
+  };
+
+  useEffect(() => { checkCode(joinCode); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const otherMembers = group.members.filter((m) => m.id !== myUid);
   const allSelected = otherMembers.length > 0 && otherMembers.every((m) => selectedIds.has(m.id));
@@ -3372,7 +3445,8 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
     return Array.from({ length: occurrences }, (_, i) => base + i * ms);
   };
 
-  const ok = title.trim() && date && time && loc.trim();
+  const codeOk = recurring || codeStatus === "available";
+  const ok = title.trim() && date && time && loc.trim() && codeOk;
 
   const handleSave = () => {
     if (!ok) return;
@@ -3381,7 +3455,7 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
     const coHostArr = [...coHostIds];
     if (!recurring) {
       const ts = new Date(`${date}T${time}`).getTime();
-      onSave({ id: "gm" + uid(), title: title.trim(), host: myUser.name, hostId: myUid, coHostIds: coHostArr, date: ts, time, endTime, location: loc.trim(), seats: tables * 4, rsvps, note, waitlist: [] });
+      onSave({ id: "gm" + uid(), title: title.trim(), host: myUser.name, hostId: myUid, coHostIds: coHostArr, date: ts, time, endTime, location: loc.trim(), seats: tables * 4, rsvps, note, waitlist: [], joinCode: joinCode.trim().toUpperCase() });
     } else {
       const dates = previewDates();
       const games = dates.map((ts) => ({
@@ -3394,6 +3468,7 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
         note,
         waitlist: [],
         recurring: freq,
+        joinCode: generateGameCode(),
       }));
       onSave(games);
     }
@@ -3587,6 +3662,40 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
           </div>
         )}
       </div>
+
+      {/* Join Code — only for single games */}
+      {!recurring && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <Lbl>Game Join Code</Lbl>
+            <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif",
+              color: codeStatus === "available" ? "#22a722" : codeStatus === "taken" ? "#d94040" : codeStatus === "invalid" ? "#d94040" : "#b08090",
+            }}>
+              {codeStatus === "available" ? "✓ Available" : codeStatus === "taken" ? "✗ Already in use" : codeStatus === "invalid" ? "✗ Invalid format" : "Checking…"}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              value={joinCode}
+              onChange={(e) => { setJoinCode(e.target.value.toUpperCase()); setCodeStatus("checking"); }}
+              onBlur={() => checkCode(joinCode)}
+              maxLength={20}
+              placeholder="e.g. TUES7PM"
+              style={{ ...inputSt, marginBottom: 0, flex: 1, fontFamily: "monospace", fontSize: 17, letterSpacing: 3, fontWeight: 700, textTransform: "uppercase",
+                borderColor: codeStatus === "available" ? "#22a72244" : codeStatus === "taken" || codeStatus === "invalid" ? "#d9404044" : undefined,
+              }}
+            />
+            <button
+              onClick={() => { const c = generateGameCode(); setJoinCode(c); checkCode(c); }}
+              title="Generate new code"
+              style={{ width: 44, height: 44, borderRadius: "var(--radius-input)", border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+            >🔄</button>
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>
+            Letters, numbers, _ and − allowed · 3–20 characters
+          </div>
+        </div>
+      )}
 
       <Btn full disabled={!ok} onClick={handleSave}>
         {recurring ? `🔁 Schedule ${occurrences} Games` : "🀄 Schedule Game"}
@@ -4085,6 +4194,22 @@ function EditGame({ uid: myUid, game, group, onBack, onSave, onTransferHost }) {
     return new Set(existing.length ? existing : group.members.map((m) => m.id));
   });
   const [coHostIds, setCoHostIds] = useState(new Set(game.coHostIds || []));
+  const [joinCode, setJoinCode] = useState(game.joinCode || "");
+  const [codeStatus, setCodeStatus] = useState(game.joinCode ? "available" : "idle"); // 'idle'|'checking'|'available'|'taken'|'invalid'
+
+  const checkCode = async (rawCode) => {
+    const code = rawCode.trim().toUpperCase();
+    if (!code) { setCodeStatus("idle"); return; }
+    if (!isValidGameCode(code)) { setCodeStatus("invalid"); return; }
+    if (code === (game.joinCode || "").toUpperCase()) { setCodeStatus("available"); return; }
+    setCodeStatus("checking");
+    try {
+      const snap = await getDoc(doc(db, "gameCodes", code));
+      if (!snap.exists()) { setCodeStatus("available"); return; }
+      if (snap.data().date < Date.now()) { setCodeStatus("available"); return; }
+      setCodeStatus("taken");
+    } catch { setCodeStatus("available"); }
+  };
 
   // Guests: people outside the group
   const [guests, setGuests] = useState(game.guests || []);
@@ -4177,10 +4302,12 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
       }
     });
 
-    onSave({ ...game, title: title.trim(), date: ts, time, endTime, location: loc.trim(), note, seats: tables * 4, rsvps: newRsvps, guests: newGuests, waitlist: newWaitlist, coHostIds: [...coHostIds] });
+    const normalizedCode = joinCode.trim().toUpperCase() || null;
+    onSave({ ...game, title: title.trim(), date: ts, time, endTime, location: loc.trim(), note, seats: tables * 4, rsvps: newRsvps, guests: newGuests, waitlist: newWaitlist, coHostIds: [...coHostIds], joinCode: normalizedCode });
   };
 
-  const ok = title.trim() && date && time && loc.trim();
+  const codeOk = !joinCode.trim() || codeStatus === "available";
+  const ok = title.trim() && date && time && loc.trim() && codeOk;
 
   const glassCard = {
     background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))",
@@ -4240,7 +4367,39 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
           </div>
           <Lbl>Host Notes (optional)</Lbl>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Style of play, what to bring, house rules..." rows={3} style={{ ...inputSt, resize: "none", height: "auto", padding: "12px 14px" }} />
-          <div style={{ height: 8 }} />
+
+          {/* Join Code */}
+          <div style={{ marginTop: 14, marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <Lbl>Game Join Code</Lbl>
+              <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif",
+                color: codeStatus === "available" ? "#22a722" : codeStatus === "taken" ? "#d94040" : codeStatus === "invalid" ? "#d94040" : codeStatus === "checking" ? "#b08090" : "#b08090",
+              }}>
+                {codeStatus === "available" ? "✓ Available" : codeStatus === "taken" ? "✗ Already in use" : codeStatus === "invalid" ? "✗ Invalid format" : codeStatus === "checking" ? "Checking…" : ""}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={joinCode}
+                onChange={(e) => { setJoinCode(e.target.value.toUpperCase()); setCodeStatus("checking"); }}
+                onBlur={() => checkCode(joinCode)}
+                maxLength={20}
+                placeholder="e.g. TUES7PM (optional)"
+                style={{ ...inputSt, marginBottom: 0, flex: 1, fontFamily: "monospace", fontSize: 17, letterSpacing: 3, fontWeight: 700, textTransform: "uppercase",
+                  borderColor: codeStatus === "available" ? "#22a72244" : codeStatus === "taken" || codeStatus === "invalid" ? "#d9404044" : undefined,
+                }}
+              />
+              <button
+                onClick={() => { const c = generateGameCode(); setJoinCode(c); checkCode(c); }}
+                title="Generate new code"
+                style={{ width: 44, height: 44, borderRadius: "var(--radius-input)", border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+              >🔄</button>
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>
+              Letters, numbers, _ and − allowed · 3–20 characters
+            </div>
+          </div>
+
           <Btn full disabled={!ok} onClick={handleSave}>Save Changes ✨</Btn>
         </div>
       )}
@@ -4402,11 +4561,13 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
 function Invite({ group, game, flash, onBack }) {
   const base = `${window.location.origin}${window.location.pathname}`;
   const joinUrl = game
-    ? `${base}?joinGroup=${group.code}&game=${game.id}`
+    ? game.joinCode
+      ? `${base}?gameCode=${game.joinCode}`
+      : `${base}?joinGroup=${group.code}&game=${game.id}`
     : `${base}?joinGroup=${group.code}`;
 
   const txt = game
-    ? `You're invited to a Mahjong game!\n\n📅 ${fmt(game.date)} at ${fmtT(game.time)}\n📍 ${game.location}\n🎯 Host: ${game.host}\n🃏 Style: ${game.style}${game.note ? `\n📝 ${game.note}` : ""}\n\nTap to join and RSVP:\n${joinUrl}`
+    ? `You're invited to a Mahjong game!\n\n📅 ${fmt(game.date)} at ${fmtT(game.time)}\n📍 ${game.location}\n🎯 Host: ${game.host}${game.note ? `\n📝 ${game.note}` : ""}${game.joinCode ? `\n\nGame Code: ${game.joinCode}` : ""}\n\nTap to join and RSVP:\n${joinUrl}`
     : `Join my Mahjong group on Mahjong Club!\n\nGroup: ${group.name}\n\nTap to join:\n${joinUrl}`;
 
   const share = (method) => {
@@ -4474,10 +4635,19 @@ function Invite({ group, game, flash, onBack }) {
         </button>
       </div>
 
-      <div style={{ textAlign: "center", background: "#fff", borderRadius: 14, padding: "14px 16px", boxShadow: "0 2px 10px rgba(0,0,0,.05)" }}>
-        <div style={{ fontSize: 12, color: "#bbb", fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>Group Join Code</div>
-        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 39, color: group.color, letterSpacing: 8, marginTop: 4 }}>{group.code}</div>
-      </div>
+      {game && game.joinCode && (
+        <div style={{ textAlign: "center", background: "#fff", borderRadius: 14, padding: "14px 16px", boxShadow: "0 2px 10px rgba(0,0,0,.05)", marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: "#bbb", fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>Game Join Code</div>
+          <div style={{ fontFamily: "monospace", fontSize: 34, color: group.color, letterSpacing: 6, marginTop: 4, fontWeight: 800 }}>{game.joinCode}</div>
+          <div style={{ fontSize: 12, color: "#c0a0ac", marginTop: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Share this code to invite players directly to this game</div>
+        </div>
+      )}
+      {!game && (
+        <div style={{ textAlign: "center", background: "#fff", borderRadius: 14, padding: "14px 16px", boxShadow: "0 2px 10px rgba(0,0,0,.05)" }}>
+          <div style={{ fontSize: 12, color: "#bbb", fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>Group Join Code</div>
+          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 39, color: group.color, letterSpacing: 8, marginTop: 4 }}>{group.code}</div>
+        </div>
+      )}
     </Shell>
   );
 }

@@ -125,5 +125,14 @@ service cloud.firestore {
       // Only admins can create, update, or delete packages.
       allow write: if isAdmin();
     }
+
+    // ── Game join codes ───────────────────────────────────────────────────────
+    // Top-level lookup table for game codes. Signed-in users can read (for
+    // uniqueness checks and invite resolution) and write (create/update/delete
+    // when managing their own game codes).
+    match /gameCodes/{code} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
   }
 }
