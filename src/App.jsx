@@ -808,7 +808,7 @@ export default function App() {
             }} />
         )}
         {page === "game" && game && group && (
-          <Game uid={uid} game={game} group={group} go={go}
+          <Game uid={uid} user={displayUser} game={game} group={group} go={go}
             onRsvp={async (ans) => {
               try {
                 await updateDoc(doc(db, "groups", group.id, "games", game.id), { [`rsvps.${uid}`]: ans });
@@ -2949,17 +2949,17 @@ function GroupChat({ group, uid, user, onClose }) {
 }
 
 /* GAME CHAT */
-function GameChat({ game, group, uid, onClose }) {
-  const sender = group.members.find(m => m.id === uid)
-    || (game.guests || []).find(g => g.id === uid)
-    || { name: "Player", avatar: "🀄" };
+function GameChat({ game, group, uid, user, onClose }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [replyTexts, setReplyTexts] = useState({});
   const [replyOpen, setReplyOpen] = useState({});
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState({});
   const bottomRef = useRef(null);
+  const inputRef = useRef(null);
   const knownMsgIds = useRef(null);
 
+  // Lock background scroll while chat is open
   useEffect(() => {
     const el = document.querySelector("[data-scroll-container]");
     if (!el) return;
@@ -2969,114 +2969,220 @@ function GameChat({ game, group, uid, onClose }) {
   }, []);
 
   useEffect(() => {
-    const q = query(collection(db, "groups", group.id, "games", game.id, "messages"), orderBy("createdAt", "asc"));
+    const q = query(
+      collection(db, "groups", group.id, "games", game.id, "messages"),
+      orderBy("createdAt", "asc")
+    );
     const unsub = onSnapshot(q, (snap) => {
-      const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const msgs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       if (knownMsgIds.current !== null) {
-        msgs.forEach(msg => {
+        msgs.forEach((msg) => {
           if (!knownMsgIds.current.has(msg.id) && msg.uid !== uid) {
             showBrowserNotif(`${msg.name} · ${game.title}`, msg.text, `gchat-${game.id}-${msg.id}`);
           }
         });
       }
-      knownMsgIds.current = new Set(msgs.map(m => m.id));
+      knownMsgIds.current = new Set(msgs.map((m) => m.id));
       setMessages(msgs);
     });
     return unsub;
   }, [game.id]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-  const fmtTime = (ts) => {
-    if (!ts) return "";
-    const d = ts.toDate ? ts.toDate() : new Date(ts);
-    const now = new Date();
-    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  };
-
-  const send = async () => {
+  const sendMessage = async () => {
     const t = text.trim();
     if (!t) return;
     setText("");
-    try {
-      await addDoc(collection(db, "groups", group.id, "games", game.id, "messages"), {
-        uid, name: sender.name, avatar: sender.avatar,
-        text: t, createdAt: serverTimestamp(), reactions: {}, replies: [],
-      });
-    } catch (e) { console.error("GameChat send:", e); setText(t); }
-  };
-
-  const sendReply = async (msgId) => {
-    const t = (replyTexts[msgId] || "").trim();
-    if (!t) return;
-    setReplyTexts(v => ({ ...v, [msgId]: "" }));
-    await updateDoc(doc(db, "groups", group.id, "games", game.id, "messages", msgId), {
-      replies: arrayUnion({ uid, name: sender.name, avatar: sender.avatar, text: t, createdAt: Date.now() }),
+    inputRef.current?.focus();
+    await addDoc(collection(db, "groups", group.id, "games", game.id, "messages"), {
+      uid, name: user.name, avatar: user.avatar,
+      text: t, createdAt: serverTimestamp(),
+      reactions: {}, replies: [],
     });
   };
 
   const toggleReaction = async (msg, emoji) => {
     const ref = doc(db, "groups", group.id, "games", game.id, "messages", msg.id);
-    const already = (msg.reactions?.[emoji] || []).includes(uid);
-    await updateDoc(ref, { [`reactions.${emoji}`]: already ? arrayRemove(uid) : arrayUnion(uid) });
+    const current = msg.reactions?.[emoji] || [];
+    const already = current.includes(uid);
+    await updateDoc(ref, {
+      [`reactions.${emoji}`]: already ? arrayRemove(uid) : arrayUnion(uid),
+    });
+  };
+
+  const sendReply = async (msgId) => {
+    const t = (replyTexts[msgId] || "").trim();
+    if (!t) return;
+    setReplyTexts((v) => ({ ...v, [msgId]: "" }));
+    const ref = doc(db, "groups", group.id, "games", game.id, "messages", msgId);
+    await updateDoc(ref, {
+      replies: arrayUnion({ uid, name: user.name, avatar: user.avatar, text: t, createdAt: Date.now() }),
+    });
+  };
+
+  const fmtTime = (ts) => {
+    if (!ts) return "";
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   };
 
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 5000, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }} />
-      <div className="sUp" style={{ position: "fixed", bottom: 74, left: 0, right: 0, zIndex: 5001, maxWidth: 480, margin: "0 auto", height: "calc(88vh - 74px)", display: "flex", flexDirection: "column", background: "var(--chat-sheet-bg)", borderRadius: "22px 22px 0 0", boxShadow: "0 -8px 40px rgba(0,0,0,0.22)", overflow: "hidden" }}>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{
+        position: "fixed", inset: 0, background: "rgba(30,10,20,0.45)",
+        zIndex: 2000, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)",
+      }} />
+
+      {/* Sheet */}
+      <div style={{
+        position: "fixed", bottom: 74, left: "50%",
+        transform: "translateX(-50%)",
+        width: "100%", maxWidth: 480,
+        height: "calc(88vh - 74px)",
+        background: "var(--chat-sheet-bg)",
+        borderRadius: "22px 22px 0 0",
+        zIndex: 2001,
+        display: "flex", flexDirection: "column",
+        boxShadow: "0 -8px 40px rgba(var(--shadow-rgb),0.28)",
+        animation: "sheetUp .28s cubic-bezier(.32,.72,0,1) both",
+      }}>
         {/* Handle */}
-        <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
-          <div style={{ width: 36, height: 4, borderRadius: 999, background: "rgba(var(--primary-rgb),0.22)" }} />
+        <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 0" }}>
+          <div style={{ width: 36, height: 4, borderRadius: 999, background: "rgba(var(--primary-rgb),0.25)" }} />
         </div>
+
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 16px 12px", borderBottom: "1px solid rgba(var(--primary-rgb),0.1)", flexShrink: 0 }}>
+        <div style={{
+          padding: "10px 16px 12px",
+          borderBottom: "1px solid rgba(var(--primary-rgb),0.15)",
+          display: "flex", alignItems: "center", gap: 10, flexShrink: 0,
+        }}>
+          <div style={{ width: 40, height: 40, borderRadius: 13, background: `linear-gradient(135deg,${group.color}33,${group.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21 }}>💬</div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, fontWeight: 700, color: "var(--section-title)" }}>💬 {game.title}</div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>Game Chat · {group.name}</div>
+            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, fontWeight: 700, color: "var(--text-body)" }}>Game Chat</div>
+            <div style={{ fontSize: 13, color: "#b08090" }}>{game.title} · {group.name}</div>
           </div>
-          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: "rgba(var(--primary-rgb),0.1)", fontSize: 17, color: "var(--primary)", cursor: "pointer" }}>✕</button>
+          <button onClick={() => { inputRef.current?.focus(); inputRef.current?.scrollIntoView({ behavior: "smooth" }); }} style={{ background: `linear-gradient(135deg,${group.color},${group.color}cc)`, border: "none", borderRadius: 999, width: 34, height: 34, fontSize: 20, cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 2px 10px ${group.color}55`, marginRight: 4 }}>+</button>
+          <button onClick={onClose} style={{ background: "rgba(var(--primary-rgb),0.1)", border: "none", borderRadius: 999, width: 34, height: 34, fontSize: 18, cursor: "pointer", color: "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
+
         {/* Messages */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px 4px", display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "12px 14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
           {messages.length === 0 && (
-            <div style={{ textAlign: "center", color: "var(--text-muted)", fontSize: 14, marginTop: 30, fontFamily: "'Noto Sans JP',sans-serif" }}>
-              No messages yet. Say something! 🀄
+            <div style={{ textAlign: "center", color: "#c0a0b0", padding: "48px 0" }}>
+              <div style={{ fontSize: 40 }}>💬</div>
+              <p style={{ fontSize: 15, marginTop: 10, fontFamily: "'Shippori Mincho',serif", color: "var(--primary-muted)" }}>No messages yet</p>
+              <p style={{ fontSize: 13, marginTop: 4 }}>Tap <b>+</b> to say hello to the game!</p>
             </div>
           )}
-          {messages.map(msg => {
+          {messages.map((msg, idx) => {
             const isMe = msg.uid === uid;
             const replies = msg.replies || [];
+            const replyCount = replies.length;
             const showReplyInput = replyOpen[msg.id];
             return (
               <div key={msg.id}>
-                <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexDirection: isMe ? "row-reverse" : "row" }}>
-                  <div style={{ width: 34, height: 34, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{msg.avatar}</div>
-                  <div style={{ maxWidth: "72%", display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
-                    {!isMe && <div style={{ fontSize: 12, fontWeight: 700, color: group.color, marginBottom: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>{msg.name}</div>}
-                    <div style={{ background: isMe ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "var(--bg-msg-other)", color: isMe ? "#fff" : "var(--text-body)", borderRadius: isMe ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "9px 13px", fontSize: 15, lineHeight: 1.5, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", wordBreak: "break-word" }}>{msg.text}</div>
-                    <div style={{ fontSize: 11, color: "var(--text-subtle)", marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>{fmtTime(msg.createdAt)}</div>
-                    {/* Reactions */}
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
-                      {Object.entries(msg.reactions || {}).filter(([, uids]) => uids.length > 0).map(([emoji, uids]) => (
-                        <button key={emoji} onClick={() => toggleReaction(msg, emoji)} style={{ background: uids.includes(uid) ? "rgba(var(--primary-rgb),0.15)" : "rgba(var(--primary-rgb),0.06)", border: `1px solid ${uids.includes(uid) ? "rgba(var(--primary-rgb),0.35)" : "rgba(var(--primary-rgb),0.12)"}`, borderRadius: 999, padding: "1px 7px", fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>
-                          {emoji} {uids.length}
-                        </button>
-                      ))}
-                      <div style={{ display: "flex", gap: 3 }}>
-                        {["😊","👍","❤️","👏","😢"].map(emoji => (
-                          <button key={emoji} onClick={() => toggleReaction(msg, emoji)} style={{ background: "none", border: "none", fontSize: 14, cursor: "pointer", opacity: 0.4, padding: "1px 2px" }}>{emoji}</button>
-                        ))}
-                        <button onClick={() => setReplyOpen(v => ({ ...v, [msg.id]: !v[msg.id] }))} style={{ background: showReplyInput ? "rgba(var(--primary-rgb),0.1)" : "var(--border-card)", border: `1.5px solid ${showReplyInput ? "rgba(var(--primary-rgb),0.35)" : "rgba(var(--primary-rgb),0.15)"}`, borderRadius: 999, padding: "1px 8px", fontSize: 12, cursor: "pointer", color: showReplyInput ? "var(--primary)" : "#b08090", fontWeight: showReplyInput ? 700 : 400, fontFamily: "'Noto Sans JP',sans-serif" }}>
-                          ↩ {replies.length > 0 ? `${replies.length} repl${replies.length === 1 ? "y" : "ies"}` : "Reply"}
-                        </button>
-                      </div>
-                    </div>
+                {idx > 0 && (
+                  <div style={{ height: 1, background: "rgba(var(--primary-rgb),0.12)", margin: "4px 0 12px" }} />
+                )}
+                {/* Bubble row */}
+                <div style={{ display: "flex", gap: 8, flexDirection: isMe ? "row-reverse" : "row", alignItems: "flex-end" }}>
+                  {!isMe && (
+                    <div style={{ width: 34, height: 34, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0, alignSelf: "flex-start", marginTop: 18 }}>{msg.avatar}</div>
+                  )}
+                  <div style={{ maxWidth: "74%", display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
+                    {!isMe && <div style={{ fontSize: 12, color: "#b08090", marginBottom: 3, fontWeight: 700, paddingLeft: 4 }}>{msg.name}</div>}
+                    <div style={{
+                      background: isMe ? `linear-gradient(135deg,${group.color},${group.color}bb)` : "var(--bg-msg-other)",
+                      color: isMe ? "#fff" : "var(--text-body)",
+                      borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                      padding: "10px 14px", fontSize: 15, lineHeight: 1.45,
+                      boxShadow: isMe ? `0 4px 14px ${group.color}44` : "0 2px 8px rgba(var(--shadow-rgb),0.09)",
+                      border: isMe ? "none" : "1px solid var(--bg-card-base)",
+                      wordBreak: "break-word",
+                    }}>{msg.text}</div>
+                    <div style={{ fontSize: 12, color: "#c0a8b8", marginTop: 3, paddingLeft: isMe ? 0 : 4, paddingRight: isMe ? 4 : 0 }}>{fmtTime(msg.createdAt)}</div>
                   </div>
                 </div>
-                {/* Replies */}
-                {(replies.length > 0 || showReplyInput) && (
+
+                {/* Reactions + reply button */}
+                <div style={{ display: "flex", gap: 4, marginTop: 6, paddingLeft: isMe ? 0 : 42, justifyContent: isMe ? "flex-end" : "flex-start", flexWrap: "wrap", alignItems: "center" }}>
+                  {REACTION_EMOJIS.filter(e => (msg.reactions?.[e] || []).length > 0).map((emoji) => {
+                    const reactors = msg.reactions[emoji];
+                    const reacted = reactors.includes(uid);
+                    return (
+                      <button key={emoji} onClick={() => toggleReaction(msg, emoji)} style={{
+                        background: reacted ? `${group.color}22` : "var(--border-card)",
+                        border: `1.5px solid ${reacted ? group.color : "rgba(var(--primary-rgb),0.2)"}`,
+                        borderRadius: 999, padding: "2px 8px", fontSize: 14,
+                        cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3,
+                        color: reacted ? group.color : "#b08090", fontWeight: reacted ? 700 : 400,
+                        fontFamily: "'Noto Sans JP',sans-serif", transition: "all .13s",
+                      }}>
+                        {emoji}<span style={{ fontSize: 12 }}>{reactors.length}</span>
+                      </button>
+                    );
+                  })}
+
+                  <div style={{ position: "relative" }}>
+                    <button
+                      onClick={() => setEmojiPickerOpen((v) => ({ ...v, [msg.id]: !v[msg.id] }))}
+                      style={{
+                        background: emojiPickerOpen[msg.id] ? "rgba(var(--primary-rgb),0.12)" : "var(--border-card)",
+                        border: `1.5px solid ${emojiPickerOpen[msg.id] ? "rgba(var(--primary-rgb),0.4)" : "rgba(var(--primary-rgb),0.15)"}`,
+                        borderRadius: 999, width: 28, height: 28, fontSize: 16,
+                        cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        transition: "all .13s",
+                      }}
+                    >😊</button>
+                    {emojiPickerOpen[msg.id] && (
+                      <div style={{
+                        position: "absolute", bottom: "calc(100% + 6px)",
+                        [isMe ? "right" : "left"]: 0,
+                        background: "var(--bg-popup)",
+                        borderRadius: 16, padding: "8px 10px",
+                        boxShadow: "0 6px 24px rgba(var(--shadow-rgb),0.18)",
+                        border: "1px solid rgba(var(--primary-rgb),0.15)",
+                        display: "flex", gap: 6, zIndex: 10,
+                        backdropFilter: "blur(12px)",
+                      }}>
+                        {REACTION_EMOJIS.map((emoji) => {
+                          const reacted = (msg.reactions?.[emoji] || []).includes(uid);
+                          return (
+                            <button key={emoji} onClick={() => { toggleReaction(msg, emoji); setEmojiPickerOpen((v) => ({ ...v, [msg.id]: false })); }} style={{
+                              background: reacted ? `${group.color}22` : "none",
+                              border: `1.5px solid ${reacted ? group.color : "transparent"}`,
+                              borderRadius: 8, padding: "4px 5px", fontSize: 20,
+                              cursor: "pointer", transition: "transform .1s",
+                              transform: reacted ? "scale(1.15)" : "scale(1)",
+                            }}>{emoji}</button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <button onClick={() => setReplyOpen((v) => ({ ...v, [msg.id]: !v[msg.id] }))} style={{
+                    background: showReplyInput ? "rgba(var(--primary-rgb),0.1)" : "var(--border-card)",
+                    border: `1.5px solid ${showReplyInput ? "rgba(var(--primary-rgb),0.35)" : "rgba(var(--primary-rgb),0.15)"}`,
+                    borderRadius: 999, padding: "2px 9px", fontSize: 13,
+                    cursor: "pointer", color: showReplyInput ? "var(--primary)" : "#b08090",
+                    fontFamily: "'Noto Sans JP',sans-serif", fontWeight: showReplyInput ? 700 : 400,
+                    transition: "all .13s",
+                  }}>
+                    ↩ {replyCount > 0 ? `${replyCount} repl${replyCount === 1 ? "y" : "ies"}` : "Reply"}
+                  </button>
+                </div>
+
+                {/* Inline replies */}
+                {(replyCount > 0 || showReplyInput) && (
                   <div style={{ marginLeft: 42, marginTop: 8, borderLeft: `2px solid ${group.color}33`, paddingLeft: 10 }}>
                     {replies.map((r, ri) => (
                       <div key={ri} style={{ display: "flex", gap: 6, alignItems: "flex-start", marginBottom: 7 }}>
@@ -3089,8 +3195,19 @@ function GameChat({ game, group, uid, onClose }) {
                     ))}
                     {showReplyInput && (
                       <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                        <input autoFocus value={replyTexts[msg.id] || ""} onChange={e => setReplyTexts(v => ({ ...v, [msg.id]: e.target.value }))} onKeyDown={e => { if (e.key === "Enter") { sendReply(msg.id); setReplyOpen(v => ({ ...v, [msg.id]: false })); } }} placeholder="Write a reply…" style={{ ...inputSt, flex: 1, marginBottom: 0, fontSize: 16, padding: "7px 11px", borderRadius: 12 }} />
-                        <button onClick={() => { sendReply(msg.id); setReplyOpen(v => ({ ...v, [msg.id]: false })); }} style={{ background: `linear-gradient(135deg,${group.color},${group.color}cc)`, border: "none", borderRadius: 12, padding: "0 13px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Send</button>
+                        <input
+                          autoFocus
+                          value={replyTexts[msg.id] || ""}
+                          onChange={(e) => setReplyTexts((v) => ({ ...v, [msg.id]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === "Enter") { sendReply(msg.id); setReplyOpen((v) => ({ ...v, [msg.id]: false })); } }}
+                          placeholder="Write a reply…"
+                          style={{ ...inputSt, flex: 1, marginBottom: 0, fontSize: 16, padding: "7px 11px", borderRadius: 12 }}
+                        />
+                        <button onClick={() => { sendReply(msg.id); setReplyOpen((v) => ({ ...v, [msg.id]: false })); }} style={{
+                          background: `linear-gradient(135deg,${group.color},${group.color}cc)`,
+                          border: "none", borderRadius: 12, padding: "0 13px",
+                          color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", flexShrink: 0,
+                        }}>Send</button>
                       </div>
                     )}
                   </div>
@@ -3100,11 +3217,33 @@ function GameChat({ game, group, uid, onClose }) {
           })}
           <div ref={bottomRef} />
         </div>
-        {/* Input */}
-        <div style={{ padding: "10px 14px calc(10px + env(safe-area-inset-bottom))", borderTop: "1px solid rgba(var(--primary-rgb),0.1)", display: "flex", gap: 8, flexShrink: 0, background: "var(--bg-nav)" }}>
-          <textarea value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Message the game…" rows={1} style={{ ...inputSt, flex: 1, marginBottom: 0, resize: "none", padding: "10px 13px", fontSize: 15, lineHeight: 1.5, maxHeight: 100, overflowY: "auto" }} />
-          <button onClick={send} disabled={!text.trim()} style={{ width: 42, height: 42, borderRadius: 999, border: "none", background: text.trim() ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(var(--primary-rgb),0.12)", color: text.trim() ? "#fff" : "var(--primary-faint)", fontSize: 18, cursor: text.trim() ? "pointer" : "default", flexShrink: 0, alignSelf: "flex-end" }}>↑</button>
-        </div>
+
+        {/* Input bar */}
+        {!Object.values(replyOpen).some(Boolean) && <div style={{
+          padding: "10px 14px calc(10px + env(safe-area-inset-bottom))",
+          borderTop: "1px solid rgba(var(--primary-rgb),0.15)",
+          background: "rgba(255,245,250,0.97)",
+          flexShrink: 0, display: "flex", gap: 8, alignItems: "flex-end",
+        }}>
+          <textarea
+            ref={inputRef}
+            value={text}
+            onChange={(e) => { setText(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 110) + "px"; }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+            placeholder="Message the game…"
+            rows={1}
+            style={{ ...inputSt, flex: 1, marginBottom: 0, resize: "none", borderRadius: 18, padding: "10px 14px", fontSize: 16, lineHeight: 1.4, overflow: "hidden" }}
+          />
+          <button onClick={sendMessage} style={{
+            background: text.trim() ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(var(--primary-rgb),0.18)",
+            border: "none", borderRadius: 18, padding: "10px 20px",
+            color: text.trim() ? "#fff" : "var(--primary-faint)",
+            fontSize: 15, fontWeight: 700,
+            cursor: text.trim() ? "pointer" : "default",
+            transition: "all .18s", flexShrink: 0,
+            fontFamily: "'Noto Sans JP',sans-serif",
+          }}>Send</button>
+        </div>}
       </div>
     </>
   );
@@ -3510,7 +3649,7 @@ function generateSeating(playerIds, skillMap, tableSize = 4) {
 }
 
 /* GAME DETAIL */
-function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView = false }) {
+function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView = false }) {
   const [showAttendees, setShowAttendees] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [seatingOpen, setSeatingOpen] = useState(false);
@@ -3884,7 +4023,7 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
       />
     )}
     {gameChatOpen && (
-      <GameChat game={game} group={group} uid={uid} onClose={() => setGameChatOpen(false)} />
+      <GameChat game={game} group={group} uid={uid} user={user} onClose={() => setGameChatOpen(false)} />
     )}
     </>
   );
