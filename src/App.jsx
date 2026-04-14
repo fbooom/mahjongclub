@@ -3905,6 +3905,7 @@ function generateSeating(playerIds, skillMap, tableSize = 4) {
 /* GAME DETAIL */
 function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView = false }) {
   const [showAttendees, setShowAttendees] = useState(false);
+  const [rsvpTab, setRsvpTab] = useState("going");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [seatingOpen, setSeatingOpen] = useState(false);
   // Firestore forbids nested arrays, so each table is stored as { players: [...] }.
@@ -4109,50 +4110,52 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
             </div>
           );
 
+          const rsvpTabs = [
+            { key: "going",    icon: "✅", color: "var(--secondary-accent)", list: goingList },
+            { key: "maybe",    icon: "🤔", color: "#c4936e",                  list: maybeList },
+            { key: "no",       icon: "❌", color: "var(--primary)",            list: noList },
+            { key: "waitlist", icon: "⏳", color: "var(--text-muted)",         list: unifiedWaitlist },
+          ].filter((t) => t.list.length > 0);
+
+          // If current tab was filtered out (count dropped to 0), fall back to going
+          const activeTab = rsvpTabs.find((t) => t.key === rsvpTab) ?? rsvpTabs[0];
+
           return (
             <div style={{ background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, marginBottom: 12, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)", border: "1px solid var(--border-card)", overflow: "hidden" }}>
-              {/* Tappable header */}
-              <div onClick={() => setShowAttendees((v) => !v)} style={{ padding: "15px 16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ fontWeight: 700, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>RSVPs</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <Chip big color="var(--secondary-accent)">✅ {goingList.length}</Chip>
-                    <Chip big color="#c4936e">🤔 {maybe}</Chip>
-                    <Chip big color="var(--primary)">❌ {no}</Chip>
-                    {unifiedWaitlist.length > 0 && <Chip big color="var(--text-muted)">⏳ {unifiedWaitlist.length}</Chip>}
-                  </div>
+              {/* Header — title+chevron toggles expand; chips switch active tab */}
+              <div style={{ padding: "15px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div onClick={() => setShowAttendees((v) => !v)} style={{ fontWeight: 700, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+                  RSVPs
                   <span style={{ fontSize: 17, color: "var(--primary-faint)", transition: "transform .2s", display: "inline-block", transform: showAttendees ? "rotate(180deg)" : "rotate(0deg)" }}>⌄</span>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {rsvpTabs.map((t) => {
+                    const isActive = showAttendees && activeTab?.key === t.key;
+                    return (
+                      <button key={t.key} onClick={() => { setShowAttendees(true); setRsvpTab(t.key); }}
+                        style={{ background: isActive ? t.color : "rgba(var(--primary-rgb),0.08)", border: isActive ? "none" : "1px solid rgba(var(--primary-rgb),0.15)", borderRadius: 999, padding: "4px 10px", fontSize: 12, fontWeight: 700, color: isActive ? "#fff" : "var(--text-muted)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .15s", boxShadow: isActive ? `0 2px 8px ${t.color}55` : "none" }}>
+                        {t.icon} {t.list.length}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Expanded attendee list */}
-              {showAttendees && (
-                <div style={{ borderTop: "1px solid rgba(212,165,201,0.25)", padding: "10px 16px 14px" }}>
-                  {[
-                    { label: "✅ Going", list: goingList, color: "#9b6ea8" },
-                    { label: "🤔 Maybe", list: maybeList, color: "#c4936e" },
-                    { label: "❌ Can't Go", list: noList, color: "#c9607a" },
-                  ].map(({ label, list, color }) => list.length > 0 && (
-                    <div key={label} style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color, textTransform: "uppercase", letterSpacing: .5, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>{label} · {list.length}</div>
-                      {list.map((entry) => <AttendeeRow key={entry.id} entry={entry} />)}
-                    </div>
-                  ))}
-
-                  {/* Waitlist */}
-                  {unifiedWaitlist.length > 0 && (
-                    <div style={{ marginTop: 4, paddingTop: 10, borderTop: "1px solid rgba(212,165,201,0.15)" }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: "var(--primary)", textTransform: "uppercase", letterSpacing: .5, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>⏳ Waitlist · {unifiedWaitlist.length}</div>
-                      {unifiedWaitlist.map((entry, i) => (
-                        <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0" }}>
-                          <div style={{ width: 20, height: 20, borderRadius: 999, background: "rgba(var(--primary-rgb),0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "var(--primary)", flexShrink: 0 }}>{i + 1}</div>
-                          <span style={{ fontSize: 19 }}>{entry.avatar}</span>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", flex: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{entry.name}</span>
-                          {entry.isGuest && <span style={{ fontSize: 11, color: "var(--secondary-accent)", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
-                          {entry.id === uid && <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 700, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, padding: "2px 8px" }}>You</span>}
-                        </div>
-                      ))}
-                    </div>
+              {/* Expanded — only the active tab's list */}
+              {showAttendees && activeTab && (
+                <div style={{ borderTop: "1px solid rgba(var(--border-light-rgb),0.2)", padding: "10px 16px 14px" }}>
+                  {activeTab.key === "waitlist" ? (
+                    activeTab.list.map((entry, i) => (
+                      <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0" }}>
+                        <div style={{ width: 20, height: 20, borderRadius: 999, background: "rgba(var(--primary-rgb),0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "var(--primary)", flexShrink: 0 }}>{i + 1}</div>
+                        <span style={{ fontSize: 19 }}>{entry.avatar}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", flex: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{entry.name}</span>
+                        {entry.isGuest && <span style={{ fontSize: 11, color: "var(--secondary-accent)", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
+                        {entry.id === uid && <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 700, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, padding: "2px 8px" }}>You</span>}
+                      </div>
+                    ))
+                  ) : (
+                    activeTab.list.map((entry) => <AttendeeRow key={entry.id} entry={entry} />)
                   )}
                 </div>
               )}
