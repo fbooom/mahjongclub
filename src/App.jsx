@@ -3356,6 +3356,7 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
   const [movingUid, setMovingUid] = useState(null);
   const [skillMap, setSkillMap] = useState({});
   const [seatingLoading, setSeatingLoading] = useState(false);
+  const [confirmReRandomize, setConfirmReRandomize] = useState(false);
   const isCreator = !isGuestView && group.members.some((m) => m.id === uid && m.host);
   const canInvite = !isGuestView && (isCreator || (group.openInvites ?? false));
   const myRsvp = game.rsvps[uid] || "pending";
@@ -3414,10 +3415,16 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
     try { await updateDoc(doc(db, "groups", group.id, "games", game.id), { seating: next }); } catch {}
   };
 
-  const handleRandomize = () => {
+  const doRandomize = () => {
     const tables = generateSeating(seatingPool, skillMap);
     saveSeating(tables);
     setMovingUid(null);
+    setConfirmReRandomize(false);
+  };
+
+  const handleRandomize = () => {
+    if (seating) { setConfirmReRandomize(true); return; }
+    doRandomize();
   };
 
   const handlePlayerTap = (pid) => {
@@ -3685,6 +3692,15 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
         confirmLabel="Delete Game"
         onConfirm={() => { setConfirmDelete(false); onDelete(); }}
         onCancel={() => setConfirmDelete(false)}
+      />
+    )}
+    {confirmReRandomize && (
+      <ConfirmDialog
+        title="Re-randomize Tables?"
+        message="Tables have already been assigned. Randomizing again will overwrite the current seating order."
+        confirmLabel="Randomize Again"
+        onConfirm={doRandomize}
+        onCancel={() => setConfirmReRandomize(false)}
       />
     )}
     </>
