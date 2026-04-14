@@ -4194,22 +4194,7 @@ function EditGame({ uid: myUid, game, group, onBack, onSave, onTransferHost }) {
     return new Set(existing.length ? existing : group.members.map((m) => m.id));
   });
   const [coHostIds, setCoHostIds] = useState(new Set(game.coHostIds || []));
-  const [joinCode, setJoinCode] = useState(game.joinCode || "");
-  const [codeStatus, setCodeStatus] = useState(game.joinCode ? "available" : "idle"); // 'idle'|'checking'|'available'|'taken'|'invalid'
-
-  const checkCode = async (rawCode) => {
-    const code = rawCode.trim().toUpperCase();
-    if (!code) { setCodeStatus("idle"); return; }
-    if (!isValidGameCode(code)) { setCodeStatus("invalid"); return; }
-    if (code === (game.joinCode || "").toUpperCase()) { setCodeStatus("available"); return; }
-    setCodeStatus("checking");
-    try {
-      const snap = await getDoc(doc(db, "gameCodes", code));
-      if (!snap.exists()) { setCodeStatus("available"); return; }
-      if (snap.data().date < Date.now()) { setCodeStatus("available"); return; }
-      setCodeStatus("taken");
-    } catch { setCodeStatus("available"); }
-  };
+  const joinCode = game.joinCode || null;
 
   // Guests: people outside the group
   const [guests, setGuests] = useState(game.guests || []);
@@ -4302,12 +4287,10 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
       }
     });
 
-    const normalizedCode = joinCode.trim().toUpperCase() || null;
-    onSave({ ...game, title: title.trim(), date: ts, time, endTime, location: loc.trim(), note, seats: tables * 4, rsvps: newRsvps, guests: newGuests, waitlist: newWaitlist, coHostIds: [...coHostIds], joinCode: normalizedCode });
+    onSave({ ...game, title: title.trim(), date: ts, time, endTime, location: loc.trim(), note, seats: tables * 4, rsvps: newRsvps, guests: newGuests, waitlist: newWaitlist, coHostIds: [...coHostIds], joinCode });
   };
 
-  const codeOk = !joinCode.trim() || codeStatus === "available";
-  const ok = title.trim() && date && time && loc.trim() && codeOk;
+  const ok = title.trim() && date && time && loc.trim();
 
   const glassCard = {
     background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))",
@@ -4368,37 +4351,19 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
           <Lbl>Host Notes (optional)</Lbl>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Style of play, what to bring, house rules..." rows={3} style={{ ...inputSt, resize: "none", height: "auto", padding: "12px 14px" }} />
 
-          {/* Join Code */}
-          <div style={{ marginTop: 14, marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          {/* Join Code — read-only once set */}
+          {joinCode && (
+            <div style={{ marginTop: 14, marginBottom: 16 }}>
               <Lbl>Game Join Code</Lbl>
-              <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif",
-                color: codeStatus === "available" ? "#22a722" : codeStatus === "taken" ? "#d94040" : codeStatus === "invalid" ? "#d94040" : codeStatus === "checking" ? "#b08090" : "#b08090",
-              }}>
-                {codeStatus === "available" ? "✓ Available" : codeStatus === "taken" ? "✗ Already in use" : codeStatus === "invalid" ? "✗ Invalid format" : codeStatus === "checking" ? "Checking…" : ""}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--bg-surface)", border: "1.5px solid rgba(var(--border-light-rgb),0.4)", borderRadius: "var(--radius-input)", padding: "10px 14px" }}>
+                <span style={{ fontFamily: "monospace", fontSize: 20, letterSpacing: 4, fontWeight: 800, color: "var(--text-body)", flex: 1 }}>{joinCode}</span>
+                <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>🔒 Fixed</span>
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                Game codes cannot be changed after the game is created.
               </div>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                value={joinCode}
-                onChange={(e) => { setJoinCode(e.target.value.toUpperCase()); setCodeStatus("checking"); }}
-                onBlur={() => checkCode(joinCode)}
-                maxLength={20}
-                placeholder="e.g. TUES7PM (optional)"
-                style={{ ...inputSt, marginBottom: 0, flex: 1, fontFamily: "monospace", fontSize: 17, letterSpacing: 3, fontWeight: 700, textTransform: "uppercase",
-                  borderColor: codeStatus === "available" ? "#22a72244" : codeStatus === "taken" || codeStatus === "invalid" ? "#d9404044" : undefined,
-                }}
-              />
-              <button
-                onClick={() => { const c = generateGameCode(); setJoinCode(c); checkCode(c); }}
-                title="Generate new code"
-                style={{ width: 44, height: 44, borderRadius: "var(--radius-input)", border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-              >🔄</button>
-            </div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>
-              Letters, numbers, _ and − allowed · 3–20 characters
-            </div>
-          </div>
+          )}
 
           <Btn full disabled={!ok} onClick={handleSave}>Save Changes ✨</Btn>
         </div>
