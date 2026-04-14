@@ -2457,32 +2457,27 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
       <div style={{
         background: `linear-gradient(135deg,${group.color}f0,${group.color}bb)`,
         backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
-        padding: "50px 22px 26px", position: "relative", overflow: "hidden",
+        padding: "52px 22px 28px", position: "relative", overflow: "hidden",
         boxShadow: `0 8px 32px ${group.color}44`,
       }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.18) 0%,transparent 55%)", pointerEvents: "none" }} />
-        <button onClick={() => go("groups")} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)" }}>‹</button>
-        <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 8 }}>
-          {isCreator && <button onClick={() => go("editGroup", group.id)} style={{ background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✏️ Edit</button>}
-          {canInvite && <button onClick={() => go("invite", group.id)} style={{ background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✉️ Invite</button>}
+        {/* Back */}
+        <button onClick={() => go("groups")} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+        {/* Action icons */}
+        <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 7 }}>
+          {isCreator && (
+            <button onClick={() => go("editGroup", group.id)} title="Edit group" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>✏️</button>
+          )}
+          <button onClick={() => setChatOpen(true)} title="Group chat" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>💬</button>
+          {canInvite && (
+            <button onClick={() => go("invite", group.id)} title="Invite" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>✉️</button>
+          )}
         </div>
+        {/* Title */}
         <div style={{ textAlign: "center", position: "relative" }}>
           <div style={{ fontSize: 51, marginBottom: 6 }}>{group.emoji}</div>
           <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 27, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.25)", letterSpacing: 1 }}>{group.name}</h1>
-          <div style={{ marginTop: 12 }}>
-            <button onClick={() => setChatOpen(true)} style={{
-              background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.45)",
-              borderRadius: 999, padding: "7px 20px", fontSize: 14, fontWeight: 700,
-              color: "#fff", cursor: "pointer", backdropFilter: "blur(8px)",
-              fontFamily: "'Noto Sans JP',sans-serif", display: "inline-flex",
-              alignItems: "center", gap: 7, transition: "transform .15s",
-            }}
-              onMouseDown={(e) => e.currentTarget.style.transform = "scale(.94)"}
-              onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
-              onTouchStart={(e) => e.currentTarget.style.transform = "scale(.94)"}
-              onTouchEnd={(e) => e.currentTarget.style.transform = "scale(1)"}
-            >💬 Group Chat</button>
-          </div>
+          <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.75)", fontFamily: "'Noto Sans JP',sans-serif" }}>{group.members.length} member{group.members.length !== 1 ? "s" : ""}</div>
         </div>
       </div>
 
@@ -3763,18 +3758,33 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
   return (
     <>
     <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
-      <div style={{ background: `linear-gradient(135deg,${group.color},${group.color}aa)`, padding: "50px 22px 28px", position: "relative" }}>
-        <button onClick={() => isGuestView ? go("home") : go("group", group.id)} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.25)", border: "none", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff" }}>‹</button>
-        <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 8 }}>
+      <div style={{ background: `linear-gradient(135deg,${group.color}f0,${group.color}bb)`, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", padding: "52px 22px 28px", position: "relative", overflow: "hidden", boxShadow: `0 8px 32px ${group.color}44` }}>
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.18) 0%,transparent 55%)", pointerEvents: "none" }} />
+        {/* Back */}
+        <button onClick={() => isGuestView ? go("home") : go("group", group.id)} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+        {/* Action icons */}
+        <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 7 }}>
           {!isGuestView && game.hostId === uid && (
-            <button onClick={() => go("editGame", group.id, game.id)} style={{ background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✏️ Edit</button>
+            <button onClick={() => go("editGame", group.id, game.id)} title="Edit game" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>✏️</button>
+          )}
+          {!isGuestView && (
+            <button onClick={() => setGameChatOpen(true)} title="Game chat" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>💬</button>
           )}
           {canInvite && (
-            <button onClick={() => go("invite", group.id, game.id)} style={{ background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✉️ Invite</button>
+            <button onClick={() => go("invite", group.id, game.id)} title="Invite" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>✉️</button>
           )}
         </div>
-        <div style={{ textAlign: "center" }}>
-          <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 25, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.2)" }}>{game.title}</h1>
+        {/* Title + meta */}
+        <div style={{ textAlign: "center", position: "relative" }}>
+          <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 25, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.2)", marginBottom: 8 }}>{game.title}</h1>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+              📅 {fmt(game.date)}{game.time ? ` · ${fmtT(game.time)}` : ""}{game.endTime ? ` – ${fmtT(game.endTime)}` : ""}
+            </div>
+            {game.location && (
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", fontFamily: "'Noto Sans JP',sans-serif" }}>📍 {game.location}</div>
+            )}
+          </div>
         </div>
       </div>
       <div style={{ padding: "18px 16px 100px" }}>
@@ -3807,16 +3817,6 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
 
         {/* Add to Calendar */}
         <AddToCalendar game={game} groupName={group.name} />
-
-        {/* Game Chat */}
-        <button onClick={() => setGameChatOpen(true)} style={{ width: "100%", padding: "14px 16px", marginBottom: 12, background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)", border: "1px solid var(--border-card)", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, textAlign: "left" }}>
-          <span style={{ fontSize: 22 }}>💬</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", fontSize: 15 }}>Game Chat</div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>Members &amp; guests only</div>
-          </div>
-          <span style={{ fontSize: 17, color: "var(--primary-faint)" }}>›</span>
-        </button>
 
         {/* RSVPs card */}
         {(() => {
