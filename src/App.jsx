@@ -2836,11 +2836,13 @@ function GroupChat({ group, uid, user, onClose }) {
                       style={{
                         background: emojiPickerOpen[msg.id] ? "rgba(var(--primary-rgb),0.12)" : "var(--border-card)",
                         border: `1.5px solid ${emojiPickerOpen[msg.id] ? "rgba(var(--primary-rgb),0.4)" : "rgba(var(--primary-rgb),0.15)"}`,
-                        borderRadius: 999, width: 28, height: 28, fontSize: 16,
-                        cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        borderRadius: 999, height: 28, padding: "0 7px", fontSize: 13,
+                        cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3,
+                        color: emojiPickerOpen[msg.id] ? "var(--primary)" : "#b08090",
+                        fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif",
                         transition: "all .13s",
                       }}
-                    >😊</button>
+                    ><span style={{ fontSize: 15 }}>☺</span><span>+</span></button>
                     {emojiPickerOpen[msg.id] && (
                       <div style={{
                         position: "absolute", bottom: "calc(100% + 6px)",
@@ -3137,11 +3139,13 @@ function GameChat({ game, group, uid, user, onClose }) {
                       style={{
                         background: emojiPickerOpen[msg.id] ? "rgba(var(--primary-rgb),0.12)" : "var(--border-card)",
                         border: `1.5px solid ${emojiPickerOpen[msg.id] ? "rgba(var(--primary-rgb),0.4)" : "rgba(var(--primary-rgb),0.15)"}`,
-                        borderRadius: 999, width: 28, height: 28, fontSize: 16,
-                        cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        borderRadius: 999, height: 28, padding: "0 7px", fontSize: 13,
+                        cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3,
+                        color: emojiPickerOpen[msg.id] ? "var(--primary)" : "#b08090",
+                        fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif",
                         transition: "all .13s",
                       }}
-                    >😊</button>
+                    ><span style={{ fontSize: 15 }}>☺</span><span>+</span></button>
                     {emojiPickerOpen[msg.id] && (
                       <div style={{
                         position: "absolute", bottom: "calc(100% + 6px)",
