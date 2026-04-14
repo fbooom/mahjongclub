@@ -3066,8 +3066,8 @@ function GameChat({ game, group, uid, user, onClose }) {
         }}>
           <div style={{ width: 40, height: 40, borderRadius: 13, background: `linear-gradient(135deg,${group.color}33,${group.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21 }}>💬</div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, fontWeight: 700, color: "var(--text-body)" }}>Game Chat</div>
-            <div style={{ fontSize: 13, color: "#b08090" }}>{game.title} · {group.name}</div>
+            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, fontWeight: 700, color: "var(--text-body)" }}>{game.title}</div>
+            <div style={{ fontSize: 13, color: "#b08090" }}>Game Chat</div>
           </div>
           <button onClick={() => { inputRef.current?.focus(); inputRef.current?.scrollIntoView({ behavior: "smooth" }); }} style={{ background: `linear-gradient(135deg,${group.color},${group.color}cc)`, border: "none", borderRadius: 999, width: 34, height: 34, fontSize: 20, cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 2px 10px ${group.color}55`, marginRight: 4 }}>+</button>
           <button onClick={onClose} style={{ background: "rgba(var(--primary-rgb),0.1)", border: "none", borderRadius: 999, width: 34, height: 34, fontSize: 18, cursor: "pointer", color: "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
