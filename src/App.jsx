@@ -306,6 +306,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [authUser, setAuthUser] = useState(undefined); // undefined = checking, null = logged out
   const [user, setUser] = useState(null);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [impersonating, setImpersonating] = useState(null); // { uid, name, avatar, email }
   const gamesUnsubs = useRef({});
   const groupMeta = useRef({});
@@ -335,6 +336,7 @@ export default function App() {
             const profile = { name: fbUser.displayName || fbUser.email.split("@")[0], email: fbUser.email, avatar: randAvatar(), phone: "" };
             await setDoc(doc(db, "users", fbUser.uid), profile);
             setUser({ uid: fbUser.uid, ...profile });
+            setShowWelcome(true);
           }
         } catch (e) {
           setUser({ uid: fbUser.uid, name: fbUser.displayName || "Player", email: fbUser.email || "", avatar: "🐼", phone: "" });
@@ -699,6 +701,8 @@ export default function App() {
           }}>{toast.icon} {toast.msg}</div>
         </div>
       )}
+
+      {showWelcome && <WelcomeModal onClose={() => setShowWelcome(false)} />}
 
       {/* Page content */}
       <div ref={scrollRef} data-scroll-container style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 90, paddingTop: impersonating ? 52 : 0 }}>
