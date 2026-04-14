@@ -93,6 +93,23 @@ service cloud.firestore {
 
         allow delete: if isAdmin() ||
           (isSignedIn() && request.auth.uid == resource.data.hostId);
+
+        // Game chat messages
+        match /messages/{messageId} {
+          allow read: if isSignedIn() && (
+            isAdmin() ||
+            request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/games/$(gameId)).data.get('memberIds', []) ||
+            request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/games/$(gameId)).data.get('guestIds', [])
+          );
+
+          allow create, update: if isSignedIn() && (
+            isAdmin() ||
+            request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/games/$(gameId)).data.get('memberIds', []) ||
+            request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/games/$(gameId)).data.get('guestIds', [])
+          );
+
+          allow delete: if isAdmin();
+        }
       }
     }
 

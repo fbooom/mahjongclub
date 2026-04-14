@@ -2948,6 +2948,166 @@ function GroupChat({ group, uid, user, onClose }) {
   );
 }
 
+/* GAME CHAT */
+function GameChat({ game, group, uid, onClose }) {
+  const sender = group.members.find(m => m.id === uid)
+    || (game.guests || []).find(g => g.id === uid)
+    || { name: "Player", avatar: "🀄" };
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState("");
+  const [replyTexts, setReplyTexts] = useState({});
+  const [replyOpen, setReplyOpen] = useState({});
+  const bottomRef = useRef(null);
+  const knownMsgIds = useRef(null);
+
+  useEffect(() => {
+    const el = document.querySelector("[data-scroll-container]");
+    if (!el) return;
+    const prev = el.style.overflowY;
+    el.style.overflowY = "hidden";
+    return () => { el.style.overflowY = prev; };
+  }, []);
+
+  useEffect(() => {
+    const q = query(collection(db, "groups", group.id, "games", game.id, "messages"), orderBy("createdAt", "asc"));
+    const unsub = onSnapshot(q, (snap) => {
+      const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (knownMsgIds.current !== null) {
+        msgs.forEach(msg => {
+          if (!knownMsgIds.current.has(msg.id) && msg.uid !== uid) {
+            showBrowserNotif(`${msg.name} · ${game.title}`, msg.text, `gchat-${game.id}-${msg.id}`);
+          }
+        });
+      }
+      knownMsgIds.current = new Set(msgs.map(m => m.id));
+      setMessages(msgs);
+    });
+    return unsub;
+  }, [game.id]);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const fmtTime = (ts) => {
+    if (!ts) return "";
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  };
+
+  const send = async () => {
+    const t = text.trim();
+    if (!t) return;
+    setText("");
+    await addDoc(collection(db, "groups", group.id, "games", game.id, "messages"), {
+      uid, name: sender.name, avatar: sender.avatar,
+      text: t, createdAt: serverTimestamp(), reactions: {}, replies: [],
+    });
+  };
+
+  const sendReply = async (msgId) => {
+    const t = (replyTexts[msgId] || "").trim();
+    if (!t) return;
+    setReplyTexts(v => ({ ...v, [msgId]: "" }));
+    await updateDoc(doc(db, "groups", group.id, "games", game.id, "messages", msgId), {
+      replies: arrayUnion({ uid, name: sender.name, avatar: sender.avatar, text: t, createdAt: Date.now() }),
+    });
+  };
+
+  const toggleReaction = async (msg, emoji) => {
+    const ref = doc(db, "groups", group.id, "games", game.id, "messages", msg.id);
+    const already = (msg.reactions?.[emoji] || []).includes(uid);
+    await updateDoc(ref, { [`reactions.${emoji}`]: already ? arrayRemove(uid) : arrayUnion(uid) });
+  };
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 5000, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }} />
+      <div className="sUp" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 5001, maxWidth: 480, margin: "0 auto", height: "88vh", display: "flex", flexDirection: "column", background: "var(--chat-sheet-bg)", borderRadius: "22px 22px 0 0", boxShadow: "0 -8px 40px rgba(0,0,0,0.22)", overflow: "hidden" }}>
+        {/* Handle */}
+        <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
+          <div style={{ width: 36, height: 4, borderRadius: 999, background: "rgba(var(--primary-rgb),0.22)" }} />
+        </div>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 16px 12px", borderBottom: "1px solid rgba(var(--primary-rgb),0.1)", flexShrink: 0 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, fontWeight: 700, color: "var(--section-title)" }}>💬 {game.title}</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>Game Chat · {group.name}</div>
+          </div>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: "rgba(var(--primary-rgb),0.1)", fontSize: 17, color: "var(--primary)", cursor: "pointer" }}>✕</button>
+        </div>
+        {/* Messages */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px 4px", display: "flex", flexDirection: "column", gap: 14 }}>
+          {messages.length === 0 && (
+            <div style={{ textAlign: "center", color: "var(--text-muted)", fontSize: 14, marginTop: 30, fontFamily: "'Noto Sans JP',sans-serif" }}>
+              No messages yet. Say something! 🀄
+            </div>
+          )}
+          {messages.map(msg => {
+            const isMe = msg.uid === uid;
+            const replies = msg.replies || [];
+            const showReplyInput = replyOpen[msg.id];
+            return (
+              <div key={msg.id}>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexDirection: isMe ? "row-reverse" : "row" }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{msg.avatar}</div>
+                  <div style={{ maxWidth: "72%", display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
+                    {!isMe && <div style={{ fontSize: 12, fontWeight: 700, color: group.color, marginBottom: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>{msg.name}</div>}
+                    <div style={{ background: isMe ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "var(--bg-msg-other)", color: isMe ? "#fff" : "var(--text-body)", borderRadius: isMe ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "9px 13px", fontSize: 15, lineHeight: 1.5, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", wordBreak: "break-word" }}>{msg.text}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-subtle)", marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>{fmtTime(msg.createdAt)}</div>
+                    {/* Reactions */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                      {Object.entries(msg.reactions || {}).filter(([, uids]) => uids.length > 0).map(([emoji, uids]) => (
+                        <button key={emoji} onClick={() => toggleReaction(msg, emoji)} style={{ background: uids.includes(uid) ? "rgba(var(--primary-rgb),0.15)" : "rgba(var(--primary-rgb),0.06)", border: `1px solid ${uids.includes(uid) ? "rgba(var(--primary-rgb),0.35)" : "rgba(var(--primary-rgb),0.12)"}`, borderRadius: 999, padding: "1px 7px", fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                          {emoji} {uids.length}
+                        </button>
+                      ))}
+                      <div style={{ display: "flex", gap: 3 }}>
+                        {["😊","👍","❤️","👏","😢"].map(emoji => (
+                          <button key={emoji} onClick={() => toggleReaction(msg, emoji)} style={{ background: "none", border: "none", fontSize: 14, cursor: "pointer", opacity: 0.4, padding: "1px 2px" }}>{emoji}</button>
+                        ))}
+                        <button onClick={() => setReplyOpen(v => ({ ...v, [msg.id]: !v[msg.id] }))} style={{ background: showReplyInput ? "rgba(var(--primary-rgb),0.1)" : "var(--border-card)", border: `1.5px solid ${showReplyInput ? "rgba(var(--primary-rgb),0.35)" : "rgba(var(--primary-rgb),0.15)"}`, borderRadius: 999, padding: "1px 8px", fontSize: 12, cursor: "pointer", color: showReplyInput ? "var(--primary)" : "#b08090", fontWeight: showReplyInput ? 700 : 400, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                          ↩ {replies.length > 0 ? `${replies.length} repl${replies.length === 1 ? "y" : "ies"}` : "Reply"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {/* Replies */}
+                {(replies.length > 0 || showReplyInput) && (
+                  <div style={{ marginLeft: 42, marginTop: 8, borderLeft: `2px solid ${group.color}33`, paddingLeft: 10 }}>
+                    {replies.map((r, ri) => (
+                      <div key={ri} style={{ display: "flex", gap: 6, alignItems: "flex-start", marginBottom: 7 }}>
+                        <div style={{ width: 26, height: 26, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>{r.avatar}</div>
+                        <div style={{ background: "var(--bg-card-base)", borderRadius: "12px 12px 12px 3px", padding: "6px 10px", flex: 1 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: group.color, marginBottom: 2 }}>{r.name}</div>
+                          <div style={{ fontSize: 14, color: "var(--text-body)" }}>{r.text}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {showReplyInput && (
+                      <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                        <input autoFocus value={replyTexts[msg.id] || ""} onChange={e => setReplyTexts(v => ({ ...v, [msg.id]: e.target.value }))} onKeyDown={e => { if (e.key === "Enter") { sendReply(msg.id); setReplyOpen(v => ({ ...v, [msg.id]: false })); } }} placeholder="Write a reply…" style={{ ...inputSt, flex: 1, marginBottom: 0, fontSize: 16, padding: "7px 11px", borderRadius: 12 }} />
+                        <button onClick={() => { sendReply(msg.id); setReplyOpen(v => ({ ...v, [msg.id]: false })); }} style={{ background: `linear-gradient(135deg,${group.color},${group.color}cc)`, border: "none", borderRadius: 12, padding: "0 13px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Send</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <div ref={bottomRef} />
+        </div>
+        {/* Input */}
+        <div style={{ padding: "10px 14px 24px", borderTop: "1px solid rgba(var(--primary-rgb),0.1)", display: "flex", gap: 8, flexShrink: 0, background: "var(--bg-nav)" }}>
+          <textarea value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Message the game…" rows={1} style={{ ...inputSt, flex: 1, marginBottom: 0, resize: "none", padding: "10px 13px", fontSize: 15, lineHeight: 1.5, maxHeight: 100, overflowY: "auto" }} />
+          <button onClick={send} disabled={!text.trim()} style={{ width: 42, height: 42, borderRadius: 999, border: "none", background: text.trim() ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(var(--primary-rgb),0.12)", color: text.trim() ? "#fff" : "var(--primary-faint)", fontSize: 18, cursor: text.trim() ? "pointer" : "default", flexShrink: 0, alignSelf: "flex-end" }}>↑</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 /* ADD TO CALENDAR */
 function AddToCalendar({ game, groupName, compact = false }) {
   const [open, setOpen] = useState(false);
@@ -3363,6 +3523,7 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
   const [skillMap, setSkillMap] = useState({});
   const [seatingLoading, setSeatingLoading] = useState(false);
   const [confirmReRandomize, setConfirmReRandomize] = useState(false);
+  const [gameChatOpen, setGameChatOpen] = useState(false);
   const isCreator = !isGuestView && group.members.some((m) => m.id === uid && m.host);
   const canInvite = !isGuestView && (isCreator || (group.openInvites ?? false));
   const myRsvp = game.rsvps[uid] || "pending";
@@ -3501,6 +3662,16 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
 
         {/* Add to Calendar */}
         <AddToCalendar game={game} groupName={group.name} />
+
+        {/* Game Chat */}
+        <button onClick={() => setGameChatOpen(true)} style={{ width: "100%", padding: "14px 16px", marginBottom: 12, background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)", border: "1px solid var(--border-card)", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, textAlign: "left" }}>
+          <span style={{ fontSize: 22 }}>💬</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", fontSize: 15 }}>Game Chat</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>Members &amp; guests only</div>
+          </div>
+          <span style={{ fontSize: 17, color: "var(--primary-faint)" }}>›</span>
+        </button>
 
         {/* RSVPs card */}
         {(() => {
@@ -3709,6 +3880,9 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
         onConfirm={doRandomize}
         onCancel={() => setConfirmReRandomize(false)}
       />
+    )}
+    {gameChatOpen && (
+      <GameChat game={game} group={group} uid={uid} onClose={() => setGameChatOpen(false)} />
     )}
     </>
   );
