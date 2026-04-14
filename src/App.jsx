@@ -3352,7 +3352,13 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
   const [showAttendees, setShowAttendees] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [seatingOpen, setSeatingOpen] = useState(false);
-  const [seating, setSeating] = useState(game.seating || null);
+  // Firestore forbids nested arrays, so each table is stored as { players: [...] }.
+  // Internally we keep seating as [[uid,...], ...] for simplicity.
+  const [seating, setSeating] = useState(() => {
+    const raw = game.seating;
+    if (!raw || !raw.length) return null;
+    return raw.map(t => (Array.isArray(t) ? t : (t.players || [])));
+  });
   const [movingUid, setMovingUid] = useState(null);
   const [skillMap, setSkillMap] = useState({});
   const [seatingLoading, setSeatingLoading] = useState(false);
@@ -3412,7 +3418,8 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
 
   const saveSeating = async (next) => {
     setSeating(next);
-    try { await updateDoc(doc(db, "groups", group.id, "games", game.id), { seating: next }); } catch {}
+    // Firestore doesn't support nested arrays — wrap each table in an object
+    try { await updateDoc(doc(db, "groups", group.id, "games", game.id), { seating: next.map(t => ({ players: t })) }); } catch (e) { console.error("saveSeating:", e); }
   };
 
   const doRandomize = () => {
