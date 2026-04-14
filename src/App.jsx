@@ -4122,22 +4122,23 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
 
           return (
             <div style={{ background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, marginBottom: 12, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)", border: "1px solid var(--border-card)", overflow: "hidden" }}>
-              {/* Header — title+chevron toggles expand; chips switch active tab */}
-              <div style={{ padding: "15px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div onClick={() => setShowAttendees((v) => !v)} style={{ fontWeight: 700, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-                  RSVPs
+              {/* Header — whole row toggles expand; chips also switch active tab */}
+              <div onClick={() => setShowAttendees((v) => !v)} style={{ padding: "15px 16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ fontWeight: 700, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>RSVPs</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {rsvpTabs.map((t) => {
+                      const isActive = showAttendees && activeTab?.key === t.key;
+                      return (
+                        <button key={t.key}
+                          onClick={(e) => { e.stopPropagation(); setShowAttendees(true); setRsvpTab(t.key); }}
+                          style={{ background: isActive ? t.color : "rgba(var(--primary-rgb),0.08)", border: isActive ? "none" : "1px solid rgba(var(--primary-rgb),0.15)", borderRadius: 999, padding: "4px 10px", fontSize: 12, fontWeight: 700, color: isActive ? "#fff" : "var(--text-muted)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .15s", boxShadow: isActive ? `0 2px 8px ${t.color}55` : "none" }}>
+                          {t.icon} {t.list.length}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <span style={{ fontSize: 17, color: "var(--primary-faint)", transition: "transform .2s", display: "inline-block", transform: showAttendees ? "rotate(180deg)" : "rotate(0deg)" }}>⌄</span>
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {rsvpTabs.map((t) => {
-                    const isActive = showAttendees && activeTab?.key === t.key;
-                    return (
-                      <button key={t.key} onClick={() => { setShowAttendees(true); setRsvpTab(t.key); }}
-                        style={{ background: isActive ? t.color : "rgba(var(--primary-rgb),0.08)", border: isActive ? "none" : "1px solid rgba(var(--primary-rgb),0.15)", borderRadius: 999, padding: "4px 10px", fontSize: 12, fontWeight: 700, color: isActive ? "#fff" : "var(--text-muted)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .15s", boxShadow: isActive ? `0 2px 8px ${t.color}55` : "none" }}>
-                        {t.icon} {t.list.length}
-                      </button>
-                    );
-                  })}
                 </div>
               </div>
 
