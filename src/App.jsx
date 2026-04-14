@@ -4212,7 +4212,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
         )}
 
         {/* ── Table Seating (host only, collapsible) ── */}
-        {isHost && (
+        {(isHost || (!isGuestView && seating)) && (
           <div style={{ background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, marginBottom: 12, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)", border: "1px solid var(--border-card)", overflow: "hidden" }}>
             {/* Header row */}
             <div onClick={() => setSeatingOpen(v => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", cursor: "pointer", userSelect: "none" }}>
@@ -4220,26 +4220,29 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
                 <span style={{ fontSize: 18 }}>🎲</span>
                 <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>Table Seating</span>
                 {seating && <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(var(--primary-rgb),0.12)", color: "var(--primary)", borderRadius: 999, padding: "2px 9px", fontFamily: "'Noto Sans JP',sans-serif" }}>Assigned</span>}
+                {!isHost && <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(var(--primary-rgb),0.08)", color: "var(--text-muted)", borderRadius: 999, padding: "2px 9px", fontFamily: "'Noto Sans JP',sans-serif" }}>View only</span>}
               </div>
               <span style={{ fontSize: 17, color: "var(--primary-faint)", display: "inline-block", transform: seatingOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }}>⌄</span>
             </div>
 
             {seatingOpen && (
               <div style={{ borderTop: "1px solid rgba(var(--border-light-rgb),0.2)", padding: "12px 14px 16px" }}>
-                {/* Move-mode banner */}
-                {movingUid && (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(var(--primary-rgb),0.1)", border: "1px solid rgba(var(--primary-rgb),0.22)", borderRadius: 10, padding: "8px 12px", marginBottom: 12 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)", fontFamily: "'Noto Sans JP',sans-serif" }}>
-                      Tap a player to swap with {playerLookup[movingUid]?.name || "…"}
-                    </span>
-                    <button onClick={() => setMovingUid(null)} style={{ background: "none", border: "none", fontSize: 16, color: "var(--primary)", cursor: "pointer", padding: "0 4px" }}>✕</button>
-                  </div>
+                {/* Host-only controls */}
+                {isHost && (
+                  <>
+                    {movingUid && (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(var(--primary-rgb),0.1)", border: "1px solid rgba(var(--primary-rgb),0.22)", borderRadius: 10, padding: "8px 12px", marginBottom: 12 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                          Tap a player to swap with {playerLookup[movingUid]?.name || "…"}
+                        </span>
+                        <button onClick={() => setMovingUid(null)} style={{ background: "none", border: "none", fontSize: 16, color: "var(--primary)", cursor: "pointer", padding: "0 4px" }}>✕</button>
+                      </div>
+                    )}
+                    <button onClick={handleRandomize} disabled={seatingPool.length === 0} style={{ width: "100%", padding: "10px 0", borderRadius: 999, border: "none", background: seatingPool.length === 0 ? "rgba(var(--primary-rgb),0.1)" : "var(--active-tab-gradient)", color: seatingPool.length === 0 ? "var(--text-muted)" : "#fff", fontWeight: 700, fontSize: 14, cursor: seatingPool.length === 0 ? "default" : "pointer", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 14, boxShadow: seatingPool.length === 0 ? "none" : "0 4px 14px rgba(var(--shadow-rgb),0.28)", letterSpacing: 0.3 }}>
+                      🎲 Randomize Tables
+                    </button>
+                  </>
                 )}
-
-                {/* Randomize button */}
-                <button onClick={handleRandomize} disabled={seatingPool.length === 0} style={{ width: "100%", padding: "10px 0", borderRadius: 999, border: "none", background: seatingPool.length === 0 ? "rgba(var(--primary-rgb),0.1)" : "var(--active-tab-gradient)", color: seatingPool.length === 0 ? "var(--text-muted)" : "#fff", fontWeight: 700, fontSize: 14, cursor: seatingPool.length === 0 ? "default" : "pointer", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 14, boxShadow: seatingPool.length === 0 ? "none" : "0 4px 14px rgba(var(--shadow-rgb),0.28)", letterSpacing: 0.3 }}>
-                  🎲 Randomize Tables
-                </button>
 
                 {seatingLoading && <div style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", marginBottom: 10, fontFamily: "'Noto Sans JP',sans-serif" }}>Loading player profiles…</div>}
 
@@ -4253,18 +4256,21 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
                       const p = playerLookup[pid];
                       const skill = skillMap[pid];
                       const isMoving = movingUid === pid;
-                      const isTarget = !!movingUid && movingUid !== pid;
+                      const isTarget = isHost && !!movingUid && movingUid !== pid;
                       return (
-                        <div key={pid} onClick={() => handlePlayerTap(pid)} style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 8px", borderRadius: 9, cursor: "pointer", marginBottom: 2, transition: "background .15s, box-shadow .15s", background: isMoving ? "rgba(var(--primary-rgb),0.15)" : isTarget ? "rgba(var(--primary-rgb),0.05)" : "transparent", boxShadow: isMoving ? `0 0 0 2px var(--primary)` : isTarget ? "0 0 0 1px rgba(var(--primary-rgb),0.25)" : "none" }}>
+                        <div key={pid}
+                          onClick={isHost ? () => handlePlayerTap(pid) : undefined}
+                          style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 8px", borderRadius: 9, cursor: isHost ? "pointer" : "default", marginBottom: 2, transition: "background .15s, box-shadow .15s", background: isMoving ? "rgba(var(--primary-rgb),0.15)" : isTarget ? "rgba(var(--primary-rgb),0.05)" : "transparent", boxShadow: isMoving ? `0 0 0 2px var(--primary)` : isTarget ? "0 0 0 1px rgba(var(--primary-rgb),0.25)" : "none" }}>
                           <span style={{ fontSize: 21, flexShrink: 0 }}>{p?.avatar || "👤"}</span>
                           <span style={{ flex: 1, fontWeight: 600, fontSize: 14, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{p?.name || pid}</span>
                           {skill && <span style={{ fontSize: 14, flexShrink: 0 }} title={skill}>{SKILL_ICON[skill]}</span>}
                           {isMoving && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", fontFamily: "'Noto Sans JP',sans-serif" }}>moving</span>}
+                          {pid === uid && <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 700, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, padding: "2px 8px", fontFamily: "'Noto Sans JP',sans-serif" }}>You</span>}
                         </div>
                       );
                     })}
                   </div>
-                )) : !seatingLoading && (
+                )) : isHost && !seatingLoading && (
                   <div style={{ textAlign: "center", padding: "10px 0 4px", fontSize: 13, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>
                     {seatingPool.length === 0 ? "No confirmed players yet." : "Tap Randomize to generate table assignments."}
                   </div>
