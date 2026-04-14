@@ -101,64 +101,70 @@ export const sakura = {
 };
 
 // ── Theme: Bam Bird ──────────────────────────────────────────────────────────
+// Bamboo grove at dusk — deep forest greens anchored by warm amber/gold
+// accents (the glow of paper lanterns through bamboo leaves).
+// Gradients shift from cool shadow-green into warm canopy light.
 export const forest = {
   id: "forest",
   name: "Bam Bird",
   emoji: "🐦",
 
-  primary:             "#5a8a5c",
-  primaryDark:         "#3d6b3e",
-  primaryMuted:        "#4a7a4b",
-  primarySubtle:       "#7aaa7c",
-  primaryFaint:        "#a8c8aa",
-  secondaryAccent:     "#3d7a5e",
+  // ── Palette ────────────────────────────────────────────────────────────────
+  primary:             "#2e7d4f",   // deep bamboo green
+  primaryDark:         "#1a5c38",   // forest shadow
+  primaryMuted:        "#3a7a50",
+  primarySubtle:       "#6aab80",
+  primaryFaint:        "#a8ccb4",
+  secondaryAccent:     "#c47c28",   // warm amber — lantern glow through leaves
 
-  primaryRgb:          "90,138,92",
-  shadowRgb:           "58,100,60",
-  borderLightRgb:      "160,210,165",
-  cardAltRgb:          "220,244,222",
+  primaryRgb:          "46,125,79",
+  shadowRgb:           "20,72,44",
+  borderLightRgb:      "130,200,155",
+  cardAltRgb:          "210,240,220",
 
-  bgBody:              "#c8dfc9",
-  bgShellStart:        "#e4f2e5",
-  bgShellMid:          "#d4ead6",
-  bgShellEnd:          "#c4dfc6",
-  bgNav:               "#eef6ef",
-  bgInput:             "#f7fbf7",
-  bgCard:              "rgba(240,252,241,0.88)",
-  bgCardAlt:           "rgba(220,244,222,0.72)",
-  bgCardBase:          "rgba(245,253,246,0.88)",
-  bgSurface:           "rgba(240,252,241,0.60)",
-  bgMsgOther:          "rgba(240,252,241,0.92)",
-  bgPopup:             "rgba(244,253,245,0.97)",
+  // Backgrounds — misty forest floor, cool greens deepening to near-shadow
+  bgBody:              "#b8d9c4",
+  bgShellStart:        "#e0f0e8",
+  bgShellMid:          "#cce3d6",
+  bgShellEnd:          "#b8d4c4",
+  bgNav:               "#ecf6f0",
+  bgInput:             "#f5fbf7",
+  bgCard:              "rgba(238,252,243,0.88)",
+  bgCardAlt:           "rgba(210,240,222,0.72)",
+  bgCardBase:          "rgba(244,253,247,0.90)",
+  bgSurface:           "rgba(224,244,232,0.60)",
+  bgMsgOther:          "rgba(238,252,243,0.93)",
+  bgPopup:             "rgba(244,253,247,0.97)",
 
-  inputSelectedBg:     "#d4f0d6",
-  inputUnselectedBg:   "#edf7ee",
+  inputSelectedBg:     "#cce8d8",
+  inputUnselectedBg:   "#e8f5ed",
 
-  borderInput:         "#bddbbf",
-  borderNav:           "rgba(140,195,145,0.5)",
-  borderCard:          "rgba(200,235,202,0.70)",
+  borderInput:         "#a8d4bc",
+  borderNav:           "rgba(120,185,145,0.50)",
+  borderCard:          "rgba(200,238,214,0.72)",
 
-  textBody:            "#243a26",
-  textHeading:         "#162818",
-  textMuted:           "#6a9a6c",
-  textSubtle:          "#8eba90",
-  sectionTitle:        "#1e4a20",
+  textBody:            "#17311f",
+  textHeading:         "#0e2016",
+  textMuted:           "#5a8c6c",
+  textSubtle:          "#88b89a",
+  sectionTitle:        "#1a5c38",
 
-  shadowPrimary:       "rgba(58,100,60,0.15)",
-  shadowCard:          "rgba(58,100,60,0.07)",
-  shadowBtn:           "#5a8a5c50",
-  shadowInset:         "rgba(255,255,255,0.80)",
+  shadowPrimary:       "rgba(20,72,44,0.18)",
+  shadowCard:          "rgba(20,72,44,0.08)",
+  shadowBtn:           "#2e7d4f55",
+  shadowInset:         "rgba(255,255,255,0.82)",
 
-  headerGradient:      "linear-gradient(135deg,rgba(58,100,60,0.92),rgba(61,122,94,0.88))",
-  headerGradient2:     "linear-gradient(150deg,rgba(28,58,30,0.99) 0%,rgba(48,85,50,0.98) 55%,rgba(36,72,46,0.98) 100%)",
-  activeTabGradient:   "linear-gradient(135deg,#5a8a5c,#3d7a5e)",
-  avatarBubbleBg:      "linear-gradient(135deg,#d4f0d6,#c4e8c6)",
-  chatSheetBg:         "linear-gradient(170deg,#eef6ef 0%,#e0eddf 50%,#d4e8d4 100%)",
+  // Gradients — deep forest into warm canopy glow
+  headerGradient:      "linear-gradient(135deg,rgba(20,72,44,0.95),rgba(196,124,40,0.82))",
+  headerGradient2:     "linear-gradient(150deg,rgba(10,30,18,0.99) 0%,rgba(26,92,56,0.97) 52%,rgba(160,96,20,0.90) 100%)",
+  activeTabGradient:   "linear-gradient(135deg,#2e7d4f,#c47c28)",
+  avatarBubbleBg:      "linear-gradient(135deg,#cce8d8,#b8d8c4)",
+  chatSheetBg:         "linear-gradient(170deg,#ecf6f0 0%,#d8ecdf 50%,#c8e0d0 100%)",
 
-  adminDeep:           "#1b2e1b",
-  adminMid:            "#2d5a2d",
-  adminLight:          "#5a8a5a",
-  adminMuted:          "#4a7a4a",
+  adminDeep:           "#0e2016",
+  adminMid:            "#1a5c38",
+  adminLight:          "#2e7d4f",
+  adminMuted:          "#246040",
 
   fontBody:            "'Noto Sans JP', sans-serif",
   fontDisplay:         "'Shippori Mincho', serif",
@@ -171,7 +177,7 @@ export const forest = {
   radiusBtnSm:         "12px",
   radiusSheet:         "26px",
 
-  scrollbarThumb:      "rgba(90,138,92,0.28)",
+  scrollbarThumb:      "rgba(46,125,79,0.28)",
 };
 
 // ── Theme: Dragons (dark) ────────────────────────────────────────────────────

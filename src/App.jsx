@@ -2655,7 +2655,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
         </div>
       </div>
 
-      <div style={{ display: "flex", background: "rgba(255,240,248,0.75)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "1px solid rgba(var(--border-light-rgb),.4)" }}>
+      <div style={{ display: "flex", background: "var(--bg-nav)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "1px solid rgba(var(--border-light-rgb),.4)" }}>
         {[["games","🀀 Games"],["members","👥 Members"]].map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "13px 0", fontSize: 15, fontWeight: 700, background: "none", border: "none", cursor: "pointer", color: tab === t ? group.color : "var(--primary-faint)", borderBottom: `3px solid ${tab === t ? group.color : "transparent"}`, fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}>{label}</button>
         ))}
