@@ -3025,7 +3025,7 @@ function GameChat({ game, group, uid, onClose }) {
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 5000, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }} />
-      <div className="sUp" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 5001, maxWidth: 480, margin: "0 auto", height: "88vh", display: "flex", flexDirection: "column", background: "var(--chat-sheet-bg)", borderRadius: "22px 22px 0 0", boxShadow: "0 -8px 40px rgba(0,0,0,0.22)", overflow: "hidden" }}>
+      <div className="sUp" style={{ position: "fixed", bottom: 74, left: 0, right: 0, zIndex: 5001, maxWidth: 480, margin: "0 auto", height: "calc(88vh - 74px)", display: "flex", flexDirection: "column", background: "var(--chat-sheet-bg)", borderRadius: "22px 22px 0 0", boxShadow: "0 -8px 40px rgba(0,0,0,0.22)", overflow: "hidden" }}>
         {/* Handle */}
         <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
           <div style={{ width: 36, height: 4, borderRadius: 999, background: "rgba(var(--primary-rgb),0.22)" }} />
@@ -3101,7 +3101,7 @@ function GameChat({ game, group, uid, onClose }) {
           <div ref={bottomRef} />
         </div>
         {/* Input */}
-        <div style={{ padding: "10px 14px 24px", borderTop: "1px solid rgba(var(--primary-rgb),0.1)", display: "flex", gap: 8, flexShrink: 0, background: "var(--bg-nav)" }}>
+        <div style={{ padding: "10px 14px calc(10px + env(safe-area-inset-bottom))", borderTop: "1px solid rgba(var(--primary-rgb),0.1)", display: "flex", gap: 8, flexShrink: 0, background: "var(--bg-nav)" }}>
           <textarea value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Message the game…" rows={1} style={{ ...inputSt, flex: 1, marginBottom: 0, resize: "none", padding: "10px 13px", fontSize: 15, lineHeight: 1.5, maxHeight: 100, overflowY: "auto" }} />
           <button onClick={send} disabled={!text.trim()} style={{ width: 42, height: 42, borderRadius: 999, border: "none", background: text.trim() ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(var(--primary-rgb),0.12)", color: text.trim() ? "#fff" : "var(--primary-faint)", fontSize: 18, cursor: text.trim() ? "pointer" : "default", flexShrink: 0, alignSelf: "flex-end" }}>↑</button>
         </div>
