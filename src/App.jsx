@@ -4038,15 +4038,19 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
               📅 {fmt(game.date)}{game.time ? ` · ${fmtT(game.time)}` : ""}{game.endTime ? ` – ${fmtT(game.endTime)}` : ""}
             </div>
             {game.location && (
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", fontFamily: "'Noto Sans JP',sans-serif" }}>📍 {game.location}</div>
+              <button
+                onClick={() => {
+                  if (window.confirm(`Open "${game.location}" in Maps?`)) {
+                    window.open(`https://maps.apple.com/?q=${encodeURIComponent(game.location)}`, "_blank");
+                  }
+                }}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 8px", borderRadius: 999, fontSize: 13, color: "rgba(255,255,255,0.72)", fontFamily: "'Noto Sans JP',sans-serif", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}
+              >📍 {game.location}</button>
             )}
           </div>
         </div>
       </div>
       <div style={{ padding: "18px 16px 100px" }}>
-        <IRow icon="📅" label="Date" val={fmt(game.date)} />
-        <IRow icon="🕐" label="Time" val={fmtRange(game.time, game.endTime)} />
-        <IRow icon="📍" label="Location" val={game.location} />
         <IRow icon="🎯" label="Host" val={game.host} />
         <IRow icon="👥" label="Seats" val={`${filledSeats} / ${totalSeats} filled${seatsLeft > 0 ? ` · ${seatsLeft} open` : " · Full"}`} />
         {game.recurring && <IRow icon="🔁" label="Recurring" val={{ weekly: "Weekly", biweekly: "Every 2 Weeks", monthly: "Monthly" }[game.recurring] || game.recurring} />}
