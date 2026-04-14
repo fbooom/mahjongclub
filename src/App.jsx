@@ -4041,7 +4041,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
               <button
                 onClick={() => {
                   if (window.confirm(`Open "${game.location}" in Maps?`)) {
-                    window.open(`https://maps.apple.com/?q=${encodeURIComponent(game.location)}`, "_blank");
+                    window.location.href = `https://maps.apple.com/?q=${encodeURIComponent(game.location)}`;
                   }
                 }}
                 style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 8px", borderRadius: 999, fontSize: 13, color: "rgba(255,255,255,0.72)", fontFamily: "'Noto Sans JP',sans-serif", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}
