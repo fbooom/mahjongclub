@@ -3339,11 +3339,22 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
   const [recurring, setRecurring] = useState(false);
   const [freq, setFreq] = useState("weekly");
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [coHostIds, setCoHostIds] = useState(new Set());
 
   const otherMembers = group.members.filter((m) => m.id !== myUid);
   const allSelected = otherMembers.length > 0 && otherMembers.every((m) => selectedIds.has(m.id));
-  const toggleMember = (id) => setSelectedIds((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const toggleMember = (id) => setSelectedIds((prev) => {
+    const s = new Set(prev);
+    if (s.has(id)) {
+      s.delete(id);
+      setCoHostIds((c) => { const n = new Set(c); n.delete(id); return n; });
+    } else {
+      s.add(id);
+    }
+    return s;
+  });
   const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(otherMembers.map((m) => m.id)));
+  const toggleCoHost = (id) => setCoHostIds((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
   const [occurrences, setOccurrences] = useState(4);
 
   const FREQS = [
@@ -3367,15 +3378,16 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
     if (!ok) return;
     const rsvps = { [myUid]: "yes" };
     selectedIds.forEach((id) => { rsvps[id] = "yes"; });
+    const coHostArr = [...coHostIds];
     if (!recurring) {
       const ts = new Date(`${date}T${time}`).getTime();
-      onSave({ id: "gm" + uid(), title: title.trim(), host: myUser.name, hostId: myUid, date: ts, time, endTime, location: loc.trim(), seats: tables * 4, rsvps, note, waitlist: [] });
+      onSave({ id: "gm" + uid(), title: title.trim(), host: myUser.name, hostId: myUid, coHostIds: coHostArr, date: ts, time, endTime, location: loc.trim(), seats: tables * 4, rsvps, note, waitlist: [] });
     } else {
       const dates = previewDates();
       const games = dates.map((ts) => ({
         id: "gm" + uid(),
         title: title.trim(),
-        host: myUser.name, hostId: myUid,
+        host: myUser.name, hostId: myUid, coHostIds: coHostArr,
         date: ts, time, endTime,
         location: loc.trim(),
         seats: tables * 4, rsvps,
@@ -3437,9 +3449,10 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {otherMembers.map((m) => {
               const selected = selectedIds.has(m.id);
+              const isCoHostMember = coHostIds.has(m.id);
               return (
                 <div key={m.id} onClick={() => toggleMember(m.id)} style={{
-                  display: "flex", alignItems: "center", gap: 12,
+                  display: "flex", alignItems: "center", gap: 10,
                   padding: "11px 14px", borderRadius: 14, cursor: "pointer",
                   transition: "all .18s",
                   background: selected ? `${group.color}14` : "var(--bg-surface)",
@@ -3453,7 +3466,23 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
                     fontSize: 20, border: selected ? `1.5px solid ${group.color}44` : "1.5px solid var(--border-card)",
                     transition: "all .18s",
                   }}>{m.avatar}</div>
-                  <span style={{ flex: 1, fontWeight: 600, fontSize: 15, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{m.name}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{m.name}</div>
+                    {isCoHostMember && <div style={{ fontSize: 11, fontWeight: 700, color: "#b8860b", marginTop: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>👑 Co-host</div>}
+                  </div>
+                  {selected && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleCoHost(m.id); }}
+                      title={isCoHostMember ? "Remove co-host" : "Make co-host"}
+                      style={{
+                        width: 30, height: 30, borderRadius: 9, border: "none", flexShrink: 0, cursor: "pointer",
+                        background: isCoHostMember ? "linear-gradient(135deg,#d4a843,#b88a2a)" : "rgba(200,180,190,0.25)",
+                        fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center",
+                        boxShadow: isCoHostMember ? "0 2px 8px rgba(212,168,67,0.45)" : "none",
+                        transition: "all .18s",
+                      }}
+                    >👑</button>
+                  )}
                   <div style={{
                     width: 22, height: 22, borderRadius: 999, flexShrink: 0,
                     background: selected ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "transparent",
@@ -3665,7 +3694,8 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
   const [confirmReRandomize, setConfirmReRandomize] = useState(false);
   const [gameChatOpen, setGameChatOpen] = useState(false);
   const isCreator = !isGuestView && group.members.some((m) => m.id === uid && m.host);
-  const canInvite = !isGuestView && (isCreator || (group.openInvites ?? false));
+  const isCoHost = !isGuestView && (game.coHostIds || []).includes(uid);
+  const canInvite = !isGuestView && (isCreator || isCoHost || (game.hostId === uid) || (group.openInvites ?? false));
   const myRsvp = game.rsvps[uid] || "pending";
   // Member RSVPs only (guests tracked separately)
   const yes = Object.values(game.rsvps).filter((v) => v === "yes").length;
@@ -3694,7 +3724,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
   });
 
   // ── Seating helpers ──
-  const isHost = !isGuestView && game.hostId === uid;
+  const isHost = !isGuestView && (game.hostId === uid || isCoHost);
   const goingUids = Object.entries(game.rsvps || {}).filter(([, v]) => v === "yes").map(([id]) => id);
   const seatingPool = [...goingUids, ...confirmedGuests.map(g => g.id)];
   // Lookup: id → {name, avatar}
@@ -3764,7 +3794,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
         <button onClick={() => isGuestView ? go("home") : go("group", group.id)} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
         {/* Action icons */}
         <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 7 }}>
-          {!isGuestView && game.hostId === uid && (
+          {isHost && (
             <button onClick={() => go("editGame", group.id, game.id)} title="Edit game" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>✏️</button>
           )}
           {!isGuestView && (
@@ -3836,6 +3866,8 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
             <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0" }}>
               <span style={{ fontSize: 19 }}>{entry.avatar}</span>
               <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", flex: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{entry.name}</span>
+              {entry.id === game.hostId && <span style={{ fontSize: 11, color: "#8a6a00", fontWeight: 700, background: "rgba(212,168,67,0.15)", borderRadius: 999, padding: "2px 8px" }}>⭐ Host</span>}
+              {(game.coHostIds || []).includes(entry.id) && <span style={{ fontSize: 11, color: "#8a6a00", fontWeight: 700, background: "rgba(212,168,67,0.12)", borderRadius: 999, padding: "2px 8px" }}>👑 Co-host</span>}
               {entry.isGuest && <span style={{ fontSize: 11, color: "var(--secondary-accent)", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
               {entry.id === uid && <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 700, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, padding: "2px 8px" }}>You</span>}
             </div>
@@ -3904,14 +3936,18 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
           <div style={{ background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, padding: "15px 16px", marginBottom: 12, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)", border: "1px solid var(--border-card)" }}>
             <div style={{ fontWeight: 700, color: "var(--text-body)", marginBottom: 10, fontFamily: "'Shippori Mincho',serif" }}>Your RSVP</div>
 
-            {/* Host cannot change their own RSVP */}
-            {game.hostId === uid ? (
+            {/* Host / co-host cannot change their own RSVP */}
+            {game.hostId === uid || isCoHost ? (
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, background: "linear-gradient(135deg,rgba(155,110,168,0.15),rgba(var(--primary-rgb),0.1))", border: "1px solid rgba(155,110,168,0.25)", marginBottom: 10 }}>
-                  <span style={{ fontSize: 19 }}>⭐</span>
+                  <span style={{ fontSize: 19 }}>{isCoHost && game.hostId !== uid ? "👑" : "⭐"}</span>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>You're the host — you're always going!</div>
-                    <div style={{ fontSize: 12, color: "#b08090", marginTop: 2, fontFamily: "'Noto Sans JP',sans-serif" }}>To step down, transfer host in Edit → Players</div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      {isCoHost && game.hostId !== uid ? "You're a co-host — you're always going!" : "You're the host — you're always going!"}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#b08090", marginTop: 2, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      {isCoHost && game.hostId !== uid ? "The host can remove your co-host role in Edit → Players" : "To step down, transfer host in Edit → Players"}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -4048,6 +4084,7 @@ function EditGame({ uid: myUid, game, group, onBack, onSave, onTransferHost }) {
     const existing = Object.keys(game.rsvps || {});
     return new Set(existing.length ? existing : group.members.map((m) => m.id));
   });
+  const [coHostIds, setCoHostIds] = useState(new Set(game.coHostIds || []));
 
   // Guests: people outside the group
   const [guests, setGuests] = useState(game.guests || []);
@@ -4061,10 +4098,16 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
     if (id === myUid) return; // can't remove yourself as host
     setInvitedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+        setCoHostIds((c) => { const n = new Set(c); n.delete(id); return n; });
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
+  const toggleCoHost = (id) => setCoHostIds((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
 
   const addGuest = () => {
     const name = guestName.trim();
@@ -4134,7 +4177,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
       }
     });
 
-    onSave({ ...game, title: title.trim(), date: ts, time, endTime, location: loc.trim(), note, seats: tables * 4, rsvps: newRsvps, guests: newGuests, waitlist: newWaitlist });
+    onSave({ ...game, title: title.trim(), date: ts, time, endTime, location: loc.trim(), note, seats: tables * 4, rsvps: newRsvps, guests: newGuests, waitlist: newWaitlist, coHostIds: [...coHostIds] });
   };
 
   const ok = title.trim() && date && time && loc.trim();
@@ -4211,24 +4254,39 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
             {group.members.map((m) => {
               const isIn = invitedIds.has(m.id);
               const isMe = m.id === myUid;
+              const isCo = coHostIds.has(m.id);
               return (
-                <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 10 }}>
+                <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                   <div style={{ width: 38, height: 38, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>{m.avatar}</div>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)" }}>{m.name}</div>
                     {isMe && <div style={{ fontSize: 12, color: "var(--primary)", fontWeight: 700 }}>Host · Always invited</div>}
+                    {!isMe && isCo && <div style={{ fontSize: 11, fontWeight: 700, color: "#b8860b", marginTop: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>👑 Co-host</div>}
                   </div>
+                  {!isMe && isIn && (
+                    <button
+                      onClick={() => toggleCoHost(m.id)}
+                      title={isCo ? "Remove co-host" : "Make co-host"}
+                      style={{
+                        width: 30, height: 30, borderRadius: 9, border: "none", flexShrink: 0, cursor: "pointer",
+                        background: isCo ? "linear-gradient(135deg,#d4a843,#b88a2a)" : "rgba(200,180,190,0.25)",
+                        fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center",
+                        boxShadow: isCo ? "0 2px 8px rgba(212,168,67,0.45)" : "none",
+                        transition: "all .18s",
+                      }}
+                    >👑</button>
+                  )}
                   {!isMe && (
                     <div onClick={() => toggleMember(m.id)} style={{
                       width: 32, height: 32, borderRadius: 999, cursor: "pointer",
                       display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
-                      transition: "all .18s",
+                      transition: "all .18s", flexShrink: 0,
                       background: isIn ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(200,180,190,0.25)",
                       boxShadow: isIn ? `0 2px 8px ${group.color}44` : "none",
                       border: isIn ? "none" : "1px solid rgba(var(--primary-rgb),0.25)",
                     }}>{isIn ? "✅" : "➕"}</div>
                   )}
-                  {isMe && <div style={{ width: 32, height: 32, borderRadius: 999, background: `linear-gradient(135deg,${group.color},${group.color}cc)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>✅</div>}
+                  {isMe && <div style={{ width: 32, height: 32, borderRadius: 999, background: `linear-gradient(135deg,${group.color},${group.color}cc)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>✅</div>}
                 </div>
               );
             })}
