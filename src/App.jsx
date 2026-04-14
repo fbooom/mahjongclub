@@ -4033,7 +4033,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
         <div style={{ textAlign: "center", position: "relative" }}>
           <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 25, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.2)", marginBottom: 8 }}>{game.title}</h1>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+            <div style={{ fontSize: 15, color: "rgba(255,255,255,0.85)", fontFamily: "'Noto Sans JP',sans-serif" }}>
               📅 {fmt(game.date)}{game.time ? ` · ${fmtT(game.time)}` : ""}{game.endTime ? ` – ${fmtT(game.endTime)}` : ""}
             </div>
             {game.location && (
@@ -4043,7 +4043,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
                     window.location.href = `https://maps.apple.com/?q=${encodeURIComponent(game.location)}`;
                   }
                 }}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 8px", borderRadius: 999, fontSize: 13, color: "rgba(255,255,255,0.72)", fontFamily: "'Noto Sans JP',sans-serif", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 8px", borderRadius: 999, fontSize: 15, color: "rgba(255,255,255,0.72)", fontFamily: "'Noto Sans JP',sans-serif", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}
               >📍 {game.location}</button>
             )}
           </div>
