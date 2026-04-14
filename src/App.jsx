@@ -3923,7 +3923,6 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
   const isCoHost = !isGuestView && (game.coHostIds || []).includes(uid);
   const canInvite = !isGuestView && (isCreator || isCoHost || (game.hostId === uid) || (group.openInvites ?? false));
   const myRsvp = game.rsvps[uid] || "pending";
-  // Member RSVPs only (guests tracked separately)
   const yes = Object.values(game.rsvps).filter((v) => v === "yes").length;
   const maybe = Object.values(game.rsvps).filter((v) => v === "maybe").length;
   const no = Object.values(game.rsvps).filter((v) => v === "no").length;
@@ -3938,16 +3937,16 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
   const isFull = filledSeats >= totalSeats;
   const seatsLeft = Math.max(0, totalSeats - filledSeats);
 
-  // Build a single unified waitlist display list with name + avatar for everyone
-  const unifiedWaitlist = rawWaitlist.map((id) => {
-    // Is it a guest?
-    const guest = allGuests.find((g) => g.id === id);
-    if (guest) return { id, name: guest.name, avatar: guest.avatar, isGuest: true };
-    // Is it a group member?
-    const member = group.members.find((m) => m.id === id);
-    if (member) return { id, name: member.name, avatar: member.avatar, isGuest: false };
-    return { id, name: "Unknown", avatar: "👤", isGuest: false };
-  });
+  // Build a single unified waitlist display list — drop anyone no longer in the game
+  const unifiedWaitlist = rawWaitlist
+    .map((id) => {
+      const guest = allGuests.find((g) => g.id === id);
+      if (guest) return { id, name: guest.name, avatar: guest.avatar, isGuest: true };
+      const member = group.members.find((m) => m.id === id);
+      if (member) return { id, name: member.name, avatar: member.avatar, isGuest: false };
+      return null; // removed from game/group — omit
+    })
+    .filter(Boolean);
 
   // ── Seating helpers ──
   const isHost = !isGuestView && (game.hostId === uid || isCoHost);
@@ -4078,19 +4077,26 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
         {/* RSVPs card */}
         {(() => {
           // Build named lists for each status
+          // Returns null if the person is no longer in the game/group
           const resolveName = (id) => {
             const m = group.members.find((m) => m.id === id);
             if (m) return { name: m.name, avatar: m.avatar };
             const g = allGuests.find((g) => g.id === id);
             if (g) return { name: g.name, avatar: g.avatar, isGuest: true };
-            return { name: "Unknown", avatar: "👤" };
+            return null;
           };
           const goingList = [
-            ...Object.entries(game.rsvps).filter(([, v]) => v === "yes").map(([id]) => ({ id, ...resolveName(id) })),
+            ...Object.entries(game.rsvps).filter(([, v]) => v === "yes")
+              .map(([id]) => { const r = resolveName(id); return r ? { id, ...r } : null; })
+              .filter(Boolean),
             ...confirmedGuests.map((g) => ({ ...g, isGuest: true })),
           ];
-          const maybeList = Object.entries(game.rsvps).filter(([, v]) => v === "maybe").map(([id]) => ({ id, ...resolveName(id) }));
-          const noList    = Object.entries(game.rsvps).filter(([, v]) => v === "no").map(([id]) => ({ id, ...resolveName(id) }));
+          const maybeList = Object.entries(game.rsvps).filter(([, v]) => v === "maybe")
+            .map(([id]) => { const r = resolveName(id); return r ? { id, ...r } : null; })
+            .filter(Boolean);
+          const noList = Object.entries(game.rsvps).filter(([, v]) => v === "no")
+            .map(([id]) => { const r = resolveName(id); return r ? { id, ...r } : null; })
+            .filter(Boolean);
 
           const AttendeeRow = ({ entry }) => (
             <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0" }}>
@@ -4110,9 +4116,10 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
                 <div style={{ fontWeight: 700, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>RSVPs</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <Chip big color="var(--secondary-accent)">✅ {yes}</Chip>
+                    <Chip big color="var(--secondary-accent)">✅ {goingList.length}</Chip>
                     <Chip big color="#c4936e">🤔 {maybe}</Chip>
                     <Chip big color="var(--primary)">❌ {no}</Chip>
+                    {unifiedWaitlist.length > 0 && <Chip big color="var(--text-muted)">⏳ {unifiedWaitlist.length}</Chip>}
                   </div>
                   <span style={{ fontSize: 17, color: "var(--primary-faint)", transition: "transform .2s", display: "inline-block", transform: showAttendees ? "rotate(180deg)" : "rotate(0deg)" }}>⌄</span>
                 </div>
