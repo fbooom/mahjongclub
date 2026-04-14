@@ -702,7 +702,7 @@ export default function App() {
         </div>
       )}
 
-      {showWelcome && <WelcomeModal onClose={() => setShowWelcome(false)} />}
+      {showWelcome && <WelcomeModal onClose={() => { setShowWelcome(false); go("account"); }} />}
 
       {/* Page content */}
       <div ref={scrollRef} data-scroll-container style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 90, paddingTop: impersonating ? 52 : 0 }}>
@@ -999,10 +999,6 @@ function WelcomeModal({ onClose }) {
         }}>
           Let's Play! 🀄
         </button>
-
-        <p style={{ fontSize: 12, color: "#c0a0b0", marginTop: 14, fontFamily: "'Noto Sans JP',sans-serif" }}>
-          Tap anywhere outside to dismiss
-        </p>
       </div>
     </div>
   );
@@ -1363,12 +1359,13 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
     "🎀","🍄","🌻","🪷","🦢","🐞","🍒","🫧","🌈","🪸","🫶","🎐",
   ];
   const [avatar, setAvatar] = useState(user.avatar);
+  const [skillLevel, setSkillLevel] = useState(user.skillLevel || "");
 
   const save = async () => {
     const newName = name.trim() || user.name;
     try {
-      await updateDoc(doc(db, "users", uid), { name: newName, avatar });
-      setUser({ ...user, name: newName, avatar });
+      await updateDoc(doc(db, "users", uid), { name: newName, avatar, skillLevel });
+      setUser({ ...user, name: newName, avatar, skillLevel });
       setEditing(false);
       flash("Profile updated!", "✨");
     } catch { flash("Error saving profile", "❌"); }
@@ -1483,6 +1480,21 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
               <input value={name} onChange={(e) => setName(e.target.value)} style={inputSt} />
               <Lbl mt>Email</Lbl>
               <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" style={inputSt} />
+              <Lbl mt>Skill Level</Lbl>
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                {[["Beginner","🌱"],["Intermediate","🀄"],["Advanced","🏆"]].map(([lvl, icon]) => (
+                  <div key={lvl} onClick={() => setSkillLevel(lvl)} style={{
+                    flex: 1, padding: "10px 6px", borderRadius: 12, textAlign: "center", cursor: "pointer",
+                    background: skillLevel === lvl ? `linear-gradient(135deg,var(--primary),var(--primary-dark))` : "var(--border-card)",
+                    border: `2px solid ${skillLevel === lvl ? "transparent" : "rgba(var(--primary-rgb),0.15)"}`,
+                    boxShadow: skillLevel === lvl ? "0 4px 12px rgba(var(--shadow-rgb),0.2)" : "none",
+                    transition: "all .18s",
+                  }}>
+                    <div style={{ fontSize: 20, marginBottom: 4 }}>{icon}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: skillLevel === lvl ? "#fff" : "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{lvl}</div>
+                  </div>
+                ))}
+              </div>
               <Lbl mt>Avatar</Lbl>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
                 {AVATARS.map((a) => (
@@ -1502,6 +1514,19 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                   </div>
                 </div>
               ))}
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 17 }}>🎯</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, color: "var(--primary-faint)", fontWeight: 700, textTransform: "uppercase", letterSpacing: .5 }}>Skill Level</div>
+                  {user.skillLevel ? (
+                    <div style={{ fontSize: 15, color: "var(--text-body)", fontWeight: 500, marginTop: 1 }}>{user.skillLevel}</div>
+                  ) : (
+                    <div style={{ fontSize: 13, color: "var(--primary)", fontWeight: 700, marginTop: 1, cursor: "pointer" }} onClick={() => setEditing(true)}>
+                      Please select your skill level →
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
