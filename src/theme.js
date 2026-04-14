@@ -250,11 +250,95 @@ export const jadeDragon = {
   scrollbarThumb:      "rgba(212,168,67,0.30)",
 };
 
+// ── Theme: Tiles ─────────────────────────────────────────────────────────────
+// Inspired by 青花瓷 (qīnghuā cí) — Chinese blue-and-white porcelain.
+// Deep cobalt glazes on near-white porcelain, highlighted by glazed cyan.
+export const tiles = {
+  id: "tiles",
+  name: "Tiles",
+  emoji: "💠",
+
+  // ── Palette ────────────────────────────────────────────────────────────────
+  primary:             "#1762c8",   // cobalt — the signature 青花瓷 glaze blue
+  primaryDark:         "#0d4daa",   // deep indigo-navy
+  primaryMuted:        "#1e69c4",
+  primarySubtle:       "#5c96d8",
+  primaryFaint:        "#a0c4eb",
+  secondaryAccent:     "#0891b2",   // glazed cyan — light catching on porcelain
+
+  primaryRgb:          "23,98,200",
+  shadowRgb:           "13,77,170",
+  borderLightRgb:      "140,190,255",
+  cardAltRgb:          "210,232,255",
+
+  // Backgrounds — polished porcelain: cool blue-whites with quiet depth
+  bgBody:              "#c4d9f4",
+  bgShellStart:        "#e8f2fc",
+  bgShellMid:          "#d4e7f9",
+  bgShellEnd:          "#bfd5f4",
+  bgNav:               "#f2f7fd",
+  bgInput:             "#ffffff",
+  bgCard:              "rgba(255,255,255,0.86)",
+  bgCardAlt:           "rgba(210,232,255,0.70)",
+  bgCardBase:          "rgba(255,255,255,0.90)",
+  bgSurface:           "rgba(228,241,255,0.60)",
+  bgMsgOther:          "rgba(255,255,255,0.93)",
+  bgPopup:             "rgba(255,255,255,0.97)",
+
+  inputSelectedBg:     "#d4e8ff",
+  inputUnselectedBg:   "#edf4fc",
+
+  borderInput:         "#b5d1f5",
+  borderNav:           "rgba(140,190,255,0.48)",
+  borderCard:          "rgba(255,255,255,0.72)",
+
+  textBody:            "#0f2a54",
+  textHeading:         "#081a3c",
+  textMuted:           "#527ec0",
+  textSubtle:          "#86ace0",
+  sectionTitle:        "#0d4daa",
+
+  shadowPrimary:       "rgba(13,77,170,0.18)",
+  shadowCard:          "rgba(13,77,170,0.07)",
+  shadowBtn:           "#1762c852",
+  shadowInset:         "rgba(255,255,255,0.90)",
+
+  // Pre-built gradients — the visual soul of the theme
+  headerGradient:      "linear-gradient(135deg,rgba(13,77,170,0.95),rgba(8,145,178,0.88))",
+  headerGradient2:     "linear-gradient(150deg,rgba(8,20,60,0.99) 0%,rgba(13,77,170,0.97) 55%,rgba(8,145,178,0.94) 100%)",
+  activeTabGradient:   "linear-gradient(135deg,#1762c8,#0891b2)",
+  avatarBubbleBg:      "linear-gradient(135deg,#d4e8ff,#c0d8f4)",
+  chatSheetBg:         "linear-gradient(170deg,#f2f7fd 0%,#dae9f8 50%,#c8ddf5 100%)",
+
+  // Admin — deep navy tones, distinct from the primary cobalt
+  adminDeep:           "#080f24",
+  adminMid:            "#122870",
+  adminLight:          "#1762c8",
+  adminMuted:          "#1354b0",
+
+  // ── Typography ─────────────────────────────────────────────────────────────
+  fontBody:            "'Noto Sans JP', sans-serif",
+  fontDisplay:         "'Shippori Mincho', serif",
+  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Shippori+Mincho:wght@400;500;600;700;800&display=swap",
+
+  // ── Shape ──────────────────────────────────────────────────────────────────
+  radiusInput:         "12px",
+  radiusCard:          "18px",
+  radiusCardSm:        "14px",
+  radiusBtn:           "999px",
+  radiusBtnSm:         "12px",
+  radiusSheet:         "26px",
+
+  // ── Scrollbar ──────────────────────────────────────────────────────────────
+  scrollbarThumb:      "rgba(23,98,200,0.28)",
+};
+
 // ── Theme registry ────────────────────────────────────────────────────────────
 export const themes = {
   sakura,
   forest,
   jadeDragon,
+  tiles,
 };
 
 export const defaultThemeId = "sakura";
