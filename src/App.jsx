@@ -4075,9 +4075,6 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
           )}
         </div>
 
-        {/* Add to Calendar */}
-        <AddToCalendar game={game} groupName={group.name} />
-
         {/* RSVPs card */}
         {(() => {
           // Build named lists for each status
@@ -4088,7 +4085,10 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
             if (g) return { name: g.name, avatar: g.avatar, isGuest: true };
             return { name: "Unknown", avatar: "👤" };
           };
-          const goingList = Object.entries(game.rsvps).filter(([, v]) => v === "yes").map(([id]) => ({ id, ...resolveName(id) }));
+          const goingList = [
+            ...Object.entries(game.rsvps).filter(([, v]) => v === "yes").map(([id]) => ({ id, ...resolveName(id) })),
+            ...confirmedGuests.map((g) => ({ ...g, isGuest: true })),
+          ];
           const maybeList = Object.entries(game.rsvps).filter(([, v]) => v === "maybe").map(([id]) => ({ id, ...resolveName(id) }));
           const noList    = Object.entries(game.rsvps).filter(([, v]) => v === "no").map(([id]) => ({ id, ...resolveName(id) }));
 
@@ -4131,14 +4131,6 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
                       {list.map((entry) => <AttendeeRow key={entry.id} entry={entry} />)}
                     </div>
                   ))}
-
-                  {/* Confirmed guests */}
-                  {confirmedGuests.length > 0 && (
-                    <div style={{ marginTop: 4, paddingTop: 10, borderTop: "1px solid rgba(212,165,201,0.15)" }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: "var(--secondary-accent)", textTransform: "uppercase", letterSpacing: .5, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Guests · {confirmedGuests.length}</div>
-                      {confirmedGuests.map((g) => <AttendeeRow key={g.id} entry={{ ...g, isGuest: true }} />)}
-                    </div>
-                  )}
 
                   {/* Waitlist */}
                   {unifiedWaitlist.length > 0 && (
@@ -4270,6 +4262,9 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
             )}
           </div>
         )}
+
+        {/* Add to Calendar */}
+        <AddToCalendar game={game} groupName={group.name} />
 
         {game.hostId === uid && <Btn full outline danger onClick={() => setConfirmDelete(true)}>🗑 Delete Game</Btn>}
       </div>
