@@ -2999,10 +2999,12 @@ function GameChat({ game, group, uid, onClose }) {
     const t = text.trim();
     if (!t) return;
     setText("");
-    await addDoc(collection(db, "groups", group.id, "games", game.id, "messages"), {
-      uid, name: sender.name, avatar: sender.avatar,
-      text: t, createdAt: serverTimestamp(), reactions: {}, replies: [],
-    });
+    try {
+      await addDoc(collection(db, "groups", group.id, "games", game.id, "messages"), {
+        uid, name: sender.name, avatar: sender.avatar,
+        text: t, createdAt: serverTimestamp(), reactions: {}, replies: [],
+      });
+    } catch (e) { console.error("GameChat send:", e); setText(t); }
   };
 
   const sendReply = async (msgId) => {
