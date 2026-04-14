@@ -760,7 +760,7 @@ export default function App() {
             }} />
         )}
         {page === "joinGroup" && (
-          <JoinGroup uid={uid} groups={groups} onBack={() => go("groups")}
+          <JoinGroup uid={uid} groups={groups} onBack={() => go("home")}
             onJoin={async (id) => {
               try {
                 await runTransaction(db, async (tx) => {
@@ -775,6 +775,18 @@ export default function App() {
                 });
                 go("group", id); flash("Joined!", "🎊");
               } catch { flash("Error joining group", "❌"); }
+            }}
+            onJoinGame={async (groupId, gameId) => {
+              try {
+                await updateDoc(doc(db, "groups", groupId, "games", gameId), {
+                  guestIds: arrayUnion(uid), [`rsvps.${uid}`]: "yes",
+                });
+                await updateDoc(doc(db, "users", uid), {
+                  guestGameRefs: arrayUnion({ groupId, gameId }),
+                });
+                go("guestGame", groupId, gameId);
+                flash("You're in! See you at the table 🀄", "🎉");
+              } catch { flash("Could not join game", "❌"); }
             }} />
         )}
         {page === "editGroup" && group && (
@@ -2445,43 +2457,148 @@ function OpenInvitesToggle({ value, onChange }) {
 }
 
 /* JOIN GROUP */
-function JoinGroup({ uid, groups, onBack, onJoin }) {
+function JoinGroup({ uid, groups, onBack, onJoin, onJoinGame }) {
+  const [mode, setMode] = useState(null); // null | "group" | "game"
   const [code, setCode] = useState("");
-  const [match, setMatch] = useState(null);
+  const [groupMatch, setGroupMatch] = useState(null);
+  const [gameMatch, setGameMatch] = useState(null);
   const [searching, setSearching] = useState(false);
   const clean = code.trim().toUpperCase();
-  const alreadyIn = match && (match.memberIds || []).includes(uid);
 
+  // Reset code + results whenever mode changes
+  useEffect(() => { setCode(""); setGroupMatch(null); setGameMatch(null); setSearching(false); }, [mode]);
+
+  // Group search
   useEffect(() => {
-    setMatch(null);
+    if (mode !== "group") return;
+    setGroupMatch(null);
     if (clean.length < 4) return;
     setSearching(true);
-    // Search both uppercase and lowercase variants to handle codes created before
-    // the uppercase-normalization was added.
     const variants = [...new Set([clean, clean.toLowerCase()])];
     getDocs(query(collection(db, "groups"), where("code", "in", variants)))
-      .then((snap) => { setMatch(snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data(), games: [] }); })
-      .catch(() => setMatch(null))
+      .then((snap) => setGroupMatch(snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data(), games: [] }))
+      .catch(() => setGroupMatch(null))
       .finally(() => setSearching(false));
-  }, [clean]);
+  }, [clean, mode]);
 
+  // Game search
+  useEffect(() => {
+    if (mode !== "game") return;
+    setGameMatch(null);
+    if (clean.length < 3) return;
+    setSearching(true);
+    getDoc(doc(db, "gameCodes", clean))
+      .then(async (codeSnap) => {
+        if (!codeSnap.exists() || codeSnap.data().date < Date.now()) {
+          setGameMatch(null); setSearching(false); return;
+        }
+        const { groupId, gameId } = codeSnap.data();
+        const gameSnap = await getDoc(doc(db, "groups", groupId, "games", gameId));
+        if (!gameSnap.exists()) { setGameMatch(null); setSearching(false); return; }
+        setGameMatch({ ...gameSnap.data(), id: gameId, groupId });
+        setSearching(false);
+      })
+      .catch(() => { setGameMatch(null); setSearching(false); });
+  }, [clean, mode]);
+
+  const alreadyInGroup = groupMatch && (groupMatch.memberIds || []).includes(uid);
+  const alreadyInGame = gameMatch && (
+    (gameMatch.memberIds || []).includes(uid) || (gameMatch.guestIds || []).includes(uid)
+  );
+
+  const handleBack = mode !== null ? () => setMode(null) : onBack;
+
+  // ── Choice screen ─────────────────────────────────────────────────────────
+  if (!mode) {
+    return (
+      <Shell title="Join" onBack={handleBack} color="var(--secondary-accent)">
+        <div style={{ textAlign: "center", fontSize: 49, margin: "12px 0 20px" }}>🔑</div>
+        <p style={{ textAlign: "center", fontWeight: 700, fontSize: 16, color: "var(--text-body)", marginBottom: 24, fontFamily: "'Shippori Mincho',serif" }}>
+          What would you like to join?
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+          {[
+            { id: "group", icon: "👥", label: "Join a Group", sub: "Enter a group code to become a member" },
+            { id: "game",  icon: "🀄", label: "Join a Game",  sub: "Enter a game code to RSVP as a guest" },
+          ].map(({ id, icon, label, sub }) => (
+            <button key={id} onClick={() => setMode(id)} style={{
+              display: "flex", alignItems: "center", gap: 16,
+              padding: "18px 20px", borderRadius: 18, cursor: "pointer", textAlign: "left",
+              background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))",
+              border: "1.5px solid var(--border-card)",
+              boxShadow: "0 4px 18px rgba(var(--shadow-rgb),0.09), inset 0 1px 0 var(--shadow-inset)",
+              backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+              transition: "transform .14s",
+            }}
+              onMouseDown={(e) => { e.currentTarget.style.transform = "scale(.97)"; }}
+              onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+              onTouchStart={(e) => { e.currentTarget.style.transform = "scale(.97)"; }}
+              onTouchEnd={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+            >
+              <div style={{
+                width: 52, height: 52, borderRadius: 15, flexShrink: 0,
+                background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.14),rgba(var(--primary-rgb),0.07))",
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26,
+                border: "1.5px solid rgba(var(--primary-rgb),0.15)",
+              }}>{icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>{label}</div>
+                <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>{sub}</div>
+              </div>
+              <span style={{ color: "var(--primary-faint)", fontSize: 22 }}>›</span>
+            </button>
+          ))}
+        </div>
+      </Shell>
+    );
+  }
+
+  // ── Group code screen ──────────────────────────────────────────────────────
+  if (mode === "group") {
+    return (
+      <Shell title="Join a Group" onBack={handleBack} color="var(--secondary-accent)">
+        <div style={{ textAlign: "center", fontSize: 49, margin: "8px 0 20px" }}>👥</div>
+        <Lbl>Group Code</Lbl>
+        <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. TUE42"
+          autoFocus
+          style={{ width: "100%", padding: "14px 16px", background: "#fff", borderRadius: 14, fontSize: 23, fontWeight: 900, textAlign: "center", letterSpacing: 6, textTransform: "uppercase", marginBottom: 14, border: "2px solid var(--border-input)", color: "var(--text-body)", boxSizing: "border-box" }} />
+        {searching && <p style={{ color: "var(--secondary-accent)", fontWeight: 700, fontSize: 15, marginBottom: 14, textAlign: "center" }}>Searching…</p>}
+        {!searching && clean.length >= 4 && !groupMatch && <p style={{ color: "var(--primary)", fontWeight: 800, fontSize: 15, marginBottom: 14 }}>No group found with that code</p>}
+        {groupMatch && !alreadyInGroup && (
+          <div className="bIn" style={{ background: "var(--bg-card)", border: "1.5px solid var(--border-card)", borderRadius: 16, padding: "14px 18px", marginBottom: 18, textAlign: "center", boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08)" }}>
+            <div style={{ fontSize: 29 }}>{groupMatch.emoji}</div>
+            <div style={{ fontWeight: 800, fontSize: 18, color: "var(--text-body)", marginTop: 4 }}>{groupMatch.name}</div>
+            <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 2 }}>{(groupMatch.members || []).length} members</div>
+          </div>
+        )}
+        {alreadyInGroup && <p style={{ color: "var(--secondary-accent)", fontWeight: 800, fontSize: 15, marginBottom: 14, textAlign: "center" }}>You're already in this group!</p>}
+        <Btn full disabled={!groupMatch || !!alreadyInGroup} onClick={() => onJoin(groupMatch.id)}>Join Group</Btn>
+      </Shell>
+    );
+  }
+
+  // ── Game code screen ───────────────────────────────────────────────────────
   return (
-    <Shell title="Join a Group" onBack={onBack} color="var(--secondary-accent)">
-      <div style={{ textAlign: "center", fontSize: 53, margin: "8px 0 20px" }}>🔑</div>
-      <Lbl>Enter Group Code</Lbl>
-      <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. TUE42"
-        style={{ width: "100%", padding: "14px 16px", background: "#fff", borderRadius: 14, fontSize: 23, fontWeight: 900, textAlign: "center", letterSpacing: 6, textTransform: "uppercase", marginBottom: 14, border: "2px solid var(--border-input)", color: "var(--text-body)" }} />
+    <Shell title="Join a Game" onBack={handleBack} color="var(--secondary-accent)">
+      <div style={{ textAlign: "center", fontSize: 49, margin: "8px 0 20px" }}>🀄</div>
+      <Lbl>Game Code</Lbl>
+      <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. TUES7PM"
+        autoFocus
+        style={{ width: "100%", padding: "14px 16px", background: "#fff", borderRadius: 14, fontSize: 23, fontWeight: 900, textAlign: "center", letterSpacing: 6, textTransform: "uppercase", marginBottom: 14, border: "2px solid var(--border-input)", color: "var(--text-body)", boxSizing: "border-box" }} />
       {searching && <p style={{ color: "var(--secondary-accent)", fontWeight: 700, fontSize: 15, marginBottom: 14, textAlign: "center" }}>Searching…</p>}
-      {!searching && clean.length >= 4 && !match && <p style={{ color: "var(--primary)", fontWeight: 800, fontSize: 15, marginBottom: 14 }}>No group found with that code</p>}
-      {match && !alreadyIn && (
-        <div className="bIn" style={{ background: "#fdf0f7", border: "2px solid var(--primary-faint)33", borderRadius: 16, padding: "14px 18px", marginBottom: 18 }}>
-          <div style={{ fontSize: 29 }}>{match.emoji}</div>
-          <div style={{ fontWeight: 800, fontSize: 18, color: "var(--text-body)" }}>{match.name}</div>
-          <div style={{ fontSize: 14, color: "#b08090" }}>{(match.members || []).length} members</div>
+      {!searching && clean.length >= 3 && !gameMatch && <p style={{ color: "var(--primary)", fontWeight: 800, fontSize: 15, marginBottom: 14, textAlign: "center" }}>No game found with that code</p>}
+      {gameMatch && !alreadyInGame && (
+        <div className="bIn" style={{ background: "var(--bg-card)", border: "1.5px solid var(--border-card)", borderRadius: 16, padding: "16px 18px", marginBottom: 18, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08)" }}>
+          <div style={{ fontWeight: 800, fontSize: 17, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", marginBottom: 8 }}>{gameMatch.title}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {gameMatch.date && <div style={{ fontSize: 14, color: "var(--text-muted)" }}>📅 {fmt(gameMatch.date)}{gameMatch.time ? ` · ${fmtT(gameMatch.time)}` : ""}</div>}
+            {gameMatch.location && <div style={{ fontSize: 14, color: "var(--text-muted)" }}>📍 {gameMatch.location}</div>}
+            {gameMatch.host && <div style={{ fontSize: 14, color: "var(--text-muted)" }}>🎯 Host: {gameMatch.host}</div>}
+          </div>
         </div>
       )}
-      {alreadyIn && <p style={{ color: "var(--secondary-accent)", fontWeight: 800, fontSize: 15, marginBottom: 14 }}>You're already in this group!</p>}
-      <Btn full disabled={!match || !!alreadyIn} onClick={() => onJoin(match.id)}>Join Group</Btn>
+      {alreadyInGame && <p style={{ color: "var(--secondary-accent)", fontWeight: 800, fontSize: 15, marginBottom: 14, textAlign: "center" }}>You're already in this game!</p>}
+      <Btn full disabled={!gameMatch || !!alreadyInGame} onClick={() => onJoinGame(gameMatch.groupId, gameMatch.id)}>Join Game</Btn>
     </Shell>
   );
 }
