@@ -3324,9 +3324,14 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
     <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
       <div style={{ background: `linear-gradient(135deg,${group.color},${group.color}aa)`, padding: "50px 22px 28px", position: "relative" }}>
         <button onClick={() => isGuestView ? go("home") : go("group", group.id)} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.25)", border: "none", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff" }}>‹</button>
-        {!isGuestView && game.hostId === uid && (
-          <button onClick={() => go("editGame", group.id, game.id)} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✏️ Edit</button>
-        )}
+        <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 8 }}>
+          {!isGuestView && game.hostId === uid && (
+            <button onClick={() => go("editGame", group.id, game.id)} style={{ background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✏️ Edit</button>
+          )}
+          {canInvite && (
+            <button onClick={() => go("invite", group.id, game.id)} style={{ background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "7px 14px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer" }}>✉️ Invite</button>
+          )}
+        </div>
         <div style={{ textAlign: "center" }}>
           <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 25, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.2)" }}>{game.title}</h1>
         </div>
@@ -3486,7 +3491,6 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
           </div>
         )}
 
-        <Btn full onClick={() => go("invite", group.id, game.id)} style={{ marginBottom: 10 }}>✉️ Invite Players</Btn>
         {game.hostId === uid && <Btn full outline danger onClick={() => setConfirmDelete(true)}>🗑 Delete Game</Btn>}
       </div>
     </div>
