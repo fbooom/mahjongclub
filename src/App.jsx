@@ -3006,7 +3006,7 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
   const [endTime, setEndTime] = useState("22:00");
   const [loc, setLoc] = useState("");
   const [note, setNote] = useState("");
-  const [seats, setSeats] = useState(4);
+  const [tables, setTables] = useState(1);
   const [recurring, setRecurring] = useState(false);
   const [freq, setFreq] = useState("weekly");
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -3040,7 +3040,7 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
     selectedIds.forEach((id) => { rsvps[id] = "yes"; });
     if (!recurring) {
       const ts = new Date(`${date}T${time}`).getTime();
-      onSave({ id: "gm" + uid(), title: title.trim(), host: myUser.name, hostId: myUid, date: ts, time, endTime, location: loc.trim(), seats, rsvps, note, waitlist: [] });
+      onSave({ id: "gm" + uid(), title: title.trim(), host: myUser.name, hostId: myUid, date: ts, time, endTime, location: loc.trim(), seats: tables * 4, rsvps, note, waitlist: [] });
     } else {
       const dates = previewDates();
       const games = dates.map((ts) => ({
@@ -3049,7 +3049,7 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
         host: myUser.name, hostId: myUid,
         date: ts, time, endTime,
         location: loc.trim(),
-        seats, rsvps,
+        seats: tables * 4, rsvps,
         note,
         waitlist: [],
         recurring: freq,
@@ -3077,19 +3077,14 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
       </div>
       <Lbl mt>Location</Lbl>
       <Fld value={loc} set={setLoc} placeholder="e.g. 12 Oak Street" />
-      <Lbl mt>Seats</Lbl>
-      <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-        {[4, 8, 12, 16].map((n) => (
-          <div key={n} onClick={() => setSeats(n)} style={{
-            flex: 1, height: 46, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", fontWeight: 700, fontSize: 16, transition: "all .18s",
-            fontFamily: "'Noto Sans JP',sans-serif",
-            background: seats === n ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "var(--border-card)",
-            color: seats === n ? "#fff" : "#7a4a58",
-            border: seats === n ? "none" : "1px solid rgba(var(--primary-rgb),0.2)",
-            boxShadow: seats === n ? `0 4px 12px ${group.color}44` : "none",
-          }}>{n}</div>
-        ))}
+      <Lbl mt>Tables</Lbl>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
+        <button onClick={() => setTables((t) => Math.max(1, t - 1))} style={{ width: 42, height: 42, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-input)", fontSize: 22, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, flexShrink: 0 }}>−</button>
+        <div style={{ flex: 1, textAlign: "center" }}>
+          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 28, fontWeight: 700, color: group.color }}>{tables}</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{tables === 1 ? "table" : "tables"} · {tables * 4} seats</div>
+        </div>
+        <button onClick={() => setTables((t) => t + 1)} style={{ width: 42, height: 42, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-input)", fontSize: 22, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, flexShrink: 0 }}>+</button>
       </div>
       <Lbl mt>Host Notes (optional)</Lbl>
       <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Style of play, what to bring, house rules..." rows={3} style={{ ...inputSt, resize: "none", height: "auto", padding: "12px 14px" }} />
@@ -3098,7 +3093,7 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
       {otherMembers.length > 0 && (
         <div style={{ marginTop: 18, marginBottom: 4 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <SecLbl>Players</SecLbl>
+            <SecLbl>Invite Group Players</SecLbl>
             <button onClick={toggleAll} style={{
               background: allSelected ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "var(--bg-surface)",
               border: allSelected ? "none" : `1.5px solid rgba(var(--primary-rgb),0.25)`,
@@ -3515,11 +3510,7 @@ function EditGame({ uid: myUid, game, group, onBack, onSave, onTransferHost }) {
   const [endTime, setEndTime] = useState(game.endTime || "22:00");
   const [loc, setLoc] = useState(game.location);
   const [note, setNote] = useState(game.note || "");
-  const [seats, setSeats] = useState(() => {
-    const s = game.seats || 4;
-    const valid = [4, 8, 12, 16];
-    return valid.includes(s) ? s : valid.reduce((a, b) => Math.abs(b - s) < Math.abs(a - s) ? b : a);
-  });
+  const [tables, setTables] = useState(() => Math.max(1, Math.round((game.seats || 4) / 4)));
 
   // Invited members: start with group members, track who's invited to this specific game
   const [invitedIds, setInvitedIds] = useState(() => {
@@ -3556,7 +3547,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
 
   const handleSave = () => {
     const ts = new Date(`${date}T${time}`).getTime();
-    const totalSeats = seats;
+    const totalSeats = tables * 4;
     const newWaitlist = [...(game.waitlist || [])];
 
     // Build rsvps for members — respect capacity
@@ -3612,7 +3603,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
       }
     });
 
-    onSave({ ...game, title: title.trim(), date: ts, time, endTime, location: loc.trim(), note, seats, rsvps: newRsvps, guests: newGuests, waitlist: newWaitlist });
+    onSave({ ...game, title: title.trim(), date: ts, time, endTime, location: loc.trim(), note, seats: tables * 4, rsvps: newRsvps, guests: newGuests, waitlist: newWaitlist });
   };
 
   const ok = title.trim() && date && time && loc.trim();
@@ -3662,19 +3653,14 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
           </div>
           <Lbl mt>Location</Lbl>
           <Fld value={loc} set={setLoc} placeholder="e.g. 12 Oak Street" />
-          <Lbl mt>Seats</Lbl>
-          <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-            {[4, 8, 12, 16].map((n) => (
-              <div key={n} onClick={() => setSeats(n)} style={{
-                flex: 1, height: 46, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", fontWeight: 700, fontSize: 16, transition: "all .18s",
-                fontFamily: "'Noto Sans JP',sans-serif",
-                background: seats === n ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "var(--border-card)",
-                color: seats === n ? "#fff" : "#7a4a58",
-                border: seats === n ? "none" : "1px solid rgba(var(--primary-rgb),0.2)",
-                boxShadow: seats === n ? `0 4px 12px ${group.color}44` : "none",
-              }}>{n}</div>
-            ))}
+          <Lbl mt>Tables</Lbl>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
+            <button onClick={() => setTables((t) => Math.max(1, t - 1))} style={{ width: 42, height: 42, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-input)", fontSize: 22, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, flexShrink: 0 }}>−</button>
+            <div style={{ flex: 1, textAlign: "center" }}>
+              <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 28, fontWeight: 700, color: group.color }}>{tables}</div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{tables === 1 ? "table" : "tables"} · {tables * 4} seats</div>
+            </div>
+            <button onClick={() => setTables((t) => t + 1)} style={{ width: 42, height: 42, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-input)", fontSize: 22, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, flexShrink: 0 }}>+</button>
           </div>
           <Lbl>Host Notes (optional)</Lbl>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Style of play, what to bring, house rules..." rows={3} style={{ ...inputSt, resize: "none", height: "auto", padding: "12px 14px" }} />
@@ -3688,7 +3674,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
         <div className="sUp">
           {/* Group members */}
           <div style={glassCard}>
-            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "var(--section-title)", fontWeight: 700, marginBottom: 12 }}>Group Members</div>
+            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "var(--section-title)", fontWeight: 700, marginBottom: 12 }}>Invite Group Players</div>
             {group.members.map((m) => {
               const isIn = invitedIds.has(m.id);
               const isMe = m.id === myUid;
