@@ -12,6 +12,7 @@ import { auth, db, googleProvider, messagingReady } from "./firebase";
 import { getToken, onMessage } from "firebase/messaging";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { sakura as defaultTheme, themes, buildCSSVars } from "./theme";
+import { QRCodeSVG } from "qrcode.react";
 
 // VAPID key — get from Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
 const VAPID_KEY = "BKkYCO7TpfkGKyFGFwxP9qv_SqUyey_tLi5yzk5bngZxZ6ZBd3S9IgYSsHwIlRMinuGxmiFK4bQDjwxIPj8M0Bg";
@@ -506,10 +507,21 @@ export default function App() {
   };
 
   // ── Deep-link invite processing ──
+  // Params are captured from the URL (or localStorage fallback for page-refresh edge cases)
+  // then cleared so they don't re-fire.
   const [pendingJoin] = useState(() => {
     const p = new URLSearchParams(window.location.search);
-    const code = p.get("joinGroup"), gameId = p.get("game");
-    if (code) window.history.replaceState({}, "", window.location.pathname);
+    let code = p.get("joinGroup"), gameId = p.get("game");
+    if (code) {
+      // Persist so a mid-flow page refresh doesn't lose the invite
+      localStorage.setItem("pendingJoinCode", code);
+      if (gameId) localStorage.setItem("pendingJoinGameId", gameId);
+      window.history.replaceState({}, "", window.location.pathname);
+    } else {
+      // Recover from localStorage if URL params were lost (e.g. after refresh)
+      code = localStorage.getItem("pendingJoinCode") || null;
+      gameId = localStorage.getItem("pendingJoinGameId") || null;
+    }
     return { code, gameId };
   });
 
@@ -517,6 +529,9 @@ export default function App() {
     if (!pendingJoin.code || !authUser || !user) return;
     const { code, gameId } = pendingJoin;
     const go_ = (p, g, gm) => { setPage(p); setGid(g || null); setGmid(gm || null); };
+    // Clear localStorage now that we're processing the invite
+    localStorage.removeItem("pendingJoinCode");
+    localStorage.removeItem("pendingJoinGameId");
     getDocs(query(collection(db, "groups"), where("code", "==", code)))
       .then(async (snap) => {
         if (snap.empty) { setToast({ msg: "Invite link is invalid or expired.", icon: "❌" }); setTimeout(() => setToast(null), 2600); return; }
@@ -3837,7 +3852,7 @@ function Invite({ group, game, flash, onBack }) {
       </div>
 
       <SecLbl>Send via</SecLbl>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 11, marginBottom: 22 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 11, marginBottom: 11 }}>
         {[
           ["💬","Text Message","Opens SMS app","var(--secondary-accent)","sms"],
           ["📧","Email","Opens mail app","var(--primary)","email"],
@@ -3855,6 +3870,28 @@ function Invite({ group, game, flash, onBack }) {
             <div style={{ fontSize: 12, color: "#c0a0ac", marginTop: 1 }}>{sub}</div>
           </button>
         ))}
+      </div>
+
+      <SecLbl>QR Code</SecLbl>
+      <div style={{ background: "#fff", borderRadius: 18, padding: "20px 16px", marginBottom: 22, boxShadow: "0 4px 20px rgba(0,0,0,.08)", textAlign: "center" }}>
+        <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, fontWeight: 500 }}>
+          {game ? "Scan to RSVP to this game" : "Scan to join this group"}
+        </p>
+        <div style={{ display: "inline-block", padding: 14, borderRadius: 14, background: "#fff", boxShadow: `0 0 0 3px ${group.color}22` }}>
+          <QRCodeSVG
+            value={joinUrl}
+            size={200}
+            fgColor={group.color}
+            bgColor="#ffffff"
+            level="M"
+          />
+        </div>
+        <button
+          onClick={() => { navigator.clipboard.writeText(joinUrl).then(() => flash("Link copied!", "🔗")).catch(() => flash("Link copied!", "🔗")); }}
+          style={{ marginTop: 16, display: "block", width: "100%", background: `${group.color}15`, border: `1px solid ${group.color}30`, borderRadius: 10, padding: "9px 0", fontSize: 13, color: group.color, fontWeight: 700, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
+        >
+          Copy link
+        </button>
       </div>
 
       <div style={{ textAlign: "center", background: "#fff", borderRadius: 14, padding: "14px 16px", boxShadow: "0 2px 10px rgba(0,0,0,.05)" }}>
