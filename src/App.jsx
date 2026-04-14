@@ -3313,10 +3313,49 @@ function GuestGameView({ uid, groupId, gameId, go, flash }) {
   );
 }
 
+/* ── SEATING ALGORITHM ── */
+function generateSeating(playerIds, skillMap, tableSize = 4) {
+  const RANK = { Advanced: 3, Intermediate: 2, Beginner: 1 };
+  const rank = (id) => RANK[skillMap[id]] ?? 2; // unknown → treat as Intermediate
+  const shuffle = (a) => {
+    const b = [...a];
+    for (let i = b.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [b[i], b[j]] = [b[j], b[i]];
+    }
+    return b;
+  };
+  // Group by rank so similar-skill players end up at the same table, shuffle within each group
+  const sorted = [3, 2, 1].flatMap(r => shuffle(playerIds.filter(id => rank(id) === r)));
+  const n = Math.max(1, Math.ceil(playerIds.length / tableSize));
+  const tables = Array.from({ length: n }, (_, i) => sorted.slice(i * tableSize, (i + 1) * tableSize));
+  // Rule: never seat a Beginner at a table where 3+ players are Advanced
+  for (let ti = 0; ti < tables.length; ti++) {
+    if (tables[ti].filter(id => rank(id) === 3).length < 3) continue;
+    const bi = tables[ti].findIndex(id => rank(id) === 1);
+    if (bi < 0) continue;
+    // Swap the beginner with a non-advanced player from a safer table
+    for (let tj = 0; tj < tables.length; tj++) {
+      if (tj === ti) continue;
+      const si = tables[tj].findIndex(id => rank(id) !== 3);
+      if (si >= 0 && tables[tj].filter(id => rank(id) === 3).length < 3) {
+        [tables[ti][bi], tables[tj][si]] = [tables[tj][si], tables[ti][bi]];
+        break;
+      }
+    }
+  }
+  return tables;
+}
+
 /* GAME DETAIL */
 function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView = false }) {
   const [showAttendees, setShowAttendees] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [seatingOpen, setSeatingOpen] = useState(false);
+  const [seating, setSeating] = useState(game.seating || null);
+  const [movingUid, setMovingUid] = useState(null);
+  const [skillMap, setSkillMap] = useState({});
+  const [seatingLoading, setSeatingLoading] = useState(false);
   const isCreator = !isGuestView && group.members.some((m) => m.id === uid && m.host);
   const canInvite = !isGuestView && (isCreator || (group.openInvites ?? false));
   const myRsvp = game.rsvps[uid] || "pending";
@@ -3345,6 +3384,62 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
     if (member) return { id, name: member.name, avatar: member.avatar, isGuest: false };
     return { id, name: "Unknown", avatar: "👤", isGuest: false };
   });
+
+  // ── Seating helpers ──
+  const isHost = !isGuestView && game.hostId === uid;
+  const goingUids = Object.entries(game.rsvps || {}).filter(([, v]) => v === "yes").map(([id]) => id);
+  const seatingPool = [...goingUids, ...confirmedGuests.map(g => g.id)];
+  // Lookup: id → {name, avatar}
+  const playerLookup = {};
+  group.members.forEach(m => { playerLookup[m.id] = { name: m.name, avatar: m.avatar }; });
+  (game.guests || []).forEach(g => { playerLookup[g.id] = { name: g.name, avatar: g.avatar }; });
+
+  // Fetch skill levels for all going members when host opens seating
+  useEffect(() => {
+    if (!seatingOpen || !isHost) return;
+    const missing = goingUids.filter(id => !(id in skillMap));
+    if (!missing.length) return;
+    setSeatingLoading(true);
+    Promise.all(missing.map(id => getDoc(doc(db, "users", id))))
+      .then(snaps => {
+        const updates = {};
+        snaps.forEach((snap, i) => { updates[missing[i]] = snap.data()?.skillLevel ?? null; });
+        setSkillMap(prev => ({ ...prev, ...updates }));
+      })
+      .finally(() => setSeatingLoading(false));
+  }, [seatingOpen]);
+
+  const saveSeating = async (next) => {
+    setSeating(next);
+    try { await updateDoc(doc(db, "groups", group.id, "games", game.id), { seating: next }); } catch {}
+  };
+
+  const handleRandomize = () => {
+    const tables = generateSeating(seatingPool, skillMap);
+    saveSeating(tables);
+    setMovingUid(null);
+  };
+
+  const handlePlayerTap = (pid) => {
+    if (!movingUid) { setMovingUid(pid); return; }
+    if (movingUid === pid) { setMovingUid(null); return; }
+    // Swap the two players across tables
+    const next = seating.map(t => [...t]);
+    let [fi, fj, ti, tj] = [-1, -1, -1, -1];
+    for (let r = 0; r < next.length; r++) {
+      const mi = next[r].indexOf(movingUid); if (mi >= 0) { fi = r; fj = mi; }
+      const pi = next[r].indexOf(pid);       if (pi >= 0) { ti = r; tj = pi; }
+    }
+    if (fi >= 0 && ti >= 0) {
+      next[fi][fj] = pid;
+      next[ti][tj] = movingUid;
+      saveSeating(next);
+    }
+    setMovingUid(null);
+  };
+
+  const SKILL_ICON = { Advanced: "🏆", Intermediate: "🀄", Beginner: "🌱" };
+
   return (
     <>
     <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
@@ -3512,6 +3607,69 @@ function Game({ uid, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView 
                 {[["yes","✅ Going","#9b6ea8"],["maybe","🤔 Maybe","#c4936e"],["no","❌ Can't","#c9607a"]].map(([v, label, col]) => (
                   <button key={v} onClick={() => onRsvp(v)} style={{ flex: 1, padding: "10px 4px", borderRadius: 12, fontSize: 13, fontWeight: 700, background: myRsvp === v ? col : "#f7eef2", color: myRsvp === v ? "#fff" : "#c0a0ac", border: "none", cursor: "pointer", transition: "all .18s", fontFamily: "'Noto Sans JP',sans-serif" }}>{label}</button>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Table Seating (host only, collapsible) ── */}
+        {isHost && (
+          <div style={{ background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, marginBottom: 12, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)", border: "1px solid var(--border-card)", overflow: "hidden" }}>
+            {/* Header row */}
+            <div onClick={() => setSeatingOpen(v => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", cursor: "pointer", userSelect: "none" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 18 }}>🎲</span>
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>Table Seating</span>
+                {seating && <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(var(--primary-rgb),0.12)", color: "var(--primary)", borderRadius: 999, padding: "2px 9px", fontFamily: "'Noto Sans JP',sans-serif" }}>Assigned</span>}
+              </div>
+              <span style={{ fontSize: 17, color: "var(--primary-faint)", display: "inline-block", transform: seatingOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }}>⌄</span>
+            </div>
+
+            {seatingOpen && (
+              <div style={{ borderTop: "1px solid rgba(var(--border-light-rgb),0.2)", padding: "12px 14px 16px" }}>
+                {/* Move-mode banner */}
+                {movingUid && (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(var(--primary-rgb),0.1)", border: "1px solid rgba(var(--primary-rgb),0.22)", borderRadius: 10, padding: "8px 12px", marginBottom: 12 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      Tap a player to swap with {playerLookup[movingUid]?.name || "…"}
+                    </span>
+                    <button onClick={() => setMovingUid(null)} style={{ background: "none", border: "none", fontSize: 16, color: "var(--primary)", cursor: "pointer", padding: "0 4px" }}>✕</button>
+                  </div>
+                )}
+
+                {/* Randomize button */}
+                <button onClick={handleRandomize} disabled={seatingPool.length === 0} style={{ width: "100%", padding: "10px 0", borderRadius: 999, border: "none", background: seatingPool.length === 0 ? "rgba(var(--primary-rgb),0.1)" : "var(--active-tab-gradient)", color: seatingPool.length === 0 ? "var(--text-muted)" : "#fff", fontWeight: 700, fontSize: 14, cursor: seatingPool.length === 0 ? "default" : "pointer", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 14, boxShadow: seatingPool.length === 0 ? "none" : "0 4px 14px rgba(var(--shadow-rgb),0.28)", letterSpacing: 0.3 }}>
+                  🎲 Randomize Tables
+                </button>
+
+                {seatingLoading && <div style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", marginBottom: 10, fontFamily: "'Noto Sans JP',sans-serif" }}>Loading player profiles…</div>}
+
+                {/* Table cards */}
+                {seating ? seating.map((table, ti) => (
+                  <div key={ti} style={{ background: "rgba(255,255,255,0.55)", borderRadius: 12, padding: "10px 12px", marginBottom: 10, border: "1px solid rgba(var(--border-light-rgb),0.3)" }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: "var(--section-title)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      Table {ti + 1} · {table.length} players
+                    </div>
+                    {table.map(pid => {
+                      const p = playerLookup[pid];
+                      const skill = skillMap[pid];
+                      const isMoving = movingUid === pid;
+                      const isTarget = !!movingUid && movingUid !== pid;
+                      return (
+                        <div key={pid} onClick={() => handlePlayerTap(pid)} style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 8px", borderRadius: 9, cursor: "pointer", marginBottom: 2, transition: "background .15s, box-shadow .15s", background: isMoving ? "rgba(var(--primary-rgb),0.15)" : isTarget ? "rgba(var(--primary-rgb),0.05)" : "transparent", boxShadow: isMoving ? `0 0 0 2px var(--primary)` : isTarget ? "0 0 0 1px rgba(var(--primary-rgb),0.25)" : "none" }}>
+                          <span style={{ fontSize: 21, flexShrink: 0 }}>{p?.avatar || "👤"}</span>
+                          <span style={{ flex: 1, fontWeight: 600, fontSize: 14, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{p?.name || pid}</span>
+                          {skill && <span style={{ fontSize: 14, flexShrink: 0 }} title={skill}>{SKILL_ICON[skill]}</span>}
+                          {isMoving && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", fontFamily: "'Noto Sans JP',sans-serif" }}>moving</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )) : !seatingLoading && (
+                  <div style={{ textAlign: "center", padding: "10px 0 4px", fontSize: 13, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    {seatingPool.length === 0 ? "No confirmed players yet." : "Tap Randomize to generate table assignments."}
+                  </div>
+                )}
               </div>
             )}
           </div>
