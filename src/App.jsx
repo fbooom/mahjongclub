@@ -4348,62 +4348,72 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
   const handleSave = () => {
     const ts = new Date(`${date}T${time}`).getTime();
     const totalSeats = tables * 4;
-    const newWaitlist = [...(game.waitlist || [])];
+    const prevWaitlist = game.waitlist || [];
 
-    // Build rsvps for members — respect capacity
+    // ── Step 1: Host always holds a seat ───────────────────────────────────
     const newRsvps = { [myUid]: game.rsvps?.[myUid] || "yes" };
-    let filled = 1; // host always takes one seat
+    let filled = 1;
 
+    // ── Step 2: Lock in confirmed members (currently "yes") ────────────────
+    // These players already have seats — never displace them.
     group.members.forEach((m) => {
       if (m.id === myUid || !invitedIds.has(m.id)) return;
-      const existing = game.rsvps?.[m.id];
-      const prevYes = existing === "yes";
-
-      if (prevYes) {
-        // Already confirmed — keep their seat
+      if (game.rsvps?.[m.id] === "yes") {
         newRsvps[m.id] = "yes";
         filled++;
-      } else if (existing && existing !== "pending") {
-        // Had a real non-yes answer — keep it, no seat consumed
-        newRsvps[m.id] = existing;
-      } else {
-        // Newly added or pending
-        if (filled < totalSeats) {
-          newRsvps[m.id] = "yes";
-          filled++;
-        } else {
-          // No room — move to waitlist
-          newRsvps[m.id] = "pending";
-          if (!newWaitlist.includes(m.id)) newWaitlist.push(m.id);
-        }
       }
     });
 
-    // Build guests — confirmed vs waitlisted
+    // ── Step 3: Lock in confirmed guests (not currently waitlisted) ─────────
     const newGuests = [];
     guests.forEach((g) => {
-      const prevConfirmed = (game.guests || []).find((pg) => pg.id === g.id) &&
-        !(game.waitlist || []).includes(g.id);
+      const wasConfirmed = (game.guests || []).some((pg) => pg.id === g.id) && !prevWaitlist.includes(g.id);
+      if (wasConfirmed) { newGuests.push(g); filled++; }
+    });
 
-      if (prevConfirmed) {
-        // Already had a confirmed seat
-        newGuests.push(g);
-        filled++;
-      } else if (filled < totalSeats) {
-        // Room available — confirm
-        newGuests.push(g);
-        // Remove from waitlist if they were on it
-        const wIdx = newWaitlist.indexOf(g.id);
-        if (wIdx > -1) newWaitlist.splice(wIdx, 1);
-        filled++;
+    // ── Step 4: Process existing waitlist in strict join order ──────────────
+    // When capacity increases, the earliest-waiting player gets the seat first,
+    // regardless of whether they are a member or a guest.
+    const newWaitlist = [];
+    for (const id of prevWaitlist) {
+      const isMember = group.members.some((m) => m.id === id) && invitedIds.has(id);
+      if (isMember) {
+        if (filled < totalSeats) { newRsvps[id] = "yes"; filled++; }
+        else { newRsvps[id] = "pending"; newWaitlist.push(id); }
+        continue;
+      }
+      const guestObj = guests.find((g) => g.id === id);
+      if (guestObj) {
+        newGuests.push(guestObj);
+        if (filled < totalSeats) { filled++; /* confirmed — not added to newWaitlist */ }
+        else { newWaitlist.push(id); }
+        continue;
+      }
+      // No longer invited / removed — drop from waitlist
+    }
+
+    // ── Step 5: Newly invited members (not yet in any rsvp state) ──────────
+    group.members.forEach((m) => {
+      if (m.id === myUid || !invitedIds.has(m.id)) return;
+      if (newRsvps[m.id] !== undefined) return; // already handled
+      const existing = game.rsvps?.[m.id];
+      if (existing === "maybe" || existing === "no") {
+        newRsvps[m.id] = existing; // keep intentional non-yes, no seat consumed
       } else {
-        // Full — put on waitlist
-        newGuests.push(g);
-        if (!newWaitlist.includes(g.id)) newWaitlist.push(g.id);
+        if (filled < totalSeats) { newRsvps[m.id] = "yes"; filled++; }
+        else { newRsvps[m.id] = "pending"; newWaitlist.push(m.id); }
       }
     });
 
-    onSave({ ...game, title: title.trim(), date: ts, time, endTime, location: loc.trim(), note, seats: tables * 4, rsvps: newRsvps, guests: newGuests, waitlist: newWaitlist, coHostIds: [...coHostIds], joinCode });
+    // ── Step 6: Truly new guests (not previously in game.guests) ───────────
+    guests.forEach((g) => {
+      if (newGuests.some((ng) => ng.id === g.id)) return; // already handled
+      newGuests.push(g);
+      if (filled < totalSeats) { filled++; }
+      else { newWaitlist.push(g.id); }
+    });
+
+    onSave({ ...game, title: title.trim(), date: ts, time, endTime, location: loc.trim(), note, seats: totalSeats, rsvps: newRsvps, guests: newGuests, waitlist: newWaitlist, coHostIds: [...coHostIds], joinCode });
   };
 
   const ok = title.trim() && date && time && loc.trim();
