@@ -2048,7 +2048,6 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
 
                 {/* Divider */}
                 {(() => {
-                  console.log("[subscription card] rendering features + manage button");
                   const feats = planCfg?.features?.length
                     ? planCfg.features
                     : ["Group & game chat", "Send group and game invites", "Add games to calendar"];
