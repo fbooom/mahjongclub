@@ -346,6 +346,24 @@ export default function App() {
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 900);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
 
+  // Handle return from Stripe Checkout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get("checkout");
+    if (checkout === "success") {
+      window.history.replaceState({}, "", window.location.pathname);
+      // Small delay so Firestore has time to update via webhook
+      setTimeout(() => {
+        setPage("account");
+        flash("You're on Club! 🎉 Welcome aboard.", "✨");
+      }, 1500);
+    } else if (checkout === "cancelled") {
+      window.history.replaceState({}, "", window.location.pathname);
+      setPage("managePlan");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const onResize = () => setIsDesktop(window.innerWidth >= 900);
     window.addEventListener("resize", onResize);
@@ -1492,8 +1510,12 @@ function AdminPanel({ onImpersonate }) {
 }
 
 /* ── MANAGE PLAN PAGE ── */
+const CLUB_PAYMENT_LINK = "https://buy.stripe.com/test_14A7sMb50ePMfm48Zug7e00";
+
 function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
-  const [loading, setLoading] = useState(false);
+  const [loading,         setLoading]         = useState(false);
+  const [cancelConfirm,   setCancelConfirm]   = useState(false);
+  const [cancelling,      setCancelling]      = useState(false);
 
   const currentPlan = getPlan(user);
   const isOnTrial   = user?.subscription?.isTrial === true && currentPlan !== "free";
@@ -1522,30 +1544,73 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
     ? new Date(trialEndsAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
     : "";
 
-  const handleStartTrial = async () => {
-    if (loading) return;
-    setLoading(true);
+  // Redirect to Stripe payment link with uid + email pre-filled
+  const handleStartTrial = () => {
+    const params = new URLSearchParams({
+      client_reference_id: uid,
+      prefilled_email:     user.email || "",
+    });
+    window.location.href = `${CLUB_PAYMENT_LINK}?${params.toString()}`;
+  };
+
+  // Cancel via Cloud Function → Stripe → Firestore
+  const handleCancel = async () => {
+    if (!cancelConfirm) { setCancelConfirm(true); return; }
+    setCancelling(true);
     try {
-      const now  = Date.now();
-      const ends = now + 30 * 24 * 60 * 60 * 1000;
-      await updateDoc(doc(db, "users", uid), {
-        "subscription.plan":           "club",
-        "subscription.isTrial":        true,
-        "subscription.trialStartedAt": now,
-        "subscription.trialEndsAt":    ends,
-        "subscription.changedAt":      serverTimestamp(),
-      });
+      const fn = httpsCallable(getFunctions(), "cancelSubscription");
+      await fn({});
       setUser(prev => ({
         ...prev,
-        subscription: { ...prev?.subscription, plan: "club", isTrial: true, trialStartedAt: now, trialEndsAt: ends },
+        subscription: {
+          ...prev?.subscription,
+          plan: "free", isTrial: false, trialEndsAt: null,
+          stripeSubscriptionId: null, stripeStatus: "cancelled",
+        },
       }));
-      flash("Club trial started — 30 days free! 🎉", "🌟");
+      flash("Subscription cancelled — you're on the Free plan", "👋");
       go("account");
     } catch {
-      flash("Could not start trial. Please try again.", "❌");
-      setLoading(false);
+      flash("Could not cancel. Please try again.", "❌");
+      setCancelling(false);
+      setCancelConfirm(false);
     }
   };
+
+  // Cancel button shown on active/trial states
+  const CancelButton = () => (
+    <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--border-card)" }}>
+      {cancelConfirm ? (
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 14, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 12 }}>
+            Are you sure? You'll lose access to Club features immediately.
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={() => setCancelConfirm(false)}
+              style={{ flex: 1, padding: "11px 0", background: "rgba(var(--primary-rgb),0.1)", border: "1px solid rgba(var(--primary-rgb),0.2)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: "var(--primary)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
+            >
+              Keep plan
+            </button>
+            <button
+              onClick={handleCancel}
+              disabled={cancelling}
+              style={{ flex: 1, padding: "11px 0", background: "none", border: "1px solid rgba(var(--shadow-rgb),0.25)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: "var(--text-muted)", cursor: cancelling ? "default" : "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
+            >
+              {cancelling ? "Cancelling…" : "Yes, cancel"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={handleCancel}
+          style={{ width: "100%", padding: "11px 0", background: "none", border: "none", fontSize: 13, color: "var(--text-muted)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", textDecoration: "underline" }}
+        >
+          Cancel subscription
+        </button>
+      )}
+    </div>
+  );
 
   const wrap  = { minHeight: "100%", background: "var(--bg-surface)", paddingBottom: 40 };
   const card  = {
@@ -1604,6 +1669,7 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
                 </div>
               ))}
             </div>
+            <CancelButton />
           </div>
 
         </div>
@@ -1628,6 +1694,7 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
                 <div style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 2 }}>You're all set — enjoy unlimited mahjong</div>
               </div>
             </div>
+            <CancelButton />
           </div>
         </div>
       </div>

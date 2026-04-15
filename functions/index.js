@@ -21,11 +21,15 @@
 
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { getAuth } = require("firebase-admin/auth");
+
+const STRIPE_SECRET_KEY    = defineSecret("STRIPE_SECRET_KEY");
+const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
 
 initializeApp();
 const db = getFirestore();
@@ -357,3 +361,170 @@ exports.deleteUser = onCall({ invoker: "public" }, async (request) => {
 
   return { success: true };
 });
+
+/* ── STRIPE WEBHOOK ─────────────────────────────────────────────────────────
+ * Receives events from Stripe and syncs subscription state to Firestore.
+ *
+ * After deploying, register this URL in Stripe Dashboard → Developers →
+ * Webhooks → Add endpoint:
+ *   https://us-central1-mahjong-club-da606.cloudfunctions.net/stripeWebhook
+ *
+ * Events to enable:
+ *   checkout.session.completed
+ *   customer.subscription.updated
+ *   customer.subscription.deleted
+ *   invoice.payment_failed
+ * ────────────────────────────────────────────────────────────────────────── */
+exports.stripeWebhook = onRequest(
+  { secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET] },
+  async (req, res) => {
+    const stripe = require("stripe")(STRIPE_SECRET_KEY.value());
+    const sig    = req.headers["stripe-signature"];
+
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK_SECRET.value());
+    } catch (err) {
+      console.error("Webhook signature verification failed:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    const obj = event.data.object;
+
+    // Helper — find Firebase uid from Stripe metadata or customer lookup
+    async function getUid() {
+      // Payment links pass uid as client_reference_id on the session
+      if (obj.client_reference_id) return obj.client_reference_id;
+      // Subscriptions carry it in metadata
+      if (obj.metadata?.uid) return obj.metadata.uid;
+      // Fall back: look up customer in Firestore by stripeCustomerId
+      if (obj.customer) {
+        const snap = await db.collection("users")
+          .where("stripeCustomerId", "==", obj.customer)
+          .limit(1).get();
+        if (!snap.empty) return snap.docs[0].id;
+      }
+      return null;
+    }
+
+    try {
+      switch (event.type) {
+
+        case "checkout.session.completed": {
+          const uid       = await getUid();
+          const subId     = obj.subscription;
+          const planKey   = obj.metadata?.planKey ?? "club";
+          if (!uid) { console.warn("No uid found for checkout session", obj.id); break; }
+
+          // Retrieve subscription to get trial end date
+          let trialEnd = null;
+          let isTrial  = false;
+          if (subId) {
+            const sub = await stripe.subscriptions.retrieve(subId);
+            isTrial  = sub.status === "trialing";
+            trialEnd = sub.trial_end ? sub.trial_end * 1000 : null; // convert to ms
+            // Store customer id for future lookups
+            await db.collection("users").doc(uid).update({
+              stripeCustomerId: obj.customer,
+            });
+          }
+
+          await db.collection("users").doc(uid).update({
+            "subscription.plan":                planKey,
+            "subscription.isTrial":             isTrial,
+            "subscription.trialEndsAt":         trialEnd,
+            "subscription.stripeSubscriptionId": subId ?? null,
+            "subscription.stripeStatus":         "active",
+            "subscription.changedAt":            FieldValue.serverTimestamp(),
+          });
+          console.log(`✓ checkout.session.completed — uid=${uid} plan=${planKey} trial=${isTrial}`);
+          break;
+        }
+
+        case "customer.subscription.updated": {
+          const uid = await getUid();
+          if (!uid) break;
+          const isTrial = obj.status === "trialing";
+          const trialEnd = obj.trial_end ? obj.trial_end * 1000 : null;
+          await db.collection("users").doc(uid).update({
+            "subscription.isTrial":     isTrial,
+            "subscription.trialEndsAt": trialEnd,
+            "subscription.stripeStatus": obj.status,
+            "subscription.changedAt":   FieldValue.serverTimestamp(),
+          });
+          break;
+        }
+
+        case "customer.subscription.deleted": {
+          const uid = await getUid();
+          if (!uid) break;
+          await db.collection("users").doc(uid).update({
+            "subscription.plan":                 "free",
+            "subscription.isTrial":              false,
+            "subscription.trialEndsAt":          null,
+            "subscription.stripeSubscriptionId": null,
+            "subscription.stripeStatus":         "cancelled",
+            "subscription.changedAt":            FieldValue.serverTimestamp(),
+          });
+          console.log(`✓ subscription cancelled — uid=${uid} → free plan`);
+          break;
+        }
+
+        case "invoice.payment_failed": {
+          const uid = await getUid();
+          if (!uid) break;
+          await db.collection("users").doc(uid).update({
+            "subscription.stripeStatus": "past_due",
+            "subscription.changedAt":    FieldValue.serverTimestamp(),
+          });
+          break;
+        }
+
+        default:
+          console.log(`Unhandled Stripe event: ${event.type}`);
+      }
+    } catch (err) {
+      console.error("Error processing Stripe event:", err);
+      return res.status(500).send("Internal error");
+    }
+
+    res.json({ received: true });
+  }
+);
+
+/* ── CANCEL SUBSCRIPTION ────────────────────────────────────────────────── */
+exports.cancelSubscription = onCall(
+  { secrets: [STRIPE_SECRET_KEY] },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "Sign in required");
+
+    const userSnap = await db.collection("users").doc(uid).get();
+    const userData = userSnap.data();
+    const subId    = userData?.subscription?.stripeSubscriptionId;
+
+    // Cancel in Stripe if a subscription exists
+    if (subId) {
+      const stripe = require("stripe")(STRIPE_SECRET_KEY.value());
+      try {
+        await stripe.subscriptions.cancel(subId);
+      } catch (err) {
+        // If already cancelled in Stripe, continue and clean up Firestore
+        if (err.code !== "resource_missing") throw new HttpsError("internal", err.message);
+      }
+    }
+
+    // Always downgrade in Firestore regardless
+    await db.collection("users").doc(uid).update({
+      "subscription.plan":                 "free",
+      "subscription.isTrial":              false,
+      "subscription.trialEndsAt":          null,
+      "subscription.stripeSubscriptionId": null,
+      "subscription.stripeStatus":         "cancelled",
+      "subscription.changedAt":            FieldValue.serverTimestamp(),
+    });
+
+    console.log(`✓ cancelSubscription — uid=${uid} → free plan`);
+    return { success: true };
+  }
+);
