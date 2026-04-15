@@ -1634,16 +1634,18 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
     );
   }
 
-  /* ── Upgrade page (any paid plan above current) ── */
-  // All plans sorted by price ascending; exclude free from upgrade cards
+  /* ── All plans page (upgrade + downgrade) ── */
   const currentCfg   = planConfigs[currentPlan] ?? freeCfg;
   const currentPrice = currentCfg?.price ?? 0;
-  const paidPlans    = Object.values(planConfigs)
-    .filter(p => (p.price ?? 0) > currentPrice)
+
+  // Every plan except the one the user is currently on, sorted cheapest → most expensive
+  const otherPlans = Object.values(planConfigs)
+    .filter(p => p.planKey !== currentPlan)
     .sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
 
-  // The highest-priced paid plan gets the "Most Popular" / Club trial treatment
-  const topPlan = paidPlans[paidPlans.length - 1];
+  // Highest-priced upgrade (above current) gets the gold featured treatment
+  const upgradePlans = otherPlans.filter(p => (p.price ?? 0) > currentPrice);
+  const topPlan      = upgradePlans.length > 0 ? upgradePlans[upgradePlans.length - 1] : null;
 
   // All plans for comparison table (free + all paid), sorted by price
   const allPlans = Object.values(planConfigs).sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
@@ -1683,11 +1685,12 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
           </div>
         </div>
 
-        {/* Upgrade plan cards — one per paid plan */}
-        {paidPlans.map(plan => {
+        {/* Plan cards — upgrades and downgrades */}
+        {otherPlans.map(plan => {
           const isTop      = plan.planKey === topPlan?.planKey;
           const isClub     = plan.planKey === "club";
           const planPrice  = plan.price ?? 0;
+          const isDowngrade = planPrice < currentPrice;
           const planFeats  = plan.features?.length ? plan.features : ["Everything in lower plans"];
 
           if (isTop) {
@@ -1769,13 +1772,13 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
                 </div>
               </div>
               <button
-                style={{ width: "100%", padding: "11px 16px", background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.15),rgba(var(--primary-rgb),0.08))", border: "1px solid rgba(var(--primary-rgb),0.3)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: "var(--primary)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}
+                style={{ width: "100%", padding: "11px 16px", background: isDowngrade ? "rgba(var(--shadow-rgb),0.06)" : "linear-gradient(135deg,rgba(var(--primary-rgb),0.15),rgba(var(--primary-rgb),0.08))", border: isDowngrade ? "1px solid rgba(var(--shadow-rgb),0.2)" : "1px solid rgba(var(--primary-rgb),0.3)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: isDowngrade ? "var(--text-muted)" : "var(--primary)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}
                 onMouseDown={e => e.currentTarget.style.opacity = "0.7"}
                 onMouseUp={e => e.currentTarget.style.opacity = "1"}
                 onTouchStart={e => e.currentTarget.style.opacity = "0.7"}
                 onTouchEnd={e => e.currentTarget.style.opacity = "1"}
               >
-                Upgrade to {plan.name} →
+                {isDowngrade ? `Downgrade to ${plan.name} →` : `Upgrade to ${plan.name} →`}
               </button>
             </div>
           );
