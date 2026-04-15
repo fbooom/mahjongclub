@@ -1758,12 +1758,15 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
                   <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>/{plan.interval || "month"}</div>
                 </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 14 }}>
-                {planFeats.map(f => (
-                  <div key={f} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>
-                    <span style={{ color: "var(--secondary-accent)", fontWeight: 700, flexShrink: 0 }}>✓</span> {f}
-                  </div>
-                ))}
+              <div style={{ borderTop: "1px solid var(--border-card)", paddingTop: 12, marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>Included</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  {planFeats.map(f => (
+                    <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      <span style={{ color: "var(--secondary-accent)", fontWeight: 700 }}>✓</span> {f}
+                    </div>
+                  ))}
+                </div>
               </div>
               <button
                 style={{ width: "100%", padding: "11px 16px", background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.15),rgba(var(--primary-rgb),0.08))", border: "1px solid rgba(var(--primary-rgb),0.3)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: "var(--primary)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}
