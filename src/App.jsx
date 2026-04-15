@@ -5275,18 +5275,17 @@ function AdminSubscriptions({ flash }) {
     return unsub;
   }, []);
 
-  // Count users per plan key
+  // Count users per plan key.
+  // Users without subscription.plan set are implicitly "free" (matches getPlan() logic),
+  // so we load all users once and tally by subscription?.plan || "free".
   useEffect(() => {
     if (packages.length === 0) return;
-    const planKeys = packages.map((p) => p.planKey || p.id);
-    Promise.all(
-      planKeys.map(async (key) => {
-        const snap = await getDocs(query(collection(db, "users"), where("subscription.plan", "==", key)));
-        return [key, snap.size];
-      })
-    ).then((results) => {
+    getDocs(collection(db, "users")).then((snap) => {
       const counts = {};
-      results.forEach(([key, n]) => { counts[key] = n; });
+      snap.docs.forEach((d) => {
+        const key = d.data()?.subscription?.plan || "free";
+        counts[key] = (counts[key] || 0) + 1;
+      });
       setUserCounts(counts);
     }).catch(() => {});
   }, [packages]);
