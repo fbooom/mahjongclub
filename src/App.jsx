@@ -28,24 +28,36 @@ function isValidGameCode(code) {
 }
 
 // ── Subscription plan helpers ────────────────────────────────────────────────
+// Hardcoded fallback — used before Firestore plan config is loaded
 const FREE_PLAN = { maxGroups: 2, gamesPerCycle: 1, cycleDays: 30 };
 
 function getPlan(user) {
   return user?.subscription?.plan || "free";
 }
 
+// cfg = live plan config from Firestore (or null to use fallback)
+function getPlanLimits(cfg) {
+  return {
+    maxGroups:     cfg?.limits?.maxGroups     ?? FREE_PLAN.maxGroups,
+    gamesPerCycle: cfg?.limits?.gamesPerCycle ?? FREE_PLAN.gamesPerCycle,
+    cycleDays:     cfg?.limits?.cycleDays     ?? FREE_PLAN.cycleDays,
+  };
+}
+
 // Returns { ok: true } or { ok: false }
-function canAddGroup(groupCount, user) {
+function canAddGroup(groupCount, user, cfg) {
   if (getPlan(user) !== "free") return { ok: true };
-  return groupCount >= FREE_PLAN.maxGroups ? { ok: false } : { ok: true };
+  const { maxGroups } = getPlanLimits(cfg);
+  return groupCount >= maxGroups ? { ok: false } : { ok: true };
 }
 
 // Returns { ok: true } or { ok: false, daysLeft: number }
-function canHostGame(user) {
+function canHostGame(user, cfg) {
   if (getPlan(user) !== "free") return { ok: true };
+  const { cycleDays } = getPlanLimits(cfg);
   const last = user?.lastHostedAt;
   if (!last) return { ok: true };
-  const cycleMs = FREE_PLAN.cycleDays * 24 * 60 * 60 * 1000;
+  const cycleMs = cycleDays * 24 * 60 * 60 * 1000;
   const elapsed = Date.now() - last;
   if (elapsed < cycleMs) {
     return { ok: false, daysLeft: Math.ceil((cycleMs - elapsed) / 86400000) };
@@ -328,6 +340,8 @@ export default function App() {
 
   const [groups, setGroups] = useState([]);
   const [guestGames, setGuestGames] = useState([]);
+  // planConfigs: { [planKey]: planDocument } — real-time from subscriptionPackages
+  const [planConfigs, setPlanConfigs] = useState({});
   const [page, setPage] = useState("home");
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 900);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
@@ -349,6 +363,21 @@ export default function App() {
   const guestGameUnsubs = useRef({});
   const guestGroupCache = useRef({});
   const knownGameIds = useRef({}); // { [groupId]: Set<gameId> } — per-group tracking
+
+  // ── Subscription plan configs (real-time) ──
+  // Build a map of planKey → document so helpers can read dynamic limits
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "subscriptionPackages"), (snap) => {
+      const map = {};
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        const key = data.planKey || d.id;
+        map[key] = { id: d.id, ...data };
+      });
+      setPlanConfigs(map);
+    });
+    return unsub;
+  }, []);
 
   // ── Firebase auth state listener ──
   useEffect(() => {
@@ -673,6 +702,8 @@ export default function App() {
 
   const uid = impersonating?.uid || authUser.uid;
   const displayUser = impersonating || user; // profile shown throughout the app
+  // Live plan config for the current user (falls back to defaults if not yet loaded)
+  const userPlanCfg = planConfigs[getPlan(displayUser)] ?? null;
 
   const NAV_ITEMS = [
     { id: "home",    icon: "🀄", label: "Home"    },
@@ -771,15 +802,16 @@ export default function App() {
 
       {/* Page content */}
       <div ref={scrollRef} data-scroll-container style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 90, paddingTop: impersonating ? 52 : 0 }}>
-        {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} activeTheme={activeTheme} />}
+        {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} activeTheme={activeTheme} planCfg={userPlanCfg} />}
         {page === "games" && <GamesPage groups={groups} guestGames={guestGames} go={go} />}
-        {page === "groups" && <GroupsPage groups={groups} go={go} user={displayUser} />}
-        {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} activeThemeId={activeTheme.id} onThemeChange={handleThemeChange} />}
+        {page === "groups" && <GroupsPage groups={groups} go={go} user={displayUser} planCfg={userPlanCfg} />}
+        {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} activeThemeId={activeTheme.id} onThemeChange={handleThemeChange} planCfg={userPlanCfg} />}
         {page === "newGroup" && (
           <NewGroup onBack={() => go("groups")}
             onSave={async (g) => {
-              if (!canAddGroup(groups.length, user).ok) {
-                flash(`Free plan allows up to ${FREE_PLAN.maxGroups} groups`, "🔒"); go("groups"); return;
+              if (!canAddGroup(groups.length, user, userPlanCfg).ok) {
+                const lim = getPlanLimits(userPlanCfg);
+                flash(`Free plan allows up to ${lim.maxGroups} groups`, "🔒"); go("groups"); return;
               }
               try {
                 const groupData = { ...g, members: [{ id: uid, name: user.name, avatar: user.avatar, host: true }], memberIds: [uid] };
@@ -791,8 +823,9 @@ export default function App() {
         {page === "joinGroup" && (
           <JoinGroup uid={uid} groups={groups} onBack={() => go("home")}
             onJoin={async (id) => {
-              if (!canAddGroup(groups.length, user).ok) {
-                flash(`Free plan allows up to ${FREE_PLAN.maxGroups} groups`, "🔒"); return;
+              if (!canAddGroup(groups.length, user, userPlanCfg).ok) {
+                const lim = getPlanLimits(userPlanCfg);
+                flash(`Free plan allows up to ${lim.maxGroups} groups`, "🔒"); return;
               }
               try {
                 await runTransaction(db, async (tx) => {
@@ -880,12 +913,12 @@ export default function App() {
             }} />
         )}
         {page === "newGame" && group && (
-          <NewGame uid={uid} user={user} group={group} onBack={() => go("group", group.id)}
+          <NewGame uid={uid} user={user} group={group} planCfg={userPlanCfg} onBack={() => go("group", group.id)}
             onSave={async (games) => {
               const arr = Array.isArray(games) ? games : [games];
               const isHosting = arr[0].hostId === uid;
               if (isHosting) {
-                const hostCheck = canHostGame(user);
+                const hostCheck = canHostGame(user, userPlanCfg);
                 if (!hostCheck.ok) {
                   flash(`Free plan: next hosted game available in ${hostCheck.daysLeft} day${hostCheck.daysLeft === 1 ? "" : "s"}`, "🔒");
                   return;
@@ -1456,7 +1489,7 @@ function AdminPanel({ onImpersonate }) {
 }
 
 /* ── ACCOUNT PAGE ── */
-function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut, isAdmin, onImpersonate, isImpersonating, activeThemeId, onThemeChange }) {
+function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut, isAdmin, onImpersonate, isImpersonating, activeThemeId, onThemeChange, planCfg }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
@@ -1646,13 +1679,14 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
         {/* ── Subscription plan card ── */}
         {(() => {
           const plan = getPlan(user);
-          const hostCheck = canHostGame(user);
+          const lim = getPlanLimits(planCfg);
+          const hostCheck = canHostGame(user, planCfg);
           const groupsUsed = groups.length;
           const cycleResetDate = user.lastHostedAt
-            ? new Date(user.lastHostedAt + FREE_PLAN.cycleDays * 24 * 60 * 60 * 1000)
+            ? new Date(user.lastHostedAt + lim.cycleDays * 24 * 60 * 60 * 1000)
             : null;
           const hostedThisCycle = user.lastHostedAt
-            ? (Date.now() - user.lastHostedAt) < FREE_PLAN.cycleDays * 24 * 60 * 60 * 1000
+            ? (Date.now() - user.lastHostedAt) < lim.cycleDays * 24 * 60 * 60 * 1000
             : false;
 
           const Bar = ({ used, max, color }) => (
@@ -1678,7 +1712,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                   color: "var(--primary)", borderRadius: 999, padding: "4px 12px",
                   border: "1px solid rgba(var(--primary-rgb),0.2)",
                   fontFamily: "'Noto Sans JP',sans-serif",
-                }}>Free Plan</span>
+                }}>{planCfg?.name || "Free Plan"}</span>
               </div>
 
               {/* Usage rows */}
@@ -1687,12 +1721,12 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>👥 Groups</div>
-                    <div style={{ fontSize: 13, color: groupsUsed >= FREE_PLAN.maxGroups ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif" }}>
-                      {groupsUsed} / {FREE_PLAN.maxGroups}
+                    <div style={{ fontSize: 13, color: groupsUsed >= lim.maxGroups ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      {groupsUsed} / {lim.maxGroups}
                     </div>
                   </div>
-                  <Bar used={groupsUsed} max={FREE_PLAN.maxGroups} />
-                  {groupsUsed >= FREE_PLAN.maxGroups && (
+                  <Bar used={groupsUsed} max={lim.maxGroups} />
+                  {groupsUsed >= lim.maxGroups && (
                     <div style={{ fontSize: 12, color: "var(--primary)", marginTop: 5, fontFamily: "'Noto Sans JP',sans-serif" }}>
                       Group limit reached
                     </div>
@@ -1702,12 +1736,12 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                 {/* Hosted games */}
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>🀄 Hosted games / {FREE_PLAN.cycleDays}d</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>🀄 Hosted games / {lim.cycleDays}d</div>
                     <div style={{ fontSize: 13, color: hostedThisCycle ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif" }}>
-                      {hostedThisCycle ? 1 : 0} / {FREE_PLAN.gamesPerCycle}
+                      {hostedThisCycle ? 1 : 0} / {lim.gamesPerCycle}
                     </div>
                   </div>
-                  <Bar used={hostedThisCycle ? 1 : 0} max={FREE_PLAN.gamesPerCycle} />
+                  <Bar used={hostedThisCycle ? 1 : 0} max={lim.gamesPerCycle} />
                   <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 5, fontFamily: "'Noto Sans JP',sans-serif" }}>
                     {hostedThisCycle
                       ? `Next slot available ${cycleResetDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} (${hostCheck.daysLeft}d)`
@@ -1716,16 +1750,23 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                 </div>
 
                 {/* Divider */}
-                <div style={{ borderTop: "1px solid var(--border-card)", paddingTop: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>Included on all plans</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                    {["Group & game chat", "Send group and game invites", "Add games to calendar"].map((f) => (
-                      <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>
-                        <span style={{ color: "var(--secondary-accent)", fontWeight: 700 }}>✓</span> {f}
+                {(() => {
+                  const feats = planCfg?.features?.length
+                    ? planCfg.features
+                    : ["Group & game chat", "Send group and game invites", "Add games to calendar"];
+                  return (
+                    <div style={{ borderTop: "1px solid var(--border-card)", paddingTop: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>Included</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                        {feats.map((f) => (
+                          <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                            <span style={{ color: "var(--secondary-accent)", fontWeight: 700 }}>✓</span> {f}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           );
@@ -1980,7 +2021,7 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
 }
 
 /* HOME */
-function Home({ groups, guestGames, go, user, activeTheme }) {
+function Home({ groups, guestGames, go, user, activeTheme, planCfg }) {
 
   // Background pattern — roses for Flowers, birds for Bam Bird, dragons for Dragons, tiles for all others
   const color = activeTheme?.primary || "#a0456e";
@@ -2106,7 +2147,7 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
           <h2 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5 }}>Your Groups</h2>
           <div style={{ display: "flex", gap: 8 }}>
             <Btn sm outline onClick={() => go("joinGroup")}>Join</Btn>
-            <Btn sm onClick={() => { if (!canAddGroup(groups.length, user).ok) { go("account"); return; } go("newGroup"); }}>+ New</Btn>
+            <Btn sm onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { go("account"); return; } go("newGroup"); }}>+ New</Btn>
           </div>
         </div>
 
@@ -2291,7 +2332,7 @@ function GamesPage({ groups, guestGames = [], go }) {
 }
 
 /* GROUPS PAGE */
-function GroupsPage({ groups, go, user }) {
+function GroupsPage({ groups, go, user, planCfg }) {
   const totalUpcoming = groups.reduce((sum, g) => sum + g.games.filter((gm) => gm.date > NOW).length, 0);
 
   return (
@@ -2334,7 +2375,7 @@ function GroupsPage({ groups, go, user }) {
             )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
-            <button onClick={() => { if (!canAddGroup(groups.length, user).ok) { go("account"); return; } go("newGroup"); }} style={{
+            <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { go("account"); return; } go("newGroup"); }} style={{
               background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.40)",
               borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
               color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
@@ -2369,7 +2410,7 @@ function GroupsPage({ groups, go, user }) {
               Create a group to start scheduling games and inviting your players.
             </p>
             <div style={{ display: "flex", gap: 10, width: "100%" }}>
-              <button onClick={() => { if (!canAddGroup(groups.length, user).ok) { go("account"); return; } go("newGroup"); }} style={{
+              <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { go("account"); return; } go("newGroup"); }} style={{
                 flex: 1, padding: "14px 0", borderRadius: 999, fontSize: 15, fontWeight: 700,
                 fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer",
                 background: "var(--active-tab-gradient)", color: "#fff",
@@ -3633,7 +3674,7 @@ function GCard({ game, groupName = "", color, faded }) {
 }
 
 /* NEW GAME */
-function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
+function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("19:00");
@@ -3825,7 +3866,7 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
       {/* Recurring toggle */}
       <div style={{ height: 10 }} />
       {(() => {
-        const recurringLocked = getPlan(myUser) === "free";
+        const recurringLocked = getPlan(myUser) === "free" && !(planCfg?.limits?.allowRecurring);
         return (
       <div style={{
         background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))",
@@ -5214,9 +5255,16 @@ function AdminLogs() {
 function AdminSubscriptions({ flash }) {
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(null); // null | "new" | docId
-  const [form, setForm] = useState({ name: "", price: "", interval: "month", description: "", features: "" });
+  const [view, setView] = useState("list"); // "list" | "detail" | "edit" | "new"
+  const [selected, setSelected] = useState(null); // package object being viewed/edited
+  const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [userCounts, setUserCounts] = useState({}); // { [planKey]: number }
+
+  const EMPTY_FORM = {
+    planKey: "", name: "", price: "0", interval: "month", description: "", features: "",
+    limitMaxGroups: "2", limitGamesPerCycle: "1", limitCycleDays: "30", limitAllowRecurring: false,
+  };
 
   useEffect(() => {
     const q = query(collection(db, "subscriptionPackages"), orderBy("price", "asc"));
@@ -5227,112 +5275,288 @@ function AdminSubscriptions({ flash }) {
     return unsub;
   }, []);
 
-  const startNew = () => {
-    setForm({ name: "", price: "", interval: "month", description: "", features: "" });
-    setEditing("new");
-  };
+  // Count users per plan key
+  useEffect(() => {
+    if (packages.length === 0) return;
+    const planKeys = packages.map((p) => p.planKey || p.id);
+    Promise.all(
+      planKeys.map(async (key) => {
+        const snap = await getDocs(query(collection(db, "users"), where("subscription.plan", "==", key)));
+        return [key, snap.size];
+      })
+    ).then((results) => {
+      const counts = {};
+      results.forEach(([key, n]) => { counts[key] = n; });
+      setUserCounts(counts);
+    }).catch(() => {});
+  }, [packages]);
 
-  const startEdit = (pkg) => {
-    setForm({ name: pkg.name, price: String(pkg.price), interval: pkg.interval || "month", description: pkg.description || "", features: (pkg.features || []).join("\n") });
-    setEditing(pkg.id);
-  };
+  const pkgToForm = (pkg) => ({
+    planKey: pkg.planKey || "",
+    name: pkg.name || "",
+    price: String(pkg.price ?? "0"),
+    interval: pkg.interval || "month",
+    description: pkg.description || "",
+    features: (pkg.features || []).join("\n"),
+    limitMaxGroups:     String(pkg.limits?.maxGroups     ?? "2"),
+    limitGamesPerCycle: String(pkg.limits?.gamesPerCycle ?? "1"),
+    limitCycleDays:     String(pkg.limits?.cycleDays     ?? "30"),
+    limitAllowRecurring: pkg.limits?.allowRecurring ?? false,
+  });
+
+  const formToData = (f) => ({
+    planKey: f.planKey.trim().toLowerCase().replace(/\s+/g, "_"),
+    name: f.name.trim(),
+    price: parseFloat(f.price) || 0,
+    interval: f.interval,
+    description: f.description.trim(),
+    features: f.features.split("\n").map((s) => s.trim()).filter(Boolean),
+    limits: {
+      maxGroups:     parseInt(f.limitMaxGroups, 10)     || 2,
+      gamesPerCycle: parseInt(f.limitGamesPerCycle, 10) || 1,
+      cycleDays:     parseInt(f.limitCycleDays, 10)     || 30,
+      allowRecurring: !!f.limitAllowRecurring,
+    },
+    updatedAt: serverTimestamp(),
+  });
+
+  const openNew = () => { setForm(EMPTY_FORM); setSelected(null); setView("new"); };
+  const openDetail = (pkg) => { setSelected(pkg); setView("detail"); };
+  const openEdit = (pkg) => { setForm(pkgToForm(pkg)); setSelected(pkg); setView("edit"); };
 
   const save = async () => {
-    if (!form.name.trim() || !form.price) return;
+    if (!form.name.trim() || !form.planKey.trim()) return;
     setSaving(true);
-    const data = {
-      name: form.name.trim(),
-      price: parseFloat(form.price) || 0,
-      interval: form.interval,
-      description: form.description.trim(),
-      features: form.features.split("\n").map((s) => s.trim()).filter(Boolean),
-      updatedAt: serverTimestamp(),
-    };
+    const data = formToData(form);
     try {
-      if (editing === "new") {
-        await addDoc(collection(db, "subscriptionPackages"), { ...data, createdAt: serverTimestamp() });
-        flash("Package created");
+      if (view === "new") {
+        // Use planKey as the document ID so the app can look it up by key
+        await setDoc(doc(db, "subscriptionPackages", data.planKey), { ...data, createdAt: serverTimestamp() });
+        flash("Plan created — changes live for all users on this plan");
       } else {
-        await updateDoc(doc(db, "subscriptionPackages", editing), data);
-        flash("Package updated");
+        await updateDoc(doc(db, "subscriptionPackages", selected.id), data);
+        flash("Plan updated — changes pushed to all users on this plan");
       }
-      setEditing(null);
-    } catch { flash("Failed to save package"); }
+      setView("list");
+    } catch (e) { flash("Failed to save: " + e.message); }
     setSaving(false);
   };
 
-  const remove = async (id, name) => {
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  const remove = async (pkg) => {
+    const count = userCounts[pkg.planKey || pkg.id] || 0;
+    const msg = count > 0
+      ? `Delete "${pkg.name}"? This plan has ${count} user${count === 1 ? "" : "s"}. They will fall back to Free plan defaults.`
+      : `Delete "${pkg.name}"? This cannot be undone.`;
+    if (!window.confirm(msg)) return;
     try {
-      await deleteDoc(doc(db, "subscriptionPackages", id));
-      flash("Package deleted");
-    } catch { flash("Failed to delete package"); }
+      await deleteDoc(doc(db, "subscriptionPackages", pkg.id));
+      flash("Plan deleted");
+      if (view === "detail") setView("list");
+    } catch { flash("Failed to delete plan"); }
   };
 
-  const inputSt2 = { width: "100%", padding: "10px 14px", borderRadius: 10, fontSize: 14, border: "1.5px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", outline: "none", boxSizing: "border-box", marginBottom: 10 };
+  const inp = { width: "100%", padding: "10px 14px", borderRadius: 10, fontSize: 14, border: "1.5px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", outline: "none", boxSizing: "border-box", marginBottom: 10 };
+  const Lbl2 = ({ children }) => <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.7)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontFamily: "'Noto Sans JP',sans-serif" }}>{children}</div>;
+  const numInp = (field, label, min = 1) => (
+    <div style={{ flex: 1 }}>
+      <Lbl2>{label}</Lbl2>
+      <input type="number" min={min} value={form[field] ?? ""} onChange={(e) => setForm({ ...form, [field]: e.target.value })} style={{ ...inp, marginBottom: 0 }} />
+    </div>
+  );
 
-  if (editing !== null) {
+  // ── Edit / New form ──────────────────────────────────────────────────────────
+  if (view === "edit" || view === "new") {
+    const isNew = view === "new";
     return (
       <div>
-        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff", marginBottom: 20 }}>
-          {editing === "new" ? "New Package" : "Edit Package"}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
+          <button onClick={() => setView(isNew ? "list" : "detail")} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "6px 14px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>← Back</button>
+          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff" }}>{isNew ? "New Plan" : `Edit — ${selected?.name}`}</div>
         </div>
-        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Package name (e.g. Pro)" style={inputSt2} />
-        <div style={{ display: "flex", gap: 10, marginBottom: 0 }}>
-          <input value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="Price (e.g. 9.99)" type="number" min="0" step="0.01" style={{ ...inputSt2, flex: 1 }} />
-          <select value={form.interval} onChange={(e) => setForm({ ...form, interval: e.target.value })} style={{ ...inputSt2, flex: 1 }}>
-            <option value="month">/ month</option>
-            <option value="year">/ year</option>
-            <option value="once">one-time</option>
-          </select>
+
+        <Lbl2>Plan Key (ID)</Lbl2>
+        <input value={form.planKey} onChange={(e) => setForm({ ...form, planKey: e.target.value })} placeholder="e.g. free, pro, club" disabled={!isNew} style={{ ...inp, opacity: isNew ? 1 : 0.5 }} />
+        {isNew && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: -6, marginBottom: 10, fontFamily: "'Noto Sans JP',sans-serif" }}>Permanent ID used in code. Use lowercase letters only (e.g. "free", "pro").</div>}
+
+        <Lbl2>Display Name</Lbl2>
+        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Free, Pro, Club" style={inp} />
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <Lbl2>Price</Lbl2>
+            <input value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="0" type="number" min="0" step="0.01" style={{ ...inp, marginBottom: 0 }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <Lbl2>Billing</Lbl2>
+            <select value={form.interval} onChange={(e) => setForm({ ...form, interval: e.target.value })} style={{ ...inp, marginBottom: 0 }}>
+              <option value="month">/ month</option>
+              <option value="year">/ year</option>
+              <option value="once">one-time</option>
+              <option value="free">Free</option>
+            </select>
+          </div>
         </div>
-        <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Short description" style={inputSt2} />
-        <textarea value={form.features} onChange={(e) => setForm({ ...form, features: e.target.value })} placeholder={"Features (one per line)\nUnlimited groups\nPriority support"} rows={5} style={{ ...inputSt2, resize: "vertical" }} />
-        <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-          <button onClick={() => setEditing(null)} style={{ flex: 1, padding: "11px", borderRadius: 12, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
-          <button onClick={save} disabled={saving || !form.name.trim() || !form.price} style={{ flex: 1, padding: "11px", borderRadius: 12, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: (saving || !form.name.trim() || !form.price) ? 0.5 : 1 }}>
-            {saving ? "Saving…" : "Save"}
+        <div style={{ height: 10 }} />
+
+        <Lbl2>Description</Lbl2>
+        <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Short description shown to users" style={inp} />
+
+        <Lbl2>Features (one per line — shown in Account)</Lbl2>
+        <textarea value={form.features} onChange={(e) => setForm({ ...form, features: e.target.value })} placeholder={"Group & game chat\nSend group and game invites\nAdd games to calendar"} rows={4} style={{ ...inp, resize: "vertical" }} />
+
+        {/* Limits section */}
+        <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 14, padding: "16px", marginBottom: 10, border: "1px solid rgba(155,110,168,0.25)" }}>
+          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#e8a0d0", marginBottom: 14 }}>Plan Limits</div>
+          <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+            {numInp("limitMaxGroups", "Max Groups")}
+            {numInp("limitGamesPerCycle", "Hosted Games / Cycle")}
+            {numInp("limitCycleDays", "Cycle Days")}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div onClick={() => setForm({ ...form, limitAllowRecurring: !form.limitAllowRecurring })} style={{
+              width: 42, height: 24, borderRadius: 999, cursor: "pointer", flexShrink: 0,
+              background: form.limitAllowRecurring ? "linear-gradient(135deg,#5a2d6b,#9b3fa0)" : "rgba(255,255,255,0.15)",
+              position: "relative", transition: "background .2s",
+            }}>
+              <div style={{ width: 18, height: 18, borderRadius: 999, background: "#fff", position: "absolute", top: 3, left: form.limitAllowRecurring ? 21 : 3, transition: "left .2s", boxShadow: "0 1px 4px rgba(0,0,0,.25)" }} />
+            </div>
+            <div style={{ fontSize: 14, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif" }}>Allow recurring games</div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+          <button onClick={() => setView(isNew ? "list" : "detail")} style={{ flex: 1, padding: "11px", borderRadius: 12, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
+          <button onClick={save} disabled={saving || !form.name.trim() || !form.planKey.trim()} style={{ flex: 2, padding: "11px", borderRadius: 12, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: (saving || !form.name.trim() || !form.planKey.trim()) ? 0.5 : 1 }}>
+            {saving ? "Saving…" : "Save & Push to Users"}
           </button>
         </div>
       </div>
     );
   }
 
+  // ── Detail view ──────────────────────────────────────────────────────────────
+  if (view === "detail" && selected) {
+    const pkg = packages.find((p) => p.id === selected.id) || selected;
+    const planKey = pkg.planKey || pkg.id;
+    const count = userCounts[planKey] ?? "—";
+    const lim = pkg.limits || {};
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
+          <button onClick={() => setView("list")} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "6px 14px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>← Plans</button>
+          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff", flex: 1 }}>{pkg.name}</div>
+          <button onClick={() => openEdit(pkg)} style={{ background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", borderRadius: 10, padding: "7px 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Edit</button>
+        </div>
+
+        {/* Plan overview */}
+        <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "18px 20px", marginBottom: 14, border: "1px solid rgba(155,110,168,0.2)" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 20, marginBottom: pkg.description ? 12 : 0 }}>
+            {[
+              ["Plan Key", planKey],
+              ["Price", pkg.price === 0 ? "Free" : `$${pkg.price} / ${pkg.interval}`],
+              ["Users on this plan", count],
+            ].map(([lbl, val]) => (
+              <div key={lbl}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>{lbl}</div>
+                <div style={{ fontSize: 16, color: "#fff", fontWeight: 700, fontFamily: "'Shippori Mincho',serif" }}>{String(val)}</div>
+              </div>
+            ))}
+          </div>
+          {pkg.description && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", fontFamily: "'Noto Sans JP',sans-serif" }}>{pkg.description}</div>}
+        </div>
+
+        {/* Limits */}
+        <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "18px 20px", marginBottom: 14, border: "1px solid rgba(155,110,168,0.2)" }}>
+          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#e8a0d0", marginBottom: 14 }}>Plan Limits</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            {[
+              ["Max Groups", lim.maxGroups ?? FREE_PLAN.maxGroups],
+              ["Hosted Games / Cycle", lim.gamesPerCycle ?? FREE_PLAN.gamesPerCycle],
+              ["Cycle Duration", `${lim.cycleDays ?? FREE_PLAN.cycleDays} days`],
+              ["Recurring Games", lim.allowRecurring ? "✅ Allowed" : "🔒 Locked"],
+            ].map(([lbl, val]) => (
+              <div key={lbl} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 14px" }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>{lbl}</div>
+                <div style={{ fontSize: 18, color: "#fff", fontWeight: 700, fontFamily: "'Shippori Mincho',serif" }}>{String(val)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Features */}
+        {pkg.features?.length > 0 && (
+          <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "18px 20px", marginBottom: 14, border: "1px solid rgba(155,110,168,0.2)" }}>
+            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#e8a0d0", marginBottom: 12 }}>Included Features</div>
+            {pkg.features.map((f, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "rgba(255,255,255,0.8)", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 7 }}>
+                <span style={{ color: "#9b3fa0", fontWeight: 700, fontSize: 16 }}>✓</span> {f}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button onClick={() => remove(pkg)} style={{ width: "100%", padding: "11px", borderRadius: 12, background: "rgba(200,50,80,0.15)", border: "1px solid rgba(200,50,80,0.3)", color: "#e87070", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 4 }}>
+          Delete Plan
+        </button>
+      </div>
+    );
+  }
+
+  // ── List view ────────────────────────────────────────────────────────────────
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff" }}>Subscription Packages</div>
-        <button onClick={startNew} style={{ background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", borderRadius: 10, padding: "8px 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>+ New Package</button>
+        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff" }}>Subscription Plans</div>
+        <button onClick={openNew} style={{ background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", borderRadius: 10, padding: "8px 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>+ New Plan</button>
       </div>
 
       {loading && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>Loading…</div>}
       {!loading && packages.length === 0 && (
-        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, marginBottom: 16 }}>No packages yet. Create your first subscription package.</div>
+        <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 14, marginBottom: 16, lineHeight: 1.6 }}>
+          No plans yet. Create the <strong style={{ color: "#e8a0d0" }}>free</strong> plan first — use Plan Key <code style={{ background: "rgba(255,255,255,0.1)", borderRadius: 4, padding: "1px 6px" }}>free</code> so limits sync to all free-tier users.
+        </div>
       )}
 
-      {packages.map((pkg) => (
-        <div key={pkg.id} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "18px 20px", marginBottom: 12, border: "1px solid rgba(155,110,168,0.2)" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-                <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff", fontWeight: 700 }}>{pkg.name}</span>
-                <span style={{ fontSize: 20, color: "#e8a0d0", fontWeight: 800 }}>${pkg.price}</span>
-                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>/ {pkg.interval}</span>
+      {packages.map((pkg) => {
+        const planKey = pkg.planKey || pkg.id;
+        const count = userCounts[planKey] ?? "—";
+        const lim = pkg.limits || {};
+        return (
+          <div key={pkg.id} onClick={() => openDetail(pkg)} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "18px 20px", marginBottom: 12, border: "1px solid rgba(155,110,168,0.2)", cursor: "pointer", transition: "background .15s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.10)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+                  <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff", fontWeight: 700 }}>{pkg.name}</span>
+                  <span style={{ fontSize: 13, color: "#e8a0d0", fontWeight: 700, background: "rgba(155,63,160,0.2)", borderRadius: 999, padding: "2px 10px", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    {planKey}
+                  </span>
+                  <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    {pkg.price === 0 ? "Free" : `$${pkg.price}/${pkg.interval}`}
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    👥 {lim.maxGroups ?? FREE_PLAN.maxGroups} groups
+                  </span>
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    🀄 {lim.gamesPerCycle ?? FREE_PLAN.gamesPerCycle} game/{lim.cycleDays ?? FREE_PLAN.cycleDays}d
+                  </span>
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    🔁 {lim.allowRecurring ? "Recurring ✓" : "No recurring"}
+                  </span>
+                  <span style={{ fontSize: 12, color: "#e8a0d0", fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    {count} user{count !== 1 ? "s" : ""}
+                  </span>
+                </div>
               </div>
-              {pkg.description && <div style={{ fontSize: 13, color: "var(--bg-surface)", marginTop: 4 }}>{pkg.description}</div>}
-              {pkg.features?.length > 0 && (
-                <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
-                  {pkg.features.map((f, i) => <li key={i} style={{ fontSize: 13, color: "var(--border-card)", marginBottom: 3 }}>{f}</li>)}
-                </ul>
-              )}
-            </div>
-            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-              <button onClick={() => startEdit(pkg)} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "6px 12px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Edit</button>
-              <button onClick={() => remove(pkg.id, pkg.name)} style={{ background: "rgba(var(--primary-rgb),0.15)", border: "1px solid rgba(var(--primary-rgb),0.3)", borderRadius: 10, padding: "6px 12px", color: "var(--primary)", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Delete</button>
+              <span style={{ color: "rgba(232,160,208,0.6)", fontSize: 20, marginTop: 2 }}>›</span>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
