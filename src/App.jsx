@@ -1648,9 +1648,6 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
   // All plans for comparison table (free + all paid), sorted by price
   const allPlans = Object.values(planConfigs).sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
 
-  // Gather every unique feature across all plans for comparison rows
-  const allFeatureLabels = [...new Set(allPlans.flatMap(p => p.features ?? []))];
-
   return (
     <div style={wrap}>
       {/* Header */}
@@ -1697,10 +1694,6 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
             // Premium / featured card (gold treatment)
             return (
               <div key={plan.planKey} style={{ marginBottom: 4 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, paddingLeft: 4 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>Recommended</div>
-                  <div style={{ fontSize: 10, fontWeight: 800, background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#fff", borderRadius: 999, padding: "2px 9px", fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 0.4 }}>MOST POPULAR</div>
-                </div>
                 <div style={{ background: "linear-gradient(145deg,#1a0a2e 0%,#2d1048 60%,#1a0a2e 100%)", borderRadius: 22, padding: "22px 20px", border: "2px solid rgba(245,158,11,0.5)", boxShadow: "0 8px 32px rgba(245,158,11,0.18), 0 2px 8px rgba(0,0,0,0.3)", position: "relative", overflow: "hidden", marginBottom: 4 }}>
                   <div style={{ position: "absolute", top: -40, right: -40, width: 130, height: 130, borderRadius: "50%", background: "radial-gradient(circle,rgba(245,158,11,0.22) 0%,transparent 70%)", pointerEvents: "none" }} />
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
@@ -1785,38 +1778,78 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
           );
         })}
 
-        {/* Comparison table — all plans as columns */}
-        {allPlans.length > 1 && (
-          <div style={{ marginTop: 28 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", marginBottom: 10, paddingLeft: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Compare plans</div>
-            <div style={{ ...card, overflowX: "auto" }}>
-              {/* Column width based on plan count */}
-              {allFeatureLabels.map((feat, i) => (
-                <div key={feat} style={{ display: "flex", alignItems: "center", paddingBottom: i < allFeatureLabels.length - 1 ? 11 : 0, marginBottom: i < allFeatureLabels.length - 1 ? 11 : 0, borderBottom: i < allFeatureLabels.length - 1 ? "1px solid var(--border-card)" : "none" }}>
-                  <div style={{ flex: 1, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif", paddingRight: 8 }}>{feat}</div>
-                  {allPlans.map(p => {
-                    const has = p.features?.includes(feat);
-                    const isHighlighted = p.planKey === topPlan?.planKey;
-                    return (
-                      <div key={p.planKey} style={{ width: 56, textAlign: "center", fontSize: 13, fontWeight: has ? 700 : 400, color: isHighlighted ? "#f59e0b" : has ? "var(--secondary-accent)" : "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", opacity: has ? 1 : 0.35 }}>
-                        {has ? "✓" : "✕"}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-              {/* Header row at bottom */}
-              <div style={{ display: "flex", marginTop: 10, borderTop: "1px solid var(--border-card)", paddingTop: 8 }}>
-                <div style={{ flex: 1 }} />
-                {allPlans.map(p => (
-                  <div key={p.planKey} style={{ width: 56, textAlign: "center", fontSize: 10, fontWeight: p.planKey === topPlan?.planKey ? 800 : 600, color: p.planKey === topPlan?.planKey ? "#f59e0b" : "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", textTransform: "uppercase", letterSpacing: 0.3 }}>
-                    {p.name?.replace(" Plan", "") || p.planKey}
+        {/* Comparison table — structured limit rows, one column per plan */}
+        {allPlans.length > 1 && (() => {
+          const fmt = (v) => (v == null || v === 0 || v > 999) ? "Unlimited" : String(v);
+          const colW = Math.floor(196 / allPlans.length);
+
+          const rows = [
+            {
+              label: "Groups",
+              values: allPlans.map(p => fmt(p.limits?.maxGroups)),
+            },
+            {
+              label: "Hosted games / 30d",
+              values: allPlans.map(p => fmt(p.limits?.gamesPerCycle)),
+            },
+            {
+              label: "Recurring games",
+              values: allPlans.map(p => p.limits?.allowRecurring ? "✓" : "✕"),
+              boolean: true,
+            },
+          ];
+
+          // Shared features (present in every plan) shown as a simple list below
+          const sharedFeatures = (allPlans[0]?.features ?? []).filter(f =>
+            allPlans.every(p => p.features?.includes(f))
+          );
+
+          return (
+            <div style={{ marginTop: 28 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", marginBottom: 10, paddingLeft: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Compare plans</div>
+              <div style={card}>
+                {rows.map((row, i) => (
+                  <div key={row.label} style={{ display: "flex", alignItems: "center", paddingBottom: i < rows.length - 1 ? 12 : 0, marginBottom: i < rows.length - 1 ? 12 : 0, borderBottom: i < rows.length - 1 ? "1px solid var(--border-card)" : "none" }}>
+                    <div style={{ flex: 1, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{row.label}</div>
+                    {row.values.map((val, ci) => {
+                      const isTop = allPlans[ci]?.planKey === topPlan?.planKey;
+                      const positive = val === "✓" || (val !== "✕" && val !== "0");
+                      return (
+                        <div key={allPlans[ci].planKey} style={{ width: colW, textAlign: "center", fontSize: row.boolean ? 15 : 12, fontWeight: 700, color: isTop ? "#f59e0b" : positive ? "var(--secondary-accent)" : "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", opacity: (!positive && row.boolean) ? 0.35 : 1 }}>
+                          {val}
+                        </div>
+                      );
+                    })}
                   </div>
                 ))}
+
+                {/* Plan name header */}
+                <div style={{ display: "flex", marginTop: 12, borderTop: "1px solid var(--border-card)", paddingTop: 10 }}>
+                  <div style={{ flex: 1 }} />
+                  {allPlans.map(p => (
+                    <div key={p.planKey} style={{ width: colW, textAlign: "center", fontSize: 10, fontWeight: 800, color: p.planKey === topPlan?.planKey ? "#f59e0b" : "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                      {p.name?.replace(" Plan", "") || p.planKey}
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* Shared features */}
+              {sharedFeatures.length > 0 && (
+                <div style={{ marginTop: 10, paddingLeft: 4 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>All plans include</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {sharedFeatures.map(f => (
+                      <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                        <span style={{ color: "var(--secondary-accent)", fontWeight: 700 }}>✓</span> {f}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
       </div>
     </div>
