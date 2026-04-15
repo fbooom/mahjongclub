@@ -27,6 +27,32 @@ function isValidGameCode(code) {
   return /^[A-Za-z0-9_-]{3,20}$/.test(code);
 }
 
+// ── Subscription plan helpers ────────────────────────────────────────────────
+const FREE_PLAN = { maxGroups: 2, gamesPerCycle: 1, cycleDays: 30 };
+
+function getPlan(user) {
+  return user?.subscription?.plan || "free";
+}
+
+// Returns { ok: true } or { ok: false }
+function canAddGroup(groupCount, user) {
+  if (getPlan(user) !== "free") return { ok: true };
+  return groupCount >= FREE_PLAN.maxGroups ? { ok: false } : { ok: true };
+}
+
+// Returns { ok: true } or { ok: false, daysLeft: number }
+function canHostGame(user) {
+  if (getPlan(user) !== "free") return { ok: true };
+  const last = user?.lastHostedAt;
+  if (!last) return { ok: true };
+  const cycleMs = FREE_PLAN.cycleDays * 24 * 60 * 60 * 1000;
+  const elapsed = Date.now() - last;
+  if (elapsed < cycleMs) {
+    return { ok: false, daysLeft: Math.ceil((cycleMs - elapsed) / 86400000) };
+  }
+  return { ok: true };
+}
+
 const showBrowserNotif = (title, body, tag) => {
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   try { new Notification(title, { body, icon: "/favicon.ico", tag }); } catch(e) {}
@@ -747,11 +773,14 @@ export default function App() {
       <div ref={scrollRef} data-scroll-container style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 90, paddingTop: impersonating ? 52 : 0 }}>
         {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} activeTheme={activeTheme} />}
         {page === "games" && <GamesPage groups={groups} guestGames={guestGames} go={go} />}
-        {page === "groups" && <GroupsPage groups={groups} go={go} />}
+        {page === "groups" && <GroupsPage groups={groups} go={go} user={displayUser} />}
         {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} activeThemeId={activeTheme.id} onThemeChange={handleThemeChange} />}
         {page === "newGroup" && (
           <NewGroup onBack={() => go("groups")}
             onSave={async (g) => {
+              if (!canAddGroup(groups.length, user).ok) {
+                flash(`Free plan allows up to ${FREE_PLAN.maxGroups} groups`, "🔒"); go("groups"); return;
+              }
               try {
                 const groupData = { ...g, members: [{ id: uid, name: user.name, avatar: user.avatar, host: true }], memberIds: [uid] };
                 await setDoc(doc(db, "groups", g.id), groupData);
@@ -762,6 +791,9 @@ export default function App() {
         {page === "joinGroup" && (
           <JoinGroup uid={uid} groups={groups} onBack={() => go("home")}
             onJoin={async (id) => {
+              if (!canAddGroup(groups.length, user).ok) {
+                flash(`Free plan allows up to ${FREE_PLAN.maxGroups} groups`, "🔒"); return;
+              }
               try {
                 await runTransaction(db, async (tx) => {
                   const ref = doc(db, "groups", id);
@@ -850,8 +882,16 @@ export default function App() {
         {page === "newGame" && group && (
           <NewGame uid={uid} user={user} group={group} onBack={() => go("group", group.id)}
             onSave={async (games) => {
+              const arr = Array.isArray(games) ? games : [games];
+              const isHosting = arr[0].hostId === uid;
+              if (isHosting) {
+                const hostCheck = canHostGame(user);
+                if (!hostCheck.ok) {
+                  flash(`Free plan: next hosted game available in ${hostCheck.daysLeft} day${hostCheck.daysLeft === 1 ? "" : "s"}`, "🔒");
+                  return;
+                }
+              }
               try {
-                const arr = Array.isArray(games) ? games : [games];
                 const batch = writeBatch(db);
                 arr.forEach((gm) => {
                   batch.set(doc(db, "groups", group.id, "games", gm.id), gm);
@@ -860,6 +900,9 @@ export default function App() {
                   }
                 });
                 await batch.commit();
+                if (isHosting) {
+                  await updateDoc(doc(db, "users", uid), { lastHostedAt: Date.now() });
+                }
                 if (arr.length === 1) { go("game", group.id, arr[0].id); flash("Game scheduled!", "🀄"); }
                 else { go("group", group.id); flash(`${arr.length} games scheduled! 🀄`); }
               } catch { flash("Error scheduling game", "❌"); }
@@ -1600,6 +1643,94 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           )}
         </div>
 
+        {/* ── Subscription plan card ── */}
+        {(() => {
+          const plan = getPlan(user);
+          const hostCheck = canHostGame(user);
+          const groupsUsed = groups.length;
+          const cycleResetDate = user.lastHostedAt
+            ? new Date(user.lastHostedAt + FREE_PLAN.cycleDays * 24 * 60 * 60 * 1000)
+            : null;
+          const hostedThisCycle = user.lastHostedAt
+            ? (Date.now() - user.lastHostedAt) < FREE_PLAN.cycleDays * 24 * 60 * 60 * 1000
+            : false;
+
+          const Bar = ({ used, max, color }) => (
+            <div style={{ height: 6, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
+              <div style={{ height: "100%", width: `${Math.min(100, (used / max) * 100)}%`, background: used >= max ? "var(--primary)" : color || "var(--secondary-accent)", borderRadius: 999, transition: "width .4s" }} />
+            </div>
+          );
+
+          return (
+            <div style={{
+              background: "linear-gradient(135deg,var(--bg-card-base),var(--bg-card-alt))",
+              backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+              borderRadius: 20, padding: "20px 18px", marginBottom: 14,
+              boxShadow: "0 4px 20px rgba(var(--shadow-rgb),0.09), inset 0 1px 0 var(--shadow-inset)",
+              border: "1px solid var(--border-card)",
+            }}>
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "var(--section-title)", fontWeight: 700 }}>Subscription</span>
+                <span style={{
+                  fontSize: 12, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase",
+                  background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.12),rgba(var(--primary-rgb),0.06))",
+                  color: "var(--primary)", borderRadius: 999, padding: "4px 12px",
+                  border: "1px solid rgba(var(--primary-rgb),0.2)",
+                  fontFamily: "'Noto Sans JP',sans-serif",
+                }}>Free Plan</span>
+              </div>
+
+              {/* Usage rows */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Groups */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>👥 Groups</div>
+                    <div style={{ fontSize: 13, color: groupsUsed >= FREE_PLAN.maxGroups ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      {groupsUsed} / {FREE_PLAN.maxGroups}
+                    </div>
+                  </div>
+                  <Bar used={groupsUsed} max={FREE_PLAN.maxGroups} />
+                  {groupsUsed >= FREE_PLAN.maxGroups && (
+                    <div style={{ fontSize: 12, color: "var(--primary)", marginTop: 5, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      Group limit reached
+                    </div>
+                  )}
+                </div>
+
+                {/* Hosted games */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>🀄 Hosted games / {FREE_PLAN.cycleDays}d</div>
+                    <div style={{ fontSize: 13, color: hostedThisCycle ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      {hostedThisCycle ? 1 : 0} / {FREE_PLAN.gamesPerCycle}
+                    </div>
+                  </div>
+                  <Bar used={hostedThisCycle ? 1 : 0} max={FREE_PLAN.gamesPerCycle} />
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 5, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    {hostedThisCycle
+                      ? `Next slot available ${cycleResetDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} (${hostCheck.daysLeft}d)`
+                      : "Slot available now"}
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div style={{ borderTop: "1px solid var(--border-card)", paddingTop: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>Included on all plans</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {["Group & game chat", "Send group and game invites", "Add games to calendar"].map((f) => (
+                      <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                        <span style={{ color: "var(--secondary-accent)", fontWeight: 700 }}>✓</span> {f}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Notification settings */}
         <div style={{
           background: "linear-gradient(135deg,var(--bg-card-base),var(--bg-card-alt))",
@@ -1975,7 +2106,7 @@ function Home({ groups, guestGames, go, user, activeTheme }) {
           <h2 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5 }}>Your Groups</h2>
           <div style={{ display: "flex", gap: 8 }}>
             <Btn sm outline onClick={() => go("joinGroup")}>Join</Btn>
-            <Btn sm onClick={() => go("newGroup")}>+ New</Btn>
+            <Btn sm onClick={() => { if (!canAddGroup(groups.length, user).ok) { go("account"); return; } go("newGroup"); }}>+ New</Btn>
           </div>
         </div>
 
@@ -2160,7 +2291,7 @@ function GamesPage({ groups, guestGames = [], go }) {
 }
 
 /* GROUPS PAGE */
-function GroupsPage({ groups, go }) {
+function GroupsPage({ groups, go, user }) {
   const totalUpcoming = groups.reduce((sum, g) => sum + g.games.filter((gm) => gm.date > NOW).length, 0);
 
   return (
@@ -2203,7 +2334,7 @@ function GroupsPage({ groups, go }) {
             )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
-            <button onClick={() => go("newGroup")} style={{
+            <button onClick={() => { if (!canAddGroup(groups.length, user).ok) { go("account"); return; } go("newGroup"); }} style={{
               background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.40)",
               borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
               color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
@@ -2238,7 +2369,7 @@ function GroupsPage({ groups, go }) {
               Create a group to start scheduling games and inviting your players.
             </p>
             <div style={{ display: "flex", gap: 10, width: "100%" }}>
-              <button onClick={() => go("newGroup")} style={{
+              <button onClick={() => { if (!canAddGroup(groups.length, user).ok) { go("account"); return; } go("newGroup"); }} style={{
                 flex: 1, padding: "14px 0", borderRadius: 999, fontSize: 15, fontWeight: 700,
                 fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer",
                 background: "var(--active-tab-gradient)", color: "#fff",
@@ -3693,21 +3824,30 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
 
       {/* Recurring toggle */}
       <div style={{ height: 10 }} />
+      {(() => {
+        const recurringLocked = getPlan(myUser) === "free";
+        return (
       <div style={{
         background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))",
         backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
         borderRadius: 16, padding: "16px", marginBottom: 16,
         border: "1px solid rgba(var(--border-light-rgb),0.4)",
         boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.07), inset 0 1px 0 var(--shadow-inset)",
+        opacity: recurringLocked ? 0.65 : 1,
       }}>
         {/* Toggle row */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>🔁 Recurring Game</div>
-            <div style={{ fontSize: 13, color: "#b08090", marginTop: 2, fontFamily: "'Noto Sans JP',sans-serif" }}>Automatically schedule repeating sessions</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>
+              🔁 Recurring Game
+              {recurringLocked && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, background: "rgba(var(--primary-rgb),0.1)", color: "var(--primary)", borderRadius: 999, padding: "2px 8px", fontFamily: "'Noto Sans JP',sans-serif" }}>Paid plan</span>}
+            </div>
+            <div style={{ fontSize: 13, color: "#b08090", marginTop: 2, fontFamily: "'Noto Sans JP',sans-serif" }}>
+              {recurringLocked ? "Upgrade to schedule repeating sessions" : "Automatically schedule repeating sessions"}
+            </div>
           </div>
           {/* Toggle switch */}
-          <div onClick={() => setRecurring(!recurring)} style={{
+          <div onClick={() => !recurringLocked && setRecurring(!recurring)} style={{
             width: 48, height: 27, borderRadius: 999, cursor: "pointer",
             background: recurring ? "var(--active-tab-gradient)" : "rgba(200,180,190,0.4)",
             position: "relative", transition: "background .25s",
@@ -3779,6 +3919,8 @@ function NewGame({ uid: myUid, user: myUser, group, onBack, onSave }) {
           </div>
         )}
       </div>
+        );
+      })()}
 
       {/* Join Code — only for single games */}
       {!recurring && (
