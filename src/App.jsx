@@ -1005,6 +1005,9 @@ export default function App() {
         {page === "guestGame" && gid && gmid && (
           <GuestGameView uid={uid} groupId={gid} gameId={gmid} go={go} flash={flash} />
         )}
+        {page === "managePlan" && (
+          <ManagePlan uid={uid} user={displayUser} setUser={setUser} planConfigs={planConfigs} go={go} flash={flash} />
+        )}
       </div>
 
       {/* Bottom nav */}
@@ -1488,6 +1491,279 @@ function AdminPanel({ onImpersonate }) {
   );
 }
 
+/* ── MANAGE PLAN PAGE ── */
+function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
+  const [loading, setLoading] = useState(false);
+
+  const currentPlan = getPlan(user);
+  const isOnTrial   = user?.subscription?.isTrial === true && currentPlan !== "free";
+  const trialEndsAt = user?.subscription?.trialEndsAt;
+
+  const clubCfg  = planConfigs["club"];
+  const freeCfg  = planConfigs["free"];
+
+  const clubPrice    = clubCfg?.price ?? 4.99;
+  const clubInterval = clubCfg?.interval ?? "month";
+
+  const clubFeatures = clubCfg?.features?.length ? clubCfg.features : [
+    "Unlimited groups",
+    "Unlimited hosted games",
+    "Recurring game scheduling",
+    "Priority support",
+  ];
+
+  const freeLimits = getPlanLimits(freeCfg ?? null);
+
+  // Dates
+  const trialBillingDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const billingDateStr   = trialBillingDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const trialDaysLeft    = trialEndsAt ? Math.max(0, Math.ceil((trialEndsAt - Date.now()) / 86400000)) : 0;
+  const trialEndStr      = trialEndsAt
+    ? new Date(trialEndsAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    : "";
+
+  const handleStartTrial = async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const now  = Date.now();
+      const ends = now + 30 * 24 * 60 * 60 * 1000;
+      await updateDoc(doc(db, "users", uid), {
+        "subscription.plan":           "club",
+        "subscription.isTrial":        true,
+        "subscription.trialStartedAt": now,
+        "subscription.trialEndsAt":    ends,
+        "subscription.changedAt":      serverTimestamp(),
+      });
+      setUser(prev => ({
+        ...prev,
+        subscription: { ...prev?.subscription, plan: "club", isTrial: true, trialStartedAt: now, trialEndsAt: ends },
+      }));
+      flash("Club trial started — 30 days free! 🎉", "🌟");
+      go("account");
+    } catch {
+      flash("Could not start trial. Please try again.", "❌");
+      setLoading(false);
+    }
+  };
+
+  const wrap  = { minHeight: "100%", background: "var(--bg-surface)", paddingBottom: 40 };
+  const card  = {
+    background: "linear-gradient(135deg,var(--bg-card-base),var(--bg-card-alt))",
+    backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+    borderRadius: 20, padding: "20px 18px", marginBottom: 12,
+    boxShadow: "0 4px 20px rgba(var(--shadow-rgb),0.09), inset 0 1px 0 var(--shadow-inset)",
+    border: "1px solid var(--border-card)",
+  };
+  const backBtn = {
+    background: "none", border: "none", fontSize: 24, cursor: "pointer",
+    padding: "4px 8px 4px 0", color: "var(--primary)", lineHeight: 1,
+  };
+
+  /* ── Already on trial ── */
+  if (isOnTrial) {
+    return (
+      <div style={wrap}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 8px" }}>
+          <button onClick={() => go("account")} style={backBtn}>‹</button>
+          <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 19, fontWeight: 700, color: "var(--section-title)" }}>Your Plan</span>
+        </div>
+        <div style={{ padding: "0 16px" }}>
+
+          {/* Trial status hero */}
+          <div style={{ background: "linear-gradient(145deg,#1a0a2e,#2d1048)", borderRadius: 22, padding: "22px 20px", border: "2px solid rgba(245,158,11,0.45)", boxShadow: "0 8px 32px rgba(245,158,11,0.12)", marginBottom: 12, position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "radial-gradient(circle,rgba(245,158,11,0.2) 0%,transparent 70%)", pointerEvents: "none" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <div style={{ width: 46, height: 46, borderRadius: 14, background: "linear-gradient(135deg,#f59e0b,#d97706)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>✨</div>
+              <div>
+                <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 20, fontWeight: 700, color: "#fde68a" }}>Club Plan</div>
+                <div style={{ fontSize: 12, color: "rgba(253,230,138,0.65)", fontFamily: "'Noto Sans JP',sans-serif" }}>Free trial active</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "stretch", gap: 10 }}>
+              <div style={{ flex: 1, background: "rgba(245,158,11,0.12)", borderRadius: 14, padding: "14px 16px", border: "1px solid rgba(245,158,11,0.2)", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                <div style={{ fontSize: 11, color: "rgba(253,230,138,0.65)", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Days remaining</div>
+                <div style={{ fontSize: 40, fontWeight: 800, color: "#fde68a", fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1 }}>{trialDaysLeft}</div>
+              </div>
+              <div style={{ flex: 1, background: "rgba(245,158,11,0.12)", borderRadius: 14, padding: "14px 16px", border: "1px solid rgba(245,158,11,0.2)" }}>
+                <div style={{ fontSize: 11, color: "rgba(253,230,138,0.65)", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>First charge</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#fde68a", fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1.3 }}>{trialEndStr}</div>
+                <div style={{ fontSize: 12, color: "rgba(253,230,138,0.45)", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 4 }}>${clubPrice}/{clubInterval}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Club features */}
+          <div style={card}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10, fontFamily: "'Noto Sans JP',sans-serif" }}>Everything included in your trial</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {clubFeatures.map(f => (
+                <div key={f} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  <span style={{ width: 20, height: 20, borderRadius: 999, background: "linear-gradient(135deg,#f59e0b,#d97706)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", fontWeight: 800, flexShrink: 0 }}>✓</span>
+                  {f}
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Already on paid Club ── */
+  if (currentPlan === "club") {
+    return (
+      <div style={wrap}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 8px" }}>
+          <button onClick={() => go("account")} style={backBtn}>‹</button>
+          <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 19, fontWeight: 700, color: "var(--section-title)" }}>Your Plan</span>
+        </div>
+        <div style={{ padding: "0 16px" }}>
+          <div style={{ ...card, border: "2px solid rgba(245,158,11,0.3)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ fontSize: 36, lineHeight: 1 }}>✨</div>
+              <div>
+                <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, fontWeight: 700, color: "var(--section-title)" }}>Club Plan</div>
+                <div style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 2 }}>You're all set — enjoy unlimited mahjong</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Free → Club upgrade page ── */
+  return (
+    <div style={wrap}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 8px" }}>
+        <button onClick={() => go("account")} style={backBtn}>‹</button>
+        <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 19, fontWeight: 700, color: "var(--section-title)" }}>Plans & Pricing</span>
+      </div>
+
+      <div style={{ padding: "0 16px" }}>
+
+        {/* Hero */}
+        <div style={{ textAlign: "center", padding: "16px 0 22px" }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>🎯</div>
+          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 22, fontWeight: 700, color: "var(--section-title)", marginBottom: 6 }}>Level up your game</div>
+          <div style={{ fontSize: 14, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1.6, maxWidth: 280, margin: "0 auto" }}>
+            Host more, play more, schedule recurring games — starting free for 30 days.
+          </div>
+        </div>
+
+        {/* Current plan — muted */}
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", marginBottom: 6, paddingLeft: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Your current plan</div>
+          <div style={{ ...card, opacity: 0.7, padding: "14px 16px", marginBottom: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, fontWeight: 700, color: "var(--section-title)" }}>Free</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 2 }}>
+                  Up to {freeLimits.maxGroups} groups · {freeLimits.gamesPerCycle} hosted game / {freeLimits.cycleDays} days
+                </div>
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>$0</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Club plan — hero card */}
+        <div style={{ marginBottom: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, paddingLeft: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>Recommended</div>
+            <div style={{ fontSize: 10, fontWeight: 800, background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#fff", borderRadius: 999, padding: "2px 9px", fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 0.4 }}>MOST POPULAR</div>
+          </div>
+
+          <div style={{ background: "linear-gradient(145deg,#1a0a2e 0%,#2d1048 60%,#1a0a2e 100%)", borderRadius: 22, padding: "22px 20px", border: "2px solid rgba(245,158,11,0.5)", boxShadow: "0 8px 32px rgba(245,158,11,0.18), 0 2px 8px rgba(0,0,0,0.3)", position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: -40, right: -40, width: 130, height: 130, borderRadius: "50%", background: "radial-gradient(circle,rgba(245,158,11,0.22) 0%,transparent 70%)", pointerEvents: "none" }} />
+
+            {/* Name + price */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 22 }}>✨</span>
+                  <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 24, fontWeight: 700, color: "#fde68a" }}>Club</span>
+                </div>
+                <div style={{ background: "rgba(245,158,11,0.18)", borderRadius: 999, padding: "3px 12px", display: "inline-block", border: "1px solid rgba(245,158,11,0.4)" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#fde68a", fontFamily: "'Noto Sans JP',sans-serif" }}>30-day free trial</span>
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 30, fontWeight: 800, color: "#fde68a", fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1 }}>${clubPrice}</div>
+                <div style={{ fontSize: 12, color: "rgba(253,230,138,0.55)", fontFamily: "'Noto Sans JP',sans-serif" }}>/{clubInterval}</div>
+              </div>
+            </div>
+
+            <div style={{ borderTop: "1px solid rgba(245,158,11,0.18)", marginBottom: 16 }} />
+
+            {/* Features */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 22 }}>
+              {clubFeatures.map(f => (
+                <div key={f} style={{ display: "flex", alignItems: "center", gap: 11, fontSize: 14, color: "rgba(253,230,138,0.9)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  <span style={{ width: 20, height: 20, borderRadius: 999, background: "linear-gradient(135deg,#f59e0b,#d97706)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", fontWeight: 800, flexShrink: 0 }}>✓</span>
+                  {f}
+                </div>
+              ))}
+            </div>
+
+            {/* CTA */}
+            <button
+              onClick={handleStartTrial}
+              disabled={loading}
+              style={{ width: "100%", padding: "16px 20px", background: loading ? "rgba(245,158,11,0.4)" : "linear-gradient(135deg,#f59e0b,#d97706)", border: "none", borderRadius: 14, fontSize: 16, fontWeight: 800, color: "#1a0a2e", fontFamily: "'Noto Sans JP',sans-serif", cursor: loading ? "default" : "pointer", letterSpacing: 0.3, boxShadow: loading ? "none" : "0 4px 18px rgba(245,158,11,0.45)", transition: "all .2s" }}
+              onMouseDown={e => { if (!loading) e.currentTarget.style.transform = "scale(.98)"; }}
+              onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
+              onTouchStart={e => { if (!loading) e.currentTarget.style.transform = "scale(.98)"; }}
+              onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+            >
+              {loading ? "Starting trial…" : "Start your free 30-day trial →"}
+            </button>
+          </div>
+        </div>
+
+        {/* Trust signals */}
+        <div style={{ textAlign: "center", padding: "16px 8px 4px", display: "flex", flexDirection: "column", gap: 3 }}>
+          <div style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>No payment today</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--section-title)", fontFamily: "'Noto Sans JP',sans-serif" }}>First charge on {billingDateStr}</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel any time before then and pay nothing</div>
+        </div>
+
+        {/* Comparison table */}
+        <div style={{ marginTop: 28 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", marginBottom: 10, paddingLeft: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>What you unlock</div>
+          <div style={card}>
+            {[
+              { label: "Groups",           free: `Up to ${freeLimits.maxGroups}`,                               club: "Unlimited" },
+              { label: "Hosted games",     free: `${freeLimits.gamesPerCycle} / ${freeLimits.cycleDays} days`,  club: "Unlimited" },
+              { label: "Recurring games",  free: false,                                                          club: true        },
+              { label: "Priority support", free: false,                                                          club: true        },
+            ].map((row, i, arr) => (
+              <div key={row.label} style={{ display: "flex", alignItems: "center", paddingBottom: i < arr.length - 1 ? 11 : 0, marginBottom: i < arr.length - 1 ? 11 : 0, borderBottom: i < arr.length - 1 ? "1px solid var(--border-card)" : "none" }}>
+                <div style={{ flex: 1, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{row.label}</div>
+                <div style={{ width: 72, textAlign: "center", fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  {row.free === false ? <span style={{ fontSize: 15, opacity: 0.5 }}>✕</span> : row.free}
+                </div>
+                <div style={{ width: 72, textAlign: "center", fontSize: 12, fontWeight: 700, color: "#f59e0b", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  {row.club === true ? <span style={{ fontSize: 15 }}>✓</span> : row.club}
+                </div>
+              </div>
+            ))}
+            <div style={{ display: "flex", marginTop: 10, borderTop: "1px solid var(--border-card)", paddingTop: 8 }}>
+              <div style={{ flex: 1 }} />
+              <div style={{ width: 72, textAlign: "center", fontSize: 11, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>Free</div>
+              <div style={{ width: 72, textAlign: "center", fontSize: 11, fontWeight: 700, color: "#f59e0b", fontFamily: "'Noto Sans JP',sans-serif" }}>Club ✨</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 /* ── ACCOUNT PAGE ── */
 function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut, isAdmin, onImpersonate, isImpersonating, activeThemeId, onThemeChange, planCfg }) {
   const [editing, setEditing] = useState(false);
@@ -1695,25 +1971,46 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
             </div>
           );
 
+          const isTrial     = user?.subscription?.isTrial === true && plan !== "free";
+          const trialEndsAt = user?.subscription?.trialEndsAt;
+          const trialDaysLeft = trialEndsAt ? Math.max(0, Math.ceil((trialEndsAt - Date.now()) / 86400000)) : 0;
+          const trialEndStr   = trialEndsAt
+            ? new Date(trialEndsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+            : "";
+
           return (
             <div style={{
               background: "linear-gradient(135deg,var(--bg-card-base),var(--bg-card-alt))",
               backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
               borderRadius: 20, padding: "20px 18px", marginBottom: 14,
               boxShadow: "0 4px 20px rgba(var(--shadow-rgb),0.09), inset 0 1px 0 var(--shadow-inset)",
-              border: "1px solid var(--border-card)",
+              border: isTrial ? "1.5px solid rgba(245,158,11,0.4)" : "1px solid var(--border-card)",
             }}>
               {/* Header */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: isTrial ? 10 : 16 }}>
                 <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "var(--section-title)", fontWeight: 700 }}>Subscription</span>
-                <span style={{
-                  fontSize: 12, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase",
-                  background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.12),rgba(var(--primary-rgb),0.06))",
-                  color: "var(--primary)", borderRadius: 999, padding: "4px 12px",
-                  border: "1px solid rgba(var(--primary-rgb),0.2)",
-                  fontFamily: "'Noto Sans JP',sans-serif",
-                }}>{planCfg?.name || "Free Plan"}</span>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                  {isTrial ? (
+                    <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", background: "linear-gradient(135deg,rgba(245,158,11,0.2),rgba(245,158,11,0.1))", color: "#d97706", borderRadius: 999, padding: "4px 12px", border: "1px solid rgba(245,158,11,0.35)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      {planCfg?.name || "Club"} · Trial
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.12),rgba(var(--primary-rgb),0.06))", color: "var(--primary)", borderRadius: 999, padding: "4px 12px", border: "1px solid rgba(var(--primary-rgb),0.2)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      {planCfg?.name || "Free Plan"}
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {/* Trial info strip */}
+              {isTrial && (
+                <div style={{ background: "rgba(245,158,11,0.1)", borderRadius: 10, padding: "10px 12px", marginBottom: 14, border: "1px solid rgba(245,158,11,0.2)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 13, color: "#d97706", fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 600 }}>🎁 Free trial</div>
+                  <div style={{ fontSize: 12, color: "#d97706", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    {trialDaysLeft}d left · billed {trialEndStr}
+                  </div>
+                </div>
+              )}
 
               {/* Usage rows */}
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1751,6 +2048,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
 
                 {/* Divider */}
                 {(() => {
+                  console.log("[subscription card] rendering features + manage button");
                   const feats = planCfg?.features?.length
                     ? planCfg.features
                     : ["Group & game chat", "Send group and game invites", "Add games to calendar"];
@@ -1764,6 +2062,16 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                           </div>
                         ))}
                       </div>
+                      <button
+                        onClick={() => go("managePlan")}
+                        style={{ marginTop: 14, width: "100%", padding: "12px 16px", background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.12),rgba(var(--primary-rgb),0.06))", border: "1px solid rgba(var(--primary-rgb),0.25)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: "var(--primary)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}
+                        onMouseDown={e => e.currentTarget.style.opacity = "0.7"}
+                        onMouseUp={e => e.currentTarget.style.opacity = "1"}
+                        onTouchStart={e => e.currentTarget.style.opacity = "0.7"}
+                        onTouchEnd={e => e.currentTarget.style.opacity = "1"}
+                      >
+                        Manage Subscription →
+                      </button>
                     </div>
                   );
                 })()}
