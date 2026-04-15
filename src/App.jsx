@@ -5008,6 +5008,14 @@ function IRow({ icon, label, val }) {
 /* ── ADMIN HUB ── */
 function AdminHub({ uid: adminUid, user: adminUser, go, flash, onImpersonate }) {
   const [tab, setTab] = useState("users");
+  // Shared plan list loaded once; passed to both tabs so they don't re-fetch
+  const [adminPackages, setAdminPackages] = useState([]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "subscriptionPackages"), (snap) => {
+      setAdminPackages(snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.price ?? 0) - (b.price ?? 0)));
+    });
+    return unsub;
+  }, []);
 
   const hubStyle = {
     minHeight: "100dvh",
@@ -5050,22 +5058,28 @@ function AdminHub({ uid: adminUid, user: adminUser, go, flash, onImpersonate }) 
       </div>
 
       <div style={{ padding: "24px 28px", maxWidth: 960, margin: "0 auto" }}>
-        {tab === "users"          && <AdminUsers onImpersonate={onImpersonate} go={go} flash={flash} />}
+        {tab === "users"          && <AdminUsers onImpersonate={onImpersonate} go={go} flash={flash} packages={adminPackages} adminUid={adminUid} />}
         {tab === "logs"           && <AdminLogs />}
-        {tab === "subscriptions"  && <AdminSubscriptions flash={flash} />}
+        {tab === "subscriptions"  && <AdminSubscriptions flash={flash} packages={adminPackages} adminUid={adminUid} />}
       </div>
     </div>
   );
 }
 
-/* Users tab — list all users, search, view-as */
-function AdminUsers({ onImpersonate, go, flash }) {
+/* Users tab — list → detail with plan management */
+function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [promoting, setPromoting] = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState(null); // user object pending deletion
-  const [deleting, setDeleting] = useState(null); // uid currently being deleted
+  const [selected, setSelected] = useState(null);      // user detail view
+  const [promoting, setPromoting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  // Plan-change state
+  const [planEdit, setPlanEdit] = useState(false);
+  const [planKey, setPlanKey] = useState("");
+  const [planNote, setPlanNote] = useState("");
+  const [savingPlan, setSavingPlan] = useState(false);
 
   useEffect(() => {
     getDocs(collection(db, "users"))
@@ -5078,42 +5092,196 @@ function AdminUsers({ onImpersonate, go, flash }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const toggleAdmin = async (u) => {
-    setPromoting(u.uid);
-    try {
-      await updateDoc(doc(db, "users", u.uid), { isAdmin: !u.isAdmin });
-      setUsers((prev) => prev.map((x) => x.uid === u.uid ? { ...x, isAdmin: !x.isAdmin } : x));
-      flash(`${u.name} is now ${!u.isAdmin ? "an Admin" : "a Standard user"}`);
-    } catch { flash("Failed to update user role"); }
-    setPromoting(null);
+  const updateLocal = (uid, patch) =>
+    setUsers((prev) => prev.map((u) => u.uid === uid ? { ...u, ...patch } : u));
+
+  const openDetail = (u) => {
+    setSelected(u);
+    setPlanEdit(false);
+    setPlanKey(u.subscription?.plan || "free");
+    setPlanNote(u.subscription?.overrideNote || "");
   };
 
-  const handleDeleteUser = async (u) => {
-    setConfirmDelete(null);
-    setDeleting(u.uid);
+  const toggleAdmin = async () => {
+    if (!selected) return;
+    setPromoting(true);
+    try {
+      await updateDoc(doc(db, "users", selected.uid), { isAdmin: !selected.isAdmin });
+      const patch = { isAdmin: !selected.isAdmin };
+      updateLocal(selected.uid, patch);
+      setSelected((p) => ({ ...p, ...patch }));
+      flash(`${selected.name} is now ${!selected.isAdmin ? "an Admin" : "a Standard user"}`);
+    } catch { flash("Failed to update user role"); }
+    setPromoting(false);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selected) return;
+    setConfirmDelete(false);
+    setDeleting(true);
     try {
       const fns = getFunctions();
-      const deleteUser = httpsCallable(fns, "deleteUser");
-      await deleteUser({ uid: u.uid });
-      setUsers((prev) => prev.filter((x) => x.uid !== u.uid));
-      flash(`${u.name} has been deleted`, "🗑️");
-    } catch (e) {
-      flash(`Failed to delete user: ${e.message}`, "❌");
-    }
-    setDeleting(null);
+      const deleteFn = httpsCallable(fns, "deleteUser");
+      await deleteFn({ uid: selected.uid });
+      setUsers((prev) => prev.filter((u) => u.uid !== selected.uid));
+      flash(`${selected.name} has been deleted`, "🗑️");
+      setSelected(null);
+    } catch (e) { flash(`Failed to delete: ${e.message}`, "❌"); }
+    setDeleting(false);
   };
 
+  const savePlan = async () => {
+    if (!selected) return;
+    setSavingPlan(true);
+    const newSub = {
+      plan: planKey,
+      overrideNote: planNote.trim(),
+      changedAt: Date.now(),
+      changedBy: adminUid,
+    };
+    try {
+      await updateDoc(doc(db, "users", selected.uid), { subscription: newSub });
+      updateLocal(selected.uid, { subscription: newSub });
+      setSelected((p) => ({ ...p, subscription: newSub }));
+      setPlanEdit(false);
+      flash(`Plan updated to "${planKey}"${planNote ? ` — ${planNote}` : ""}`);
+    } catch { flash("Failed to update plan"); }
+    setSavingPlan(false);
+  };
+
+  const inp = { width: "100%", padding: "9px 13px", borderRadius: 10, fontSize: 14, border: "1.5px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", outline: "none", boxSizing: "border-box" };
+  const SecHd = ({ children }) => <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.65)", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 10, fontFamily: "'Noto Sans JP',sans-serif" }}>{children}</div>;
+
+  const planChip = (u) => {
+    const key = u.subscription?.plan || "free";
+    const pkg = packages.find((p) => (p.planKey || p.id) === key);
+    return (
+      <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(155,63,160,0.22)", color: "#e8a0d0", borderRadius: 999, padding: "2px 9px", fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 0.3 }}>
+        {pkg?.name || key}
+      </span>
+    );
+  };
+
+  // ── Detail view ──────────────────────────────────────────────────────────────
+  if (selected) {
+    const u = selected;
+    const currentPlanKey = u.subscription?.plan || "free";
+    const currentPkg = packages.find((p) => (p.planKey || p.id) === currentPlanKey);
+
+    return (
+      <div>
+        {/* Back + header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
+          <button onClick={() => setSelected(null)} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "6px 14px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>← Users</button>
+          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff", flex: 1 }}>{u.name}</div>
+          {u.isAdmin && <span style={{ fontSize: 11, fontWeight: 800, color: "#e8a0d0", background: "rgba(232,160,208,0.18)", borderRadius: 999, padding: "3px 10px", textTransform: "uppercase", letterSpacing: 1 }}>Admin</span>}
+        </div>
+
+        {/* Profile card */}
+        <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "18px 20px", marginBottom: 14, border: "1px solid rgba(155,110,168,0.2)" }}>
+          <SecHd>Profile</SecHd>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+            <span style={{ fontSize: 40 }}>{u.avatar || "👤"}</span>
+            <div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: "#fff", fontFamily: "'Shippori Mincho',serif" }}>{u.name}</div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>{u.email}</div>
+              {u.skillLevel && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{u.skillLevel}</div>}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={toggleAdmin} disabled={promoting} style={{ padding: "7px 14px", borderRadius: 10, background: u.isAdmin ? "rgba(232,160,208,0.15)" : "rgba(255,255,255,0.1)", border: `1px solid ${u.isAdmin ? "rgba(232,160,208,0.35)" : "rgba(255,255,255,0.2)"}`, color: u.isAdmin ? "#e8a0d0" : "#ccc", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: promoting ? 0.5 : 1 }}>
+              {promoting ? "…" : u.isAdmin ? "Revoke Admin" : "Make Admin"}
+            </button>
+            <button onClick={() => { onImpersonate(u); go("home"); }} style={{ padding: "7px 14px", borderRadius: 10, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>
+              View as
+            </button>
+            <button onClick={() => setConfirmDelete(true)} disabled={deleting} style={{ padding: "7px 14px", borderRadius: 10, background: "rgba(220,60,60,0.15)", border: "1px solid rgba(220,60,60,0.35)", color: "#ff8080", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: deleting ? 0.5 : 1 }}>
+              {deleting ? "Deleting…" : "Delete User"}
+            </button>
+          </div>
+        </div>
+
+        {/* Subscription card */}
+        <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "18px 20px", marginBottom: 14, border: "1px solid rgba(155,110,168,0.2)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <SecHd>Subscription</SecHd>
+            {!planEdit && (
+              <button onClick={() => { setPlanEdit(true); setPlanKey(currentPlanKey); setPlanNote(u.subscription?.overrideNote || ""); }} style={{ background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", borderRadius: 8, padding: "5px 13px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                Change Plan
+              </button>
+            )}
+          </div>
+
+          {!planEdit ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontFamily: "'Noto Sans JP',sans-serif" }}>Current Plan</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "#fff", fontFamily: "'Shippori Mincho',serif" }}>{currentPkg?.name || currentPlanKey}</span>
+              </div>
+              {currentPkg && currentPkg.price > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontFamily: "'Noto Sans JP',sans-serif" }}>Standard Price</span>
+                  <span style={{ fontSize: 14, color: "#e8a0d0", fontWeight: 700 }}>${currentPkg.price} / {currentPkg.interval}</span>
+                </div>
+              )}
+              {u.subscription?.overrideNote && (
+                <div style={{ background: "rgba(155,63,160,0.15)", borderRadius: 10, padding: "9px 13px", border: "1px solid rgba(155,63,160,0.25)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Admin Note</div>
+                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", fontFamily: "'Noto Sans JP',sans-serif" }}>{u.subscription.overrideNote}</div>
+                </div>
+              )}
+              {u.subscription?.changedAt && (
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  Last changed {new Date(u.subscription.changedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(232,160,208,0.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Plan</div>
+              <select value={planKey} onChange={(e) => setPlanKey(e.target.value)} style={{ ...inp, marginBottom: 12 }}>
+                <option value="free">Free (default)</option>
+                {packages.map((p) => {
+                  const key = p.planKey || p.id;
+                  if (key === "free") return null;
+                  return <option key={p.id} value={key}>{p.name}{p.price > 0 ? ` — $${p.price}/${p.interval}` : ""}</option>;
+                })}
+              </select>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(232,160,208,0.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Admin Note (optional)</div>
+              <input value={planNote} onChange={(e) => setPlanNote(e.target.value)} placeholder="e.g. Comped Pro — contest winner, expires Jun 2026" style={{ ...inp, marginBottom: 14 }} />
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setPlanEdit(false)} style={{ flex: 1, padding: "9px", borderRadius: 10, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
+                <button onClick={savePlan} disabled={savingPlan} style={{ flex: 2, padding: "9px", borderRadius: 10, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: savingPlan ? 0.5 : 1 }}>
+                  {savingPlan ? "Saving…" : "Apply Plan Change"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Delete confirm */}
+        {confirmDelete && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div style={{ background: "#1e1030", border: "1px solid rgba(220,60,60,0.4)", borderRadius: 20, padding: "28px 24px", maxWidth: 380, width: "100%" }}>
+              <div style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}>🗑️</div>
+              <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 20, fontWeight: 700, color: "#fff", textAlign: "center", marginBottom: 8 }}>Delete {u.name}?</div>
+              <div style={{ fontSize: 13, color: "rgba(255,140,140,0.85)", textAlign: "center", lineHeight: 1.6, marginBottom: 24 }}>This will permanently delete their account and remove them from all groups and games. This cannot be undone.</div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: "12px 0", borderRadius: 12, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
+                <button onClick={handleDeleteUser} style={{ flex: 1, padding: "12px 0", borderRadius: 12, background: "linear-gradient(135deg,#c0392b,#e74c3c)", border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Delete permanently</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── List view ────────────────────────────────────────────────────────────────
   const filtered = users.filter((u) => {
     const q = search.toLowerCase();
     return !q || (u.name || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q);
   });
-
-  const cardSt = {
-    background: "rgba(255,255,255,0.06)", borderRadius: 14,
-    padding: "14px 16px", marginBottom: 10,
-    border: "1px solid rgba(255,255,255,0.1)",
-    display: "flex", alignItems: "center", gap: 12,
-  };
 
   return (
     <div>
@@ -5122,85 +5290,32 @@ function AdminUsers({ onImpersonate, go, flash }) {
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>{users.length} total</div>
       </div>
 
-      <input
-        value={search} onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search by name or email…"
+      <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or email…"
         style={{ width: "100%", padding: "11px 16px", borderRadius: 12, fontSize: 14, border: "1.5px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", outline: "none", boxSizing: "border-box", marginBottom: 18 }}
       />
 
       {loading && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>Loading…</div>}
 
       {filtered.map((u) => (
-        <div key={u.uid} style={cardSt}>
+        <div key={u.uid} onClick={() => openDetail(u)} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 14, padding: "13px 16px", marginBottom: 10, border: "1px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", transition: "background .15s" }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.10)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
+        >
           <span style={{ fontSize: 26, flexShrink: 0 }}>{u.avatar || "👤"}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>{u.name || "Unnamed"}</span>
-              {u.isAdmin && (
-                <span style={{ fontSize: 11, fontWeight: 800, color: "#e8a0d0", background: "rgba(232,160,208,0.18)", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: 1 }}>Admin</span>
-              )}
+              {u.isAdmin && <span style={{ fontSize: 11, fontWeight: 800, color: "#e8a0d0", background: "rgba(232,160,208,0.18)", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: 1 }}>Admin</span>}
+              {planChip(u)}
             </div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
           </div>
-          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-            <button
-              onClick={() => toggleAdmin(u)}
-              disabled={promoting === u.uid}
-              style={{ background: u.isAdmin ? "rgba(232,160,208,0.15)" : "rgba(255,255,255,0.1)", border: `1px solid ${u.isAdmin ? "rgba(232,160,208,0.35)" : "rgba(255,255,255,0.2)"}`, borderRadius: 10, padding: "6px 12px", color: u.isAdmin ? "#e8a0d0" : "var(--border-card)", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: promoting === u.uid ? 0.5 : 1 }}
-            >
-              {u.isAdmin ? "Revoke Admin" : "Make Admin"}
-            </button>
-            <button
-              onClick={() => { onImpersonate(u); go("home"); }}
-              style={{ background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", borderRadius: 10, padding: "6px 12px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
-            >
-              View as
-            </button>
-            <button
-              onClick={() => setConfirmDelete(u)}
-              disabled={deleting === u.uid}
-              style={{ background: "rgba(220,60,60,0.15)", border: "1px solid rgba(220,60,60,0.35)", borderRadius: 10, padding: "6px 12px", color: "#ff8080", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: deleting === u.uid ? 0.5 : 1 }}
-            >
-              {deleting === u.uid ? "Deleting…" : "Delete"}
-            </button>
-          </div>
+          <span style={{ color: "rgba(232,160,208,0.5)", fontSize: 20 }}>›</span>
         </div>
       ))}
 
       {!loading && filtered.length === 0 && (
         <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>No users match your search.</div>
-      )}
-
-      {/* Delete confirmation dialog */}
-      {confirmDelete && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <div style={{ background: "#1e1030", border: "1px solid rgba(220,60,60,0.4)", borderRadius: 20, padding: "28px 24px", maxWidth: 380, width: "100%" }}>
-            <div style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}>🗑️</div>
-            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 20, fontWeight: 700, color: "#fff", textAlign: "center", marginBottom: 8 }}>
-              Delete {confirmDelete.name}?
-            </div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", textAlign: "center", lineHeight: 1.6, marginBottom: 8 }}>
-              {confirmDelete.email}
-            </div>
-            <div style={{ fontSize: 13, color: "rgba(255,140,140,0.85)", textAlign: "center", lineHeight: 1.6, marginBottom: 24 }}>
-              This will permanently delete their account and remove them from all groups and games. This cannot be undone.
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button
-                onClick={() => setConfirmDelete(null)}
-                style={{ flex: 1, padding: "12px 0", borderRadius: 12, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteUser(confirmDelete)}
-                style={{ flex: 1, padding: "12px 0", borderRadius: 12, background: "linear-gradient(135deg,#c0392b,#e74c3c)", border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
-              >
-                Delete permanently
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
@@ -5252,28 +5367,26 @@ function AdminLogs() {
 }
 
 /* Subscriptions tab — manage subscription tiers */
-function AdminSubscriptions({ flash }) {
-  const [packages, setPackages] = useState([]);
-  const [loading, setLoading] = useState(true);
+function AdminSubscriptions({ flash, packages, adminUid }) {
+  const [loading] = useState(false);
   const [view, setView] = useState("list"); // "list" | "detail" | "edit" | "new"
   const [selected, setSelected] = useState(null); // package object being viewed/edited
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [userCounts, setUserCounts] = useState({}); // { [planKey]: number }
+  // Users list for detail view
+  const [planUsers, setPlanUsers] = useState([]);        // users on current plan
+  const [planUsersLoading, setPlanUsersLoading] = useState(false);
+  // Inline plan-change within subscription detail
+  const [changingUser, setChangingUser] = useState(null); // user obj
+  const [changePlanKey, setChangePlanKey] = useState("");
+  const [changePlanNote, setChangePlanNote] = useState("");
+  const [savingChange, setSavingChange] = useState(false);
 
   const EMPTY_FORM = {
     planKey: "", name: "", price: "0", interval: "month", description: "", features: "",
     limitMaxGroups: "2", limitGamesPerCycle: "1", limitCycleDays: "30", limitAllowRecurring: false,
   };
-
-  useEffect(() => {
-    const q = query(collection(db, "subscriptionPackages"), orderBy("price", "asc"));
-    const unsub = onSnapshot(q, (snap) => {
-      setPackages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setLoading(false);
-    }, () => setLoading(false));
-    return unsub;
-  }, []);
 
   // Count users per plan key.
   // Users without subscription.plan set are implicitly "free" (matches getPlan() logic),
@@ -5320,8 +5433,43 @@ function AdminSubscriptions({ flash }) {
   });
 
   const openNew = () => { setForm(EMPTY_FORM); setSelected(null); setView("new"); };
-  const openDetail = (pkg) => { setSelected(pkg); setView("detail"); };
+  const openDetail = (pkg) => {
+    setSelected(pkg);
+    setView("detail");
+    setChangingUser(null);
+    setPlanUsers([]);
+    // Load users on this plan
+    const key = pkg.planKey || pkg.id;
+    setPlanUsersLoading(true);
+    getDocs(collection(db, "users")).then((snap) => {
+      const list = snap.docs
+        .map((d) => ({ uid: d.id, ...d.data() }))
+        .filter((u) => (u.subscription?.plan || "free") === key)
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      setPlanUsers(list);
+    }).catch(() => {}).finally(() => setPlanUsersLoading(false));
+  };
   const openEdit = (pkg) => { setForm(pkgToForm(pkg)); setSelected(pkg); setView("edit"); };
+
+  const applyPlanChange = async () => {
+    if (!changingUser) return;
+    setSavingChange(true);
+    const newSub = { plan: changePlanKey, overrideNote: changePlanNote.trim(), changedAt: Date.now(), changedBy: adminUid };
+    try {
+      await updateDoc(doc(db, "users", changingUser.uid), { subscription: newSub });
+      setPlanUsers((prev) => prev.filter((u) => u.uid !== changingUser.uid));
+      setUserCounts((prev) => {
+        const oldKey = changingUser.subscription?.plan || "free";
+        const counts = { ...prev };
+        counts[oldKey] = Math.max(0, (counts[oldKey] || 0) - 1);
+        counts[changePlanKey] = (counts[changePlanKey] || 0) + 1;
+        return counts;
+      });
+      flash(`${changingUser.name} moved to "${changePlanKey}"`);
+      setChangingUser(null);
+    } catch { flash("Failed to update plan"); }
+    setSavingChange(false);
+  };
 
   const save = async () => {
     if (!form.name.trim() || !form.planKey.trim()) return;
@@ -5493,6 +5641,57 @@ function AdminSubscriptions({ flash }) {
             ))}
           </div>
         )}
+
+        {/* Users on this plan */}
+        <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "18px 20px", marginBottom: 14, border: "1px solid rgba(155,110,168,0.2)" }}>
+          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#e8a0d0", marginBottom: 14 }}>
+            Users on this plan ({planUsersLoading ? "…" : planUsers.length})
+          </div>
+          {planUsersLoading && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)" }}>Loading…</div>}
+          {!planUsersLoading && planUsers.length === 0 && (
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", fontFamily: "'Noto Sans JP',sans-serif" }}>No users on this plan.</div>
+          )}
+          {planUsers.map((u) => (
+            <div key={u.uid}>
+              {changingUser?.uid === u.uid ? (
+                // Inline plan-change form
+                <div style={{ background: "rgba(155,63,160,0.12)", borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: "1px solid rgba(155,63,160,0.3)" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 10, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    Move {u.name} to…
+                  </div>
+                  <select value={changePlanKey} onChange={(e) => setChangePlanKey(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13, border: "1px solid rgba(155,110,168,0.4)", background: "rgba(255,255,255,0.1)", color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 8, outline: "none" }}>
+                    <option value="free">Free (default)</option>
+                    {packages.map((p) => {
+                      const k = p.planKey || p.id;
+                      return <option key={p.id} value={k}>{p.name}{p.price > 0 ? ` — $${p.price}/${p.interval}` : ""}</option>;
+                    })}
+                  </select>
+                  <input value={changePlanNote} onChange={(e) => setChangePlanNote(e.target.value)} placeholder="Admin note (optional)" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13, border: "1px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 10, outline: "none", boxSizing: "border-box" }} />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => setChangingUser(null)} style={{ flex: 1, padding: "7px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
+                    <button onClick={applyPlanChange} disabled={savingChange} style={{ flex: 2, padding: "7px", borderRadius: 8, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: savingChange ? 0.5 : 1 }}>
+                      {savingChange ? "Saving…" : "Apply"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                  <span style={{ fontSize: 22, flexShrink: 0 }}>{u.avatar || "👤"}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>{u.name}</div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
+                    {u.subscription?.overrideNote && (
+                      <div style={{ fontSize: 11, color: "#e8a0d0", marginTop: 2 }}>📝 {u.subscription.overrideNote}</div>
+                    )}
+                  </div>
+                  <button onClick={() => { setChangingUser(u); setChangePlanKey(u.subscription?.plan || "free"); setChangePlanNote(u.subscription?.overrideNote || ""); }} style={{ padding: "5px 11px", borderRadius: 8, background: "rgba(155,63,160,0.2)", border: "1px solid rgba(155,63,160,0.35)", color: "#e8a0d0", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", flexShrink: 0 }}>
+                    Change Plan
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
 
         <button onClick={() => remove(pkg)} style={{ width: "100%", padding: "11px", borderRadius: 12, background: "rgba(200,50,80,0.15)", border: "1px solid rgba(200,50,80,0.3)", color: "#e87070", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 4 }}>
           Delete Plan
