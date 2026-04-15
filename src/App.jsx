@@ -1634,7 +1634,23 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
     );
   }
 
-  /* ── Free → Club upgrade page ── */
+  /* ── Upgrade page (any paid plan above current) ── */
+  // All plans sorted by price ascending; exclude free from upgrade cards
+  const currentCfg   = planConfigs[currentPlan] ?? freeCfg;
+  const currentPrice = currentCfg?.price ?? 0;
+  const paidPlans    = Object.values(planConfigs)
+    .filter(p => (p.price ?? 0) > currentPrice)
+    .sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+
+  // The highest-priced paid plan gets the "Most Popular" / Club trial treatment
+  const topPlan = paidPlans[paidPlans.length - 1];
+
+  // All plans for comparison table (free + all paid), sorted by price
+  const allPlans = Object.values(planConfigs).sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+
+  // Gather every unique feature across all plans for comparison rows
+  const allFeatureLabels = [...new Set(allPlans.flatMap(p => p.features ?? []))];
+
   return (
     <div style={wrap}>
       {/* Header */}
@@ -1660,104 +1676,147 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
           <div style={{ ...card, opacity: 0.7, padding: "14px 16px", marginBottom: 0 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, fontWeight: 700, color: "var(--section-title)" }}>Free</div>
+                <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, fontWeight: 700, color: "var(--section-title)" }}>{currentCfg?.name || "Free Plan"}</div>
                 <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 2 }}>
                   Up to {freeLimits.maxGroups} groups · {freeLimits.gamesPerCycle} hosted game / {freeLimits.cycleDays} days
                 </div>
               </div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>$0</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>${currentPrice}</div>
             </div>
           </div>
         </div>
 
-        {/* Club plan — hero card */}
-        <div style={{ marginBottom: 4 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, paddingLeft: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>Recommended</div>
-            <div style={{ fontSize: 10, fontWeight: 800, background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#fff", borderRadius: 999, padding: "2px 9px", fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 0.4 }}>MOST POPULAR</div>
-          </div>
+        {/* Upgrade plan cards — one per paid plan */}
+        {paidPlans.map(plan => {
+          const isTop      = plan.planKey === topPlan?.planKey;
+          const isClub     = plan.planKey === "club";
+          const planPrice  = plan.price ?? 0;
+          const planFeats  = plan.features?.length ? plan.features : ["Everything in lower plans"];
 
-          <div style={{ background: "linear-gradient(145deg,#1a0a2e 0%,#2d1048 60%,#1a0a2e 100%)", borderRadius: 22, padding: "22px 20px", border: "2px solid rgba(245,158,11,0.5)", boxShadow: "0 8px 32px rgba(245,158,11,0.18), 0 2px 8px rgba(0,0,0,0.3)", position: "relative", overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: -40, right: -40, width: 130, height: 130, borderRadius: "50%", background: "radial-gradient(circle,rgba(245,158,11,0.22) 0%,transparent 70%)", pointerEvents: "none" }} />
-
-            {/* Name + price */}
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 22 }}>✨</span>
-                  <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 24, fontWeight: 700, color: "#fde68a" }}>Club</span>
+          if (isTop) {
+            // Premium / featured card (gold treatment)
+            return (
+              <div key={plan.planKey} style={{ marginBottom: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, paddingLeft: 4 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>Recommended</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#fff", borderRadius: 999, padding: "2px 9px", fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 0.4 }}>MOST POPULAR</div>
                 </div>
-                <div style={{ background: "rgba(245,158,11,0.18)", borderRadius: 999, padding: "3px 12px", display: "inline-block", border: "1px solid rgba(245,158,11,0.4)" }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#fde68a", fontFamily: "'Noto Sans JP',sans-serif" }}>30-day free trial</span>
+                <div style={{ background: "linear-gradient(145deg,#1a0a2e 0%,#2d1048 60%,#1a0a2e 100%)", borderRadius: 22, padding: "22px 20px", border: "2px solid rgba(245,158,11,0.5)", boxShadow: "0 8px 32px rgba(245,158,11,0.18), 0 2px 8px rgba(0,0,0,0.3)", position: "relative", overflow: "hidden", marginBottom: 4 }}>
+                  <div style={{ position: "absolute", top: -40, right: -40, width: 130, height: 130, borderRadius: "50%", background: "radial-gradient(circle,rgba(245,158,11,0.22) 0%,transparent 70%)", pointerEvents: "none" }} />
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                        <span style={{ fontSize: 22 }}>✨</span>
+                        <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 24, fontWeight: 700, color: "#fde68a" }}>{plan.name}</span>
+                      </div>
+                      {isClub && (
+                        <div style={{ background: "rgba(245,158,11,0.18)", borderRadius: 999, padding: "3px 12px", display: "inline-block", border: "1px solid rgba(245,158,11,0.4)" }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#fde68a", fontFamily: "'Noto Sans JP',sans-serif" }}>30-day free trial</span>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 30, fontWeight: 800, color: "#fde68a", fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1 }}>${planPrice}</div>
+                      <div style={{ fontSize: 12, color: "rgba(253,230,138,0.55)", fontFamily: "'Noto Sans JP',sans-serif" }}>/{plan.interval || "month"}</div>
+                    </div>
+                  </div>
+                  <div style={{ borderTop: "1px solid rgba(245,158,11,0.18)", marginBottom: 16 }} />
+                  <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 22 }}>
+                    {planFeats.map(f => (
+                      <div key={f} style={{ display: "flex", alignItems: "center", gap: 11, fontSize: 14, color: "rgba(253,230,138,0.9)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                        <span style={{ width: 20, height: 20, borderRadius: 999, background: "linear-gradient(135deg,#f59e0b,#d97706)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", fontWeight: 800, flexShrink: 0 }}>✓</span>
+                        {f}
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={isClub ? handleStartTrial : undefined}
+                    disabled={loading}
+                    style={{ width: "100%", padding: "16px 20px", background: loading ? "rgba(245,158,11,0.4)" : "linear-gradient(135deg,#f59e0b,#d97706)", border: "none", borderRadius: 14, fontSize: 16, fontWeight: 800, color: "#1a0a2e", fontFamily: "'Noto Sans JP',sans-serif", cursor: loading ? "default" : "pointer", letterSpacing: 0.3, boxShadow: loading ? "none" : "0 4px 18px rgba(245,158,11,0.45)", transition: "all .2s" }}
+                    onMouseDown={e => { if (!loading) e.currentTarget.style.transform = "scale(.98)"; }}
+                    onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                    onTouchStart={e => { if (!loading) e.currentTarget.style.transform = "scale(.98)"; }}
+                    onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                  >
+                    {loading ? "Starting…" : isClub ? "Start your free 30-day trial →" : `Upgrade to ${plan.name} →`}
+                  </button>
+                </div>
+                {isClub && (
+                  <div style={{ textAlign: "center", padding: "14px 8px 4px", display: "flex", flexDirection: "column", gap: 3 }}>
+                    <div style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>No payment today</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--section-title)", fontFamily: "'Noto Sans JP',sans-serif" }}>First charge on {billingDateStr}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel any time before then and pay nothing</div>
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // Standard (non-top) paid plan card
+          return (
+            <div key={plan.planKey} style={{ ...card, marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, fontWeight: 700, color: "var(--section-title)", marginBottom: 4 }}>{plan.name}</div>
+                  {plan.description && <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>{plan.description}</div>}
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "var(--section-title)", fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1 }}>${planPrice}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>/{plan.interval || "month"}</div>
                 </div>
               </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 30, fontWeight: 800, color: "#fde68a", fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1 }}>${clubPrice}</div>
-                <div style={{ fontSize: 12, color: "rgba(253,230,138,0.55)", fontFamily: "'Noto Sans JP',sans-serif" }}>/{clubInterval}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 14 }}>
+                {planFeats.map(f => (
+                  <div key={f} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    <span style={{ color: "var(--secondary-accent)", fontWeight: 700, flexShrink: 0 }}>✓</span> {f}
+                  </div>
+                ))}
               </div>
+              <button
+                style={{ width: "100%", padding: "11px 16px", background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.15),rgba(var(--primary-rgb),0.08))", border: "1px solid rgba(var(--primary-rgb),0.3)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: "var(--primary)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}
+                onMouseDown={e => e.currentTarget.style.opacity = "0.7"}
+                onMouseUp={e => e.currentTarget.style.opacity = "1"}
+                onTouchStart={e => e.currentTarget.style.opacity = "0.7"}
+                onTouchEnd={e => e.currentTarget.style.opacity = "1"}
+              >
+                Upgrade to {plan.name} →
+              </button>
             </div>
+          );
+        })}
 
-            <div style={{ borderTop: "1px solid rgba(245,158,11,0.18)", marginBottom: 16 }} />
-
-            {/* Features */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 22 }}>
-              {clubFeatures.map(f => (
-                <div key={f} style={{ display: "flex", alignItems: "center", gap: 11, fontSize: 14, color: "rgba(253,230,138,0.9)", fontFamily: "'Noto Sans JP',sans-serif" }}>
-                  <span style={{ width: 20, height: 20, borderRadius: 999, background: "linear-gradient(135deg,#f59e0b,#d97706)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", fontWeight: 800, flexShrink: 0 }}>✓</span>
-                  {f}
+        {/* Comparison table — all plans as columns */}
+        {allPlans.length > 1 && (
+          <div style={{ marginTop: 28 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", marginBottom: 10, paddingLeft: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Compare plans</div>
+            <div style={{ ...card, overflowX: "auto" }}>
+              {/* Column width based on plan count */}
+              {allFeatureLabels.map((feat, i) => (
+                <div key={feat} style={{ display: "flex", alignItems: "center", paddingBottom: i < allFeatureLabels.length - 1 ? 11 : 0, marginBottom: i < allFeatureLabels.length - 1 ? 11 : 0, borderBottom: i < allFeatureLabels.length - 1 ? "1px solid var(--border-card)" : "none" }}>
+                  <div style={{ flex: 1, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif", paddingRight: 8 }}>{feat}</div>
+                  {allPlans.map(p => {
+                    const has = p.features?.includes(feat);
+                    const isHighlighted = p.planKey === topPlan?.planKey;
+                    return (
+                      <div key={p.planKey} style={{ width: 56, textAlign: "center", fontSize: 13, fontWeight: has ? 700 : 400, color: isHighlighted ? "#f59e0b" : has ? "var(--secondary-accent)" : "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", opacity: has ? 1 : 0.35 }}>
+                        {has ? "✓" : "✕"}
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
-            </div>
-
-            {/* CTA */}
-            <button
-              onClick={handleStartTrial}
-              disabled={loading}
-              style={{ width: "100%", padding: "16px 20px", background: loading ? "rgba(245,158,11,0.4)" : "linear-gradient(135deg,#f59e0b,#d97706)", border: "none", borderRadius: 14, fontSize: 16, fontWeight: 800, color: "#1a0a2e", fontFamily: "'Noto Sans JP',sans-serif", cursor: loading ? "default" : "pointer", letterSpacing: 0.3, boxShadow: loading ? "none" : "0 4px 18px rgba(245,158,11,0.45)", transition: "all .2s" }}
-              onMouseDown={e => { if (!loading) e.currentTarget.style.transform = "scale(.98)"; }}
-              onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              onTouchStart={e => { if (!loading) e.currentTarget.style.transform = "scale(.98)"; }}
-              onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
-            >
-              {loading ? "Starting trial…" : "Start your free 30-day trial →"}
-            </button>
-          </div>
-        </div>
-
-        {/* Trust signals */}
-        <div style={{ textAlign: "center", padding: "16px 8px 4px", display: "flex", flexDirection: "column", gap: 3 }}>
-          <div style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>No payment today</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--section-title)", fontFamily: "'Noto Sans JP',sans-serif" }}>First charge on {billingDateStr}</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel any time before then and pay nothing</div>
-        </div>
-
-        {/* Comparison table */}
-        <div style={{ marginTop: 28 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", marginBottom: 10, paddingLeft: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>What you unlock</div>
-          <div style={card}>
-            {[
-              { label: "Groups",           free: `Up to ${freeLimits.maxGroups}`,                               club: "Unlimited" },
-              { label: "Hosted games",     free: `${freeLimits.gamesPerCycle} / ${freeLimits.cycleDays} days`,  club: "Unlimited" },
-              { label: "Recurring games",  free: false,                                                          club: true        },
-              { label: "Priority support", free: false,                                                          club: true        },
-            ].map((row, i, arr) => (
-              <div key={row.label} style={{ display: "flex", alignItems: "center", paddingBottom: i < arr.length - 1 ? 11 : 0, marginBottom: i < arr.length - 1 ? 11 : 0, borderBottom: i < arr.length - 1 ? "1px solid var(--border-card)" : "none" }}>
-                <div style={{ flex: 1, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{row.label}</div>
-                <div style={{ width: 72, textAlign: "center", fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>
-                  {row.free === false ? <span style={{ fontSize: 15, opacity: 0.5 }}>✕</span> : row.free}
-                </div>
-                <div style={{ width: 72, textAlign: "center", fontSize: 12, fontWeight: 700, color: "#f59e0b", fontFamily: "'Noto Sans JP',sans-serif" }}>
-                  {row.club === true ? <span style={{ fontSize: 15 }}>✓</span> : row.club}
-                </div>
+              {/* Header row at bottom */}
+              <div style={{ display: "flex", marginTop: 10, borderTop: "1px solid var(--border-card)", paddingTop: 8 }}>
+                <div style={{ flex: 1 }} />
+                {allPlans.map(p => (
+                  <div key={p.planKey} style={{ width: 56, textAlign: "center", fontSize: 10, fontWeight: p.planKey === topPlan?.planKey ? 800 : 600, color: p.planKey === topPlan?.planKey ? "#f59e0b" : "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", textTransform: "uppercase", letterSpacing: 0.3 }}>
+                    {p.name?.replace(" Plan", "") || p.planKey}
+                  </div>
+                ))}
               </div>
-            ))}
-            <div style={{ display: "flex", marginTop: 10, borderTop: "1px solid var(--border-card)", paddingTop: 8 }}>
-              <div style={{ flex: 1 }} />
-              <div style={{ width: 72, textAlign: "center", fontSize: 11, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>Free</div>
-              <div style={{ width: 72, textAlign: "center", fontSize: 11, fontWeight: 700, color: "#f59e0b", fontFamily: "'Noto Sans JP',sans-serif" }}>Club ✨</div>
             </div>
           </div>
-        </div>
+        )}
 
       </div>
     </div>
