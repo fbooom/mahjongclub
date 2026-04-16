@@ -929,6 +929,18 @@ export default function App() {
                 });
                 flash("Host transferred!", "👑");
               } catch { flash("Error transferring host", "❌"); }
+            }}
+            onDelete={async () => {
+              try {
+                const batch = writeBatch(db);
+                // Delete all games in the group
+                const gamesSnap = await getDocs(collection(db, "groups", group.id, "games"));
+                gamesSnap.docs.forEach((d) => batch.delete(d.ref));
+                // Delete the group document itself
+                batch.delete(doc(db, "groups", group.id));
+                await batch.commit();
+                go("groups"); flash("Group deleted", "🗑");
+              } catch { flash("Error deleting group", "❌"); }
             }} />
         )}
         {page === "newGame" && group && (
@@ -3253,11 +3265,12 @@ function JoinGroup({ uid, groups, onBack, onJoin, onJoinGame }) {
 }
 
 /* GROUP DETAIL */
-function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferHost }) {
+function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferHost, onDelete }) {
   const [tab, setTab] = useState("games");
   const [gamesTab, setGamesTab] = useState("upcoming");
   const [chatOpen, setChatOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [transferMode, setTransferMode] = useState(null); // null | "leave" | "standalone"
   const [selectedNewHost, setSelectedNewHost] = useState(null);
   const upcoming = group.games.filter((g) => g.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
@@ -3361,7 +3374,11 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
               {isCreator && otherMembers.length > 0 && (
                 <Btn full outline onClick={() => { setSelectedNewHost(null); setTransferMode("standalone"); }}>👑 Transfer Host</Btn>
               )}
-              <Btn full outline danger onClick={handleLeaveClick}>Leave Group</Btn>
+              {isCreator ? (
+                <Btn full outline danger onClick={() => setConfirmDelete(true)}>🗑 Delete Group</Btn>
+              ) : (
+                <Btn full outline danger onClick={handleLeaveClick}>Leave Group</Btn>
+              )}
             </div>
           </>
         )}
@@ -3378,6 +3395,15 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
           confirmLabel="Leave Group"
           onConfirm={() => { setConfirmLeave(false); onLeave(); }}
           onCancel={() => setConfirmLeave(false)}
+        />
+      )}
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete Group?"
+          message={`This will permanently delete "${group.name}", all its games, and remove all members. This cannot be undone.`}
+          confirmLabel="Delete Group"
+          onConfirm={() => { setConfirmDelete(false); onDelete(); }}
+          onCancel={() => setConfirmDelete(false)}
         />
       )}
       {transferMode && (
