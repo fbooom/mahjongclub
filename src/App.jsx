@@ -716,7 +716,7 @@ export default function App() {
   const scrollRef = useRef(null);
   const go = (p, g, gm) => { setPage(p); if (g !== undefined) setGid(g); if (gm !== undefined) setGmid(gm || null); };
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, [page]);
-  const flash = (msg, icon) => { setToast({ msg, icon: icon || "✅" }); setTimeout(() => setToast(null), 2600); };
+  const flash = (msg, icon) => { setToast({ msg, icon: icon || "✅" }); setTimeout(() => setToast(null), 6000); };
 
   // ── Loading / auth gate ──
   if (authUser === undefined) {
@@ -826,7 +826,7 @@ export default function App() {
       {/* Page content + toast — wrapped so toast floats just above the nav */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
         {toast && (
-          <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", zIndex: 9999, width: "calc(100% - 32px)", maxWidth: 420, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+          <div style={{ position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 9999, width: "calc(100% - 32px)", maxWidth: 420, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
             <div className="bIn" style={{
               background: "linear-gradient(135deg,var(--section-title),var(--primary))",
               color: "#fff", borderRadius: 999, padding: "10px 22px",
