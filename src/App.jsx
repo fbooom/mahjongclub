@@ -300,14 +300,10 @@ function buildGlobalCSS(theme) {
     }
   }
 
-  /* Bottom nav always anchors to the app-shell width, not full viewport */
+  /* Bottom nav is a flex child of .app-shell — no fixed positioning needed */
   .bottom-nav {
-    position: fixed;
-    bottom: var(--nav-bottom, 0px);
-    left: 50%;
-    transform: translateX(-50%);
+    flex-shrink: 0;
     width: 100%;
-    max-width: 480px;
     background: var(--bg-nav);
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid var(--border-nav);
@@ -338,32 +334,6 @@ export default function App() {
     if (cssElRef.current) cssElRef.current.textContent = buildGlobalCSS(activeTheme);
   }, [activeTheme]);
 
-  // Keep bottom nav pinned to the true visible bottom on mobile browsers.
-  // Fixes the "nav jumps up and gets stuck" issue when navigating to/from
-  // external pages (e.g. Stripe) where the browser chrome shows/hides.
-  useEffect(() => {
-    const pinNav = () => {
-      const vv = window.visualViewport;
-      if (!vv) return;
-      // offset from the bottom of the layout viewport to the bottom of the visual viewport
-      const offset = window.innerHeight - vv.offsetTop - vv.height;
-      document.documentElement.style.setProperty("--nav-bottom", `${Math.max(0, offset)}px`);
-    };
-    const vv = window.visualViewport;
-    if (vv) {
-      vv.addEventListener("resize", pinNav);
-      vv.addEventListener("scroll", pinNav);
-      pinNav();
-    }
-    // When the page is restored from bfcache (back button after Stripe), reset the nav
-    const onPageShow = (e) => { if (e.persisted) pinNav(); };
-    window.addEventListener("pageshow", onPageShow);
-    return () => {
-      vv?.removeEventListener("resize", pinNav);
-      vv?.removeEventListener("scroll", pinNav);
-      window.removeEventListener("pageshow", onPageShow);
-    };
-  }, []);
 
   const [groups, setGroups] = useState([]);
   const [guestGames, setGuestGames] = useState([]);
@@ -836,22 +806,21 @@ export default function App() {
         </div>
       )}
 
-      {/* Toast */}
-      {toast && (
-        <div style={{ position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)", zIndex: 9999, width: "100%", maxWidth: 480, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
-          <div className="bIn" style={{
-            background: "linear-gradient(135deg,var(--section-title),var(--primary))",
-            color: "#fff", borderRadius: 999, padding: "10px 22px",
-            fontWeight: 700, fontSize: 15, whiteSpace: "nowrap",
-            boxShadow: "0 6px 24px rgba(var(--shadow-rgb),0.4)",
-          }}>{toast.icon} {toast.msg}</div>
-        </div>
-      )}
-
       {showWelcome && <WelcomeModal onClose={() => { setShowWelcome(false); go("account"); }} />}
 
-      {/* Page content */}
-      <div ref={scrollRef} data-scroll-container style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 90, paddingTop: impersonating ? 52 : 0 }}>
+      {/* Page content + toast — wrapped so toast floats just above the nav */}
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        {toast && (
+          <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", zIndex: 9999, width: "100%", maxWidth: 480, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+            <div className="bIn" style={{
+              background: "linear-gradient(135deg,var(--section-title),var(--primary))",
+              color: "#fff", borderRadius: 999, padding: "10px 22px",
+              fontWeight: 700, fontSize: 15, whiteSpace: "nowrap",
+              boxShadow: "0 6px 24px rgba(var(--shadow-rgb),0.4)",
+            }}>{toast.icon} {toast.msg}</div>
+          </div>
+        )}
+      <div ref={scrollRef} data-scroll-container style={{ height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 16, paddingTop: impersonating ? 52 : 0 }}>
         {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} activeTheme={activeTheme} planCfg={userPlanCfg} />}
         {page === "games" && <GamesPage groups={groups} guestGames={guestGames} go={go} />}
         {page === "groups" && <GroupsPage groups={groups} go={go} user={displayUser} planCfg={userPlanCfg} />}
@@ -1059,6 +1028,8 @@ export default function App() {
           <ManagePlan uid={uid} user={displayUser} setUser={setUser} planConfigs={planConfigs} go={go} flash={flash} />
         )}
       </div>
+
+      </div>{/* end content+toast wrapper */}
 
       {/* Bottom nav */}
       <div className="bottom-nav">
