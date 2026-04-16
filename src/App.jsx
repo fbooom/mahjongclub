@@ -1515,7 +1515,6 @@ function AdminPanel({ onImpersonate }) {
 }
 
 /* ── MANAGE PLAN PAGE ── */
-const CLUB_PAYMENT_LINK = "https://buy.stripe.com/test_14A7sMb50ePMfm48Zug7e00";
 
 function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
   const [loading,         setLoading]         = useState(false);
@@ -1549,13 +1548,15 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
     ? new Date(trialEndsAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
     : "";
 
-  // Redirect to Stripe payment link with uid + email pre-filled
-  const handleStartTrial = () => {
+  // Redirect to a plan's Stripe payment link with uid + email pre-filled
+  const handleSubscribe = (plan) => {
+    const link = plan?.paymentLink;
+    if (!link) { flash("No payment link configured for this plan."); return; }
     const params = new URLSearchParams({
       client_reference_id: uid,
       prefilled_email:     user.email || "",
     });
-    window.location.href = `${CLUB_PAYMENT_LINK}?${params.toString()}`;
+    window.location.href = `${link}?${params.toString()}`;
   };
 
   // Cancel via Cloud Function → Stripe → Firestore
@@ -1798,7 +1799,7 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
                     ))}
                   </div>
                   <button
-                    onClick={isClub ? handleStartTrial : undefined}
+                    onClick={() => handleSubscribe(plan)}
                     disabled={loading}
                     style={{ width: "100%", padding: "16px 20px", background: loading ? "rgba(245,158,11,0.4)" : "linear-gradient(135deg,#f59e0b,#d97706)", border: "none", borderRadius: 14, fontSize: 16, fontWeight: 800, color: "#1a0a2e", fontFamily: "'Inter',sans-serif", cursor: loading ? "default" : "pointer", letterSpacing: 0.3, boxShadow: loading ? "none" : "0 4px 18px rgba(245,158,11,0.45)", transition: "all .2s" }}
                     onMouseDown={e => { if (!loading) e.currentTarget.style.transform = "scale(.98)"; }}
@@ -1844,6 +1845,7 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
                 </div>
               </div>
               <button
+                onClick={() => handleSubscribe(plan)}
                 style={{ width: "100%", padding: "11px 16px", background: isDowngrade ? "rgba(var(--shadow-rgb),0.06)" : "linear-gradient(135deg,rgba(var(--primary-rgb),0.15),rgba(var(--primary-rgb),0.08))", border: isDowngrade ? "1px solid rgba(var(--shadow-rgb),0.2)" : "1px solid rgba(var(--primary-rgb),0.3)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: isDowngrade ? "var(--text-muted)" : "var(--primary)", cursor: "pointer", fontFamily: "'Inter',sans-serif", transition: "all .2s" }}
                 onMouseDown={e => e.currentTarget.style.opacity = "0.7"}
                 onMouseUp={e => e.currentTarget.style.opacity = "1"}
@@ -5863,6 +5865,7 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
   const EMPTY_FORM = {
     planKey: "", name: "", price: "0", interval: "month", description: "", features: "",
     limitMaxGroups: "2", limitGamesPerCycle: "1", limitCycleDays: "30", limitAllowRecurring: false,
+    paymentLink: "",
   };
 
   // Count users per plan key.
@@ -5891,6 +5894,7 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
     limitGamesPerCycle: String(pkg.limits?.gamesPerCycle ?? "1"),
     limitCycleDays:     String(pkg.limits?.cycleDays     ?? "30"),
     limitAllowRecurring: pkg.limits?.allowRecurring ?? false,
+    paymentLink: pkg.paymentLink || "",
   });
 
   const formToData = (f) => ({
@@ -5906,6 +5910,7 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
       cycleDays:     parseInt(f.limitCycleDays, 10)     || 30,
       allowRecurring: !!f.limitAllowRecurring,
     },
+    paymentLink: f.paymentLink?.trim() || "",
     updatedAt: serverTimestamp(),
   });
 
@@ -6022,6 +6027,10 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
         </div>
         <div style={{ height: 10 }} />
 
+        <Lbl2>Stripe Payment Link</Lbl2>
+        <input value={form.paymentLink} onChange={(e) => setForm({ ...form, paymentLink: e.target.value })} placeholder="https://buy.stripe.com/..." style={inp} />
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: -6, marginBottom: 10, fontFamily: "'Inter',sans-serif" }}>Paste the Stripe payment link for this plan. Used when users click to subscribe.</div>
+
         <Lbl2>Description</Lbl2>
         <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Short description shown to users" style={inp} />
 
@@ -6087,6 +6096,12 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
             ))}
           </div>
           {pkg.description && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", fontFamily: "'Inter',sans-serif" }}>{pkg.description}</div>}
+          {pkg.paymentLink && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(155,110,168,0.2)" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontFamily: "'Inter',sans-serif" }}>Payment Link</div>
+              <a href={pkg.paymentLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "#c084fc", fontFamily: "'Inter',sans-serif", wordBreak: "break-all" }}>{pkg.paymentLink}</a>
+            </div>
+          )}
         </div>
 
         {/* Limits */}
