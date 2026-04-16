@@ -826,11 +826,11 @@ export default function App() {
       {/* Page content + toast — wrapped so toast floats just above the nav */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
         {toast && (
-          <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", zIndex: 9999, width: "100%", maxWidth: 480, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+          <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", zIndex: 9999, width: "calc(100% - 32px)", maxWidth: 420, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
             <div className="bIn" style={{
               background: "linear-gradient(135deg,var(--section-title),var(--primary))",
               color: "#fff", borderRadius: 999, padding: "10px 22px",
-              fontWeight: 700, fontSize: 15, whiteSpace: "nowrap",
+              fontWeight: 700, fontSize: 14, whiteSpace: "normal", textAlign: "center",
               boxShadow: "0 6px 24px rgba(var(--shadow-rgb),0.4)",
             }}>{toast.icon} {toast.msg}</div>
           </div>
@@ -861,8 +861,7 @@ export default function App() {
           <JoinGroup uid={uid} groups={groups} onBack={() => go("home")}
             onJoin={async (id) => {
               if (!canAddGroup(groups.length, user, userPlanCfg).ok) {
-                const lim = getPlanLimits(userPlanCfg);
-                flash(`Free plan allows up to ${lim.maxGroups} groups`, "🔒"); return;
+                flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return;
               }
               try {
                 await runTransaction(db, async (tx) => {
@@ -912,7 +911,7 @@ export default function App() {
             }} />
         )}
         {page === "group" && group && (
-          <Group uid={uid} group={group} go={go} flash={flash}
+          <Group uid={uid} group={group} go={go} flash={flash} user={displayUser} planCfg={userPlanCfg}
             onLeave={async () => {
               try {
                 await runTransaction(db, async (tx) => {
@@ -1782,7 +1781,7 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
           <div style={{ ...card, opacity: 0.7, padding: "14px 16px", marginBottom: 0 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, fontWeight: 700, color: "var(--section-title)" }}>{currentCfg?.name || "Free Plan"}</div>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, fontWeight: 700, color: "var(--section-title)" }}>{currentCfg?.name || "Basic"}</div>
                 <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", marginTop: 2 }}>
                   Up to {freeLimits.maxGroups} groups · {freeLimits.gamesPerCycle} hosted game / {freeLimits.cycleDays} days
                 </div>
@@ -2202,7 +2201,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                     </span>
                   ) : (
                     <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.12),rgba(var(--primary-rgb),0.06))", color: "var(--primary)", borderRadius: 999, padding: "4px 12px", border: "1px solid rgba(var(--primary-rgb),0.2)", fontFamily: "'Inter',sans-serif" }}>
-                      {planCfg?.name || "Free Plan"}
+                      {planCfg?.name || "Basic"}
                     </span>
                   )}
                 </div>
@@ -2659,7 +2658,7 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5 }}>Your Groups</h2>
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn sm outline onClick={() => go("joinGroup")}>Join</Btn>
+            <Btn sm outline onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("joinGroup"); }}>Join</Btn>
             <Btn sm onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("newGroup"); }}>+ New</Btn>
           </div>
         </div>
@@ -2894,7 +2893,7 @@ function GroupsPage({ groups, go, user, planCfg, flash }) {
               color: "#fff", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
               display: "flex", alignItems: "center", gap: 5,
             }}>＋ New</button>
-            <button onClick={() => go("joinGroup")} style={{
+            <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("joinGroup"); }} style={{
               background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.25)",
               borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
               color: "rgba(255,255,255,0.85)", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
@@ -2929,7 +2928,7 @@ function GroupsPage({ groups, go, user, planCfg, flash }) {
                 background: "var(--active-tab-gradient)", color: "#fff",
                 border: "none", boxShadow: "0 4px 16px var(--shadow-btn)",
               }}>＋ Create Group</button>
-              <button onClick={() => go("joinGroup")} style={{
+              <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("joinGroup"); }} style={{
                 flex: 1, padding: "14px 0", borderRadius: 999, fontSize: 15, fontWeight: 700,
                 fontFamily: "'Inter',sans-serif", cursor: "pointer",
                 background: "var(--bg-surface)", color: "var(--primary)",
@@ -3300,7 +3299,7 @@ function JoinGroup({ uid, groups, onBack, onJoin, onJoinGame }) {
 }
 
 /* GROUP DETAIL */
-function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferHost }) {
+function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferHost, user, planCfg }) {
   const [tab, setTab] = useState("games");
   const [gamesTab, setGamesTab] = useState("upcoming");
   const [chatOpen, setChatOpen] = useState(false);
@@ -3360,7 +3359,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
       <div style={{ padding: "18px 16px 100px" }}>
         {tab === "games" && (
           <>
-            <Btn full onClick={() => go("newGame", group.id)} style={{ marginBottom: 14 }}>🀄 Schedule a Game</Btn>
+            <Btn full onClick={() => { const check = canHostGame(user, planCfg); if (!check.ok) { flash(`Game limit reached — next slot available in ${check.daysLeft} day${check.daysLeft === 1 ? "" : "s"}. Upgrade for unlimited games`, "🔒"); go("account"); return; } go("newGame", group.id); }} style={{ marginBottom: 14 }}>🀄 Schedule a Game</Btn>
 
             {/* Upcoming / History tab pills */}
             <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
