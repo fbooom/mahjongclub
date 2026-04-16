@@ -92,7 +92,8 @@ service cloud.firestore {
         );
 
         allow delete: if isAdmin() ||
-          (isSignedIn() && request.auth.uid == resource.data.hostId);
+          (isSignedIn() && request.auth.uid == resource.data.hostId) ||
+          (isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds);
 
         // Game chat messages — accessible to group members and game guests
         match /messages/{messageId} {
