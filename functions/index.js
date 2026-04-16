@@ -367,7 +367,8 @@ exports.deleteUser = onCall({ invoker: "public" }, async (request) => {
  *
  * After deploying, register this URL in Stripe Dashboard → Developers →
  * Webhooks → Add endpoint:
- *   https://us-central1-mahjong-club-da606.cloudfunctions.net/stripeWebhook
+ *   https://mahjong-club-da606.web.app/api/stripe-webhook
+ * (Routes through Firebase Hosting to avoid org policy IAM restrictions)
  *
  * Events to enable:
  *   checkout.session.completed
