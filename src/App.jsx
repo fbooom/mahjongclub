@@ -10,7 +10,12 @@ import {
 } from "firebase/firestore";
 import { auth, db, googleProvider, messagingReady } from "./firebase";
 import { getToken, onMessage } from "firebase/messaging";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { getFunctions, httpsCallable, httpsCallableFromURL } from "firebase/functions";
+
+// Route all Cloud Function calls through Firebase Hosting (/api/*) so they
+// work even when the GCP org policy blocks allUsers IAM bindings on Cloud Run.
+const HOSTING_BASE = "https://mahjong-club-da606.web.app/api";
+const hostingFn = (name) => httpsCallableFromURL(getFunctions(), `${HOSTING_BASE}/${name}`);
 import { sakura as defaultTheme, themes, buildCSSVars } from "./theme";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -583,7 +588,7 @@ export default function App() {
     setGid(null);
     setGmid(null);
     // Fire-and-forget audit log — does not block the UI
-    httpsCallable(getFunctions(), "logImpersonation")({
+    hostingFn("logImpersonation")({
       action: "start", targetUid: targetUser.uid, targetName: targetUser.name,
     }).catch(() => {}); // non-blocking; failure is silent to the admin
   };
@@ -597,7 +602,7 @@ export default function App() {
     setGid(null);
     setGmid(null);
     if (prev) {
-      httpsCallable(getFunctions(), "logImpersonation")({
+      hostingFn("logImpersonation")({
         action: "stop", targetUid: prev.uid, targetName: prev.name,
       }).catch(() => {});
     }
@@ -831,9 +836,9 @@ export default function App() {
           </div>
         )}
       <div ref={scrollRef} data-scroll-container style={{ height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 16, paddingTop: impersonating ? 52 : 0 }}>
-        {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} activeTheme={activeTheme} planCfg={userPlanCfg} />}
+        {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} activeTheme={activeTheme} planCfg={userPlanCfg} flash={flash} />}
         {page === "games" && <GamesPage groups={groups} guestGames={guestGames} go={go} />}
-        {page === "groups" && <GroupsPage groups={groups} go={go} user={displayUser} planCfg={userPlanCfg} />}
+        {page === "groups" && <GroupsPage groups={groups} go={go} user={displayUser} planCfg={userPlanCfg} flash={flash} />}
         {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} activeThemeId={activeTheme.id} onThemeChange={handleThemeChange} planCfg={userPlanCfg} />}
         {page === "newGroup" && (
           <NewGroup onBack={() => go("groups")}
@@ -1593,7 +1598,7 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
     if (!cancelConfirm) { setCancelConfirm(true); return; }
     setCancelling(true);
     try {
-      const fn = httpsCallable(getFunctions(), "cancelSubscription");
+      const fn = hostingFn("cancelSubscription");
       await fn({});
       setUser(prev => ({
         ...prev,
@@ -2529,7 +2534,7 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
 }
 
 /* HOME */
-function Home({ groups, guestGames, go, user, activeTheme, planCfg }) {
+function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash }) {
 
   // Background pattern — roses for Flowers, birds for Bam Bird, dragons for Dragons, tiles for all others
   const color = activeTheme?.primary || "#a0456e";
@@ -2655,7 +2660,7 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg }) {
           <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5 }}>Your Groups</h2>
           <div style={{ display: "flex", gap: 8 }}>
             <Btn sm outline onClick={() => go("joinGroup")}>Join</Btn>
-            <Btn sm onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { go("account"); return; } go("newGroup"); }}>+ New</Btn>
+            <Btn sm onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("newGroup"); }}>+ New</Btn>
           </div>
         </div>
 
@@ -2840,7 +2845,7 @@ function GamesPage({ groups, guestGames = [], go }) {
 }
 
 /* GROUPS PAGE */
-function GroupsPage({ groups, go, user, planCfg }) {
+function GroupsPage({ groups, go, user, planCfg, flash }) {
   const totalUpcoming = groups.reduce((sum, g) => sum + g.games.filter((gm) => gm.date > NOW).length, 0);
 
   return (
@@ -2883,7 +2888,7 @@ function GroupsPage({ groups, go, user, planCfg }) {
             )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
-            <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { go("account"); return; } go("newGroup"); }} style={{
+            <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("newGroup"); }} style={{
               background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.40)",
               borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
               color: "#fff", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
@@ -2918,7 +2923,7 @@ function GroupsPage({ groups, go, user, planCfg }) {
               Create a group to start scheduling games and inviting your players.
             </p>
             <div style={{ display: "flex", gap: 10, width: "100%" }}>
-              <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { go("account"); return; } go("newGroup"); }} style={{
+              <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("newGroup"); }} style={{
                 flex: 1, padding: "14px 0", borderRadius: 999, fontSize: 15, fontWeight: 700,
                 fontFamily: "'Inter',sans-serif", cursor: "pointer",
                 background: "var(--active-tab-gradient)", color: "#fff",
@@ -5627,7 +5632,7 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
     if (!selected) return;
     setPromoting(true);
     try {
-      const setAdminRole = httpsCallable(getFunctions(), "setAdminRole");
+      const setAdminRole = hostingFn("setAdminRole");
       await setAdminRole({ targetUid: selected.uid, isAdmin: !selected.isAdmin });
       const patch = { isAdmin: !selected.isAdmin };
       updateLocal(selected.uid, patch);
@@ -5642,8 +5647,7 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
     setConfirmDelete(false);
     setDeleting(true);
     try {
-      const fns = getFunctions();
-      const deleteFn = httpsCallable(fns, "deleteUser");
+      const deleteFn = hostingFn("deleteUser");
       await deleteFn({ uid: selected.uid });
       setUsers((prev) => prev.filter((u) => u.uid !== selected.uid));
       flash(`${selected.name} has been deleted`, "🗑️");
