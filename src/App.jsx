@@ -969,6 +969,13 @@ export default function App() {
                 if (isHosting) {
                   await updateDoc(doc(db, "users", uid), { lastHostedAt: Date.now() });
                 }
+                // Optimistically add game(s) to state so they appear immediately
+                setGroups((prev) => prev.map((g) => {
+                  if (g.id !== group.id) return g;
+                  const existingIds = new Set(g.games.map((gm) => gm.id));
+                  const newGames = arr.filter((gm) => !existingIds.has(gm.id));
+                  return { ...g, games: [...g.games, ...newGames] };
+                }));
                 if (arr.length === 1) { go("game", group.id, arr[0].id); flash("Game scheduled!", "🀄"); }
                 else { go("group", group.id); flash(`${arr.length} games scheduled! 🀄`); }
               } catch { flash("Error scheduling game", "❌"); }
