@@ -351,11 +351,16 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const checkout = params.get("checkout");
     if (checkout === "success") {
+      const plan = params.get("plan");
       window.history.replaceState({}, "", window.location.pathname);
       // Small delay so Firestore has time to update via webhook
       setTimeout(() => {
         setPage("account");
-        flash("You're on Club! 🎉 Welcome aboard.", "✨");
+        if (plan === "pro") {
+          flash("You're now a Pro member! Welcome aboard 🎉", "✨");
+        } else {
+          flash("You're now a Club member! Welcome aboard 🎉", "✨");
+        }
       }, 1500);
     } else if (checkout === "cancelled") {
       window.history.replaceState({}, "", window.location.pathname);
