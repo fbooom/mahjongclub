@@ -835,6 +835,9 @@ export default function App() {
               try {
                 const groupData = { ...g, members: [{ id: uid, name: user.name, avatar: user.avatar, host: true }], memberIds: [uid] };
                 await setDoc(doc(db, "groups", g.id), groupData);
+                // Optimistically add to state so the group page renders immediately
+                // before the onSnapshot round-trip completes
+                setGroups((prev) => [...prev, { ...groupData, id: g.id, games: [] }]);
                 go("group", g.id); flash("Group created!", "🎉");
               } catch { flash("Error creating group", "❌"); }
             }} />
