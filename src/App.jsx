@@ -303,7 +303,7 @@ function buildGlobalCSS(theme) {
   /* Bottom nav always anchors to the app-shell width, not full viewport */
   .bottom-nav {
     position: fixed;
-    bottom: 0;
+    bottom: var(--nav-bottom, 0px);
     left: 50%;
     transform: translateX(-50%);
     width: 100%;
@@ -337,6 +337,33 @@ export default function App() {
   useEffect(() => {
     if (cssElRef.current) cssElRef.current.textContent = buildGlobalCSS(activeTheme);
   }, [activeTheme]);
+
+  // Keep bottom nav pinned to the true visible bottom on mobile browsers.
+  // Fixes the "nav jumps up and gets stuck" issue when navigating to/from
+  // external pages (e.g. Stripe) where the browser chrome shows/hides.
+  useEffect(() => {
+    const pinNav = () => {
+      const vv = window.visualViewport;
+      if (!vv) return;
+      // offset from the bottom of the layout viewport to the bottom of the visual viewport
+      const offset = window.innerHeight - vv.offsetTop - vv.height;
+      document.documentElement.style.setProperty("--nav-bottom", `${Math.max(0, offset)}px`);
+    };
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener("resize", pinNav);
+      vv.addEventListener("scroll", pinNav);
+      pinNav();
+    }
+    // When the page is restored from bfcache (back button after Stripe), reset the nav
+    const onPageShow = (e) => { if (e.persisted) pinNav(); };
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      vv?.removeEventListener("resize", pinNav);
+      vv?.removeEventListener("scroll", pinNav);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, []);
 
   const [groups, setGroups] = useState([]);
   const [guestGames, setGuestGames] = useState([]);
