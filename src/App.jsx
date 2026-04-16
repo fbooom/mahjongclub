@@ -891,6 +891,7 @@ export default function App() {
                 gamesSnap.docs.forEach((d) => batch.delete(d.ref));
                 batch.delete(doc(db, "groups", group.id));
                 await batch.commit();
+                setGroups((prev) => prev.filter((g) => g.id !== group.id));
                 go("groups"); flash("Group deleted", "🗑");
               } catch { flash("Error deleting group", "❌"); }
             }} />
