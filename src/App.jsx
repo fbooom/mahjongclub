@@ -828,10 +828,11 @@ export default function App() {
         {toast && (
           <div style={{ position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 9999, width: "calc(100% - 32px)", maxWidth: 420, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
             <div className="bIn" style={{
-              background: "linear-gradient(135deg,var(--section-title),var(--primary))",
+              background: "linear-gradient(135deg,#1a1a2a,#2e2e42)",
               color: "#fff", borderRadius: 999, padding: "10px 22px",
               fontWeight: 700, fontSize: 14, whiteSpace: "normal", textAlign: "center",
-              boxShadow: "0 6px 24px rgba(var(--shadow-rgb),0.4)",
+              boxShadow: "0 6px 28px rgba(0,0,0,0.55)",
+              border: "1px solid rgba(255,255,255,0.12)",
             }}>{toast.icon} {toast.msg}</div>
           </div>
         )}
