@@ -711,7 +711,7 @@ export default function App() {
     return (
       <div className="app-shell" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", flexDirection: "column", gap: 16 }}>
         <div style={{ fontSize: 55, filter: "drop-shadow(0 6px 18px rgba(var(--shadow-rgb),.3))" }}>🀄</div>
-        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 19, color: "var(--primary-muted)" }}>Loading…</div>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 19, color: "var(--primary-muted)" }}>Loading…</div>
       </div>
     );
   }
@@ -753,7 +753,7 @@ export default function App() {
             background: adminMenuOpen ? "linear-gradient(135deg,#2d1b4e,#5a2d6b)" : "rgba(45,27,78,0.9)",
             border: "1px solid rgba(155,110,168,0.4)", borderRadius: 10,
             padding: "8px 16px", color: "#fff", fontSize: 13, fontWeight: 700,
-            cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif",
+            cursor: "pointer", fontFamily: "'Inter',sans-serif",
             display: "flex", alignItems: "center", gap: 7,
             boxShadow: "0 4px 16px rgba(45,27,78,0.35)",
             backdropFilter: "blur(12px)",
@@ -773,14 +773,14 @@ export default function App() {
               <button onClick={() => { setPage("adminHub"); setAdminMenuOpen(false); }} style={{
                 width: "100%", padding: "12px 16px", background: "none", border: "none",
                 textAlign: "left", fontSize: 14, fontWeight: 700, color: "#2d1b4e",
-                cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif",
+                cursor: "pointer", fontFamily: "'Inter',sans-serif",
                 display: "flex", alignItems: "center", gap: 9,
                 borderBottom: "1px solid rgba(155,110,168,0.1)",
               }}>🏛️ Admin Hub</button>
               <button onClick={() => { setPage("account"); setAdminMenuOpen(false); }} style={{
                 width: "100%", padding: "12px 16px", background: "none", border: "none",
                 textAlign: "left", fontSize: 14, fontWeight: 600, color: "#7a5090",
-                cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif",
+                cursor: "pointer", fontFamily: "'Inter',sans-serif",
                 display: "flex", alignItems: "center", gap: 9,
               }}>👤 My Profile</button>
             </div>
@@ -802,10 +802,10 @@ export default function App() {
         }}>
           <span style={{ fontSize: 21 }}>{impersonating.avatar}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>Admin · Viewing as</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{impersonating.name} · {impersonating.email}</div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: 1, fontFamily: "'Inter',sans-serif" }}>Admin · Viewing as</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", fontFamily: "'Inter',sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{impersonating.name} · {impersonating.email}</div>
           </div>
-          <button onClick={stopImpersonating} style={{ background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 999, padding: "5px 12px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", flexShrink: 0 }}>Exit</button>
+          <button onClick={stopImpersonating} style={{ background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 999, padding: "5px 12px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter',sans-serif", flexShrink: 0 }}>Exit</button>
         </div>
       )}
 
@@ -1049,7 +1049,7 @@ export default function App() {
               onTouchEnd={(e) => e.currentTarget.style.transform = "scale(1)"}
             >
               <div style={{ width: 42, height: 28, borderRadius: 14, background: active ? "var(--active-tab-gradient)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, boxShadow: active ? "0 2px 10px rgba(var(--shadow-rgb),0.35)" : "none", transition: "all .2s" }}>{item.icon}</div>
-              <span style={{ fontSize: 12, fontWeight: active ? 700 : 500, color: active ? "var(--primary)" : "#c0a0b0", fontFamily: "'Noto Sans JP',sans-serif" }}>{item.label}</span>
+              <span style={{ fontSize: 12, fontWeight: active ? 700 : 500, color: active ? "var(--primary)" : "#c0a0b0", fontFamily: "'Inter',sans-serif" }}>{item.label}</span>
             </button>
           );
         })}
@@ -1123,7 +1123,7 @@ function WelcomeModal({ onClose }) {
         <div style={{ fontSize: 53, marginBottom: 12, filter: "drop-shadow(0 4px 12px rgba(var(--shadow-rgb),0.25))" }}>🀄</div>
 
         <h2 style={{
-          fontFamily: "'Shippori Mincho',serif",
+          fontFamily: "'Inter',sans-serif",
           fontSize: 25, color: "var(--section-title)",
           marginBottom: 14, lineHeight: 1.3, letterSpacing: 0.5,
           textAlign: "center",
@@ -1135,7 +1135,7 @@ function WelcomeModal({ onClose }) {
 
         <p style={{
           fontSize: 15, color: "#7a4a58", lineHeight: 1.8,
-          fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 400,
+          fontFamily: "'Inter',sans-serif", fontWeight: 400,
           marginBottom: 10,
         }}>
           We know the struggle — chasing down four players, juggling schedules, 
@@ -1145,7 +1145,7 @@ function WelcomeModal({ onClose }) {
 
         <p style={{
           fontSize: 15, color: "#7a4a58", lineHeight: 1.8,
-          fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 400,
+          fontFamily: "'Inter',sans-serif", fontWeight: 400,
           marginBottom: 24,
         }}>
           Mahjong Club makes it simple. Create your group, schedule your games, 
@@ -1164,7 +1164,7 @@ function WelcomeModal({ onClose }) {
           color: "#fff",
           fontSize: 16, fontWeight: 700,
           border: "none", cursor: "pointer",
-          fontFamily: "'Noto Sans JP',sans-serif",
+          fontFamily: "'Inter',sans-serif",
           boxShadow: "0 6px 20px rgba(var(--shadow-rgb),0.4)",
           letterSpacing: 0.3,
         }}>
@@ -1298,8 +1298,8 @@ function AuthScreen() {
       {/* Logo */}
       <div style={{ textAlign: "center", marginBottom: 24, position: "relative" }}>
         <div style={{ fontSize: 55, filter: "drop-shadow(0 6px 18px rgba(0,0,0,.3))", marginBottom: 10 }}>🀄</div>
-        <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
-        <p style={{ color: "rgba(255,255,255,.72)", fontSize: 13, fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 1, marginTop: 5 }}>Schedule · Play · Enjoy</p>
+        <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
+        <p style={{ color: "rgba(255,255,255,.72)", fontSize: 13, fontFamily: "'Inter',sans-serif", letterSpacing: 1, marginTop: 5 }}>Schedule · Play · Enjoy</p>
       </div>
 
       {/* Card */}
@@ -1314,7 +1314,7 @@ function AuthScreen() {
           {[["login","Sign In"],["signup","Create Account"]].map(([m, label]) => (
             <button key={m} onClick={() => switchMode(m)} style={{
               flex: 1, padding: "9px 0", borderRadius: 999, fontSize: 14, fontWeight: 700,
-              fontFamily: "'Noto Sans JP',sans-serif", border: "none", cursor: "pointer", transition: "all .2s",
+              fontFamily: "'Inter',sans-serif", border: "none", cursor: "pointer", transition: "all .2s",
               background: mode === m ? "var(--active-tab-gradient)" : "transparent",
               color: mode === m ? "#fff" : "var(--primary-subtle)",
               boxShadow: mode === m ? "0 3px 12px rgba(var(--shadow-rgb),0.3)" : "none",
@@ -1343,7 +1343,7 @@ function AuthScreen() {
 
             {/* Avatar picker */}
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--primary-subtle)", marginBottom: 7, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Noto Sans JP',sans-serif" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--primary-subtle)", marginBottom: 7, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Inter',sans-serif" }}>
                 Avatar <span style={{ fontWeight: 400, color: "var(--primary-faint)", textTransform: "none", letterSpacing: 0, fontSize: 12 }}>— auto-selected if skipped</span>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
@@ -1366,7 +1366,7 @@ function AuthScreen() {
           </>
         )}
 
-        <p style={{ fontSize: 12, color: "#c0a0b0", textAlign: "center", marginTop: 14, fontFamily: "'Noto Sans JP',sans-serif" }}>
+        <p style={{ fontSize: 12, color: "#c0a0b0", textAlign: "center", marginTop: 14, fontFamily: "'Inter',sans-serif" }}>
           {mode === "login" ? "Don't have an account? " : "Already have an account? "}
           <span onClick={() => switchMode(mode === "login" ? "signup" : "login")} style={{ color: "var(--primary)", fontWeight: 700, cursor: "pointer" }}>
             {mode === "login" ? "Create one" : "Sign in"}
@@ -1380,7 +1380,7 @@ function AuthScreen() {
 function AInput({ label, type = "text", value, set, placeholder }) {
   return (
     <div style={{ marginBottom: 11 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--primary-subtle)", marginBottom: 5, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Noto Sans JP',sans-serif" }}>{label}</div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--primary-subtle)", marginBottom: 5, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Inter',sans-serif" }}>{label}</div>
       <input type={type} value={value} onChange={(e) => set(e.target.value)} placeholder={placeholder}
         style={{ ...inputSt, marginBottom: 0 }} />
     </div>
@@ -1392,7 +1392,7 @@ function ABtn({ children, onClick, disabled }) {
       width: "100%", padding: "14px", borderRadius: 999,
       background: disabled ? "#e5d5dc" : "var(--active-tab-gradient)", color: disabled ? "#bbb" : "#fff",
       fontSize: 16, fontWeight: 700, border: "none", cursor: disabled ? "not-allowed" : "pointer",
-      fontFamily: "'Noto Sans JP',sans-serif", boxShadow: disabled ? "none" : "0 6px 20px rgba(var(--shadow-rgb),0.38)",
+      fontFamily: "'Inter',sans-serif", boxShadow: disabled ? "none" : "0 6px 20px rgba(var(--shadow-rgb),0.38)",
       letterSpacing: 0.3, transition: "transform .15s",
     }}
       onMouseDown={(e) => { if (!disabled) e.currentTarget.style.transform = "scale(.97)"; }}
@@ -1407,7 +1407,7 @@ function GoogleSignInBtn({ onClick, disabled }) {
     <button onClick={onClick} disabled={disabled} style={{
       width: "100%", padding: "13px", borderRadius: 999,
       background: "#fff", color: disabled ? "#aaa" : "#3c3c3c", fontSize: 15, fontWeight: 600,
-      border: "2px solid #e8e0e4", cursor: disabled ? "not-allowed" : "pointer", fontFamily: "'Noto Sans JP',sans-serif",
+      border: "2px solid #e8e0e4", cursor: disabled ? "not-allowed" : "pointer", fontFamily: "'Inter',sans-serif",
       display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
       boxShadow: "0 2px 10px rgba(0,0,0,0.08)", transition: "all .15s",
     }}
@@ -1427,13 +1427,13 @@ function GoogleSignInBtn({ onClick, disabled }) {
   );
 }
 function ErrMsg({ msg }) {
-  return <div style={{ color: "var(--primary)", fontSize: 14, fontWeight: 600, marginBottom: 12, textAlign: "center", fontFamily: "'Noto Sans JP',sans-serif", background: "rgba(var(--primary-rgb),0.08)", borderRadius: 10, padding: "8px 12px" }}>{msg}</div>;
+  return <div style={{ color: "var(--primary)", fontSize: 14, fontWeight: 600, marginBottom: 12, textAlign: "center", fontFamily: "'Inter',sans-serif", background: "rgba(var(--primary-rgb),0.08)", borderRadius: 10, padding: "8px 12px" }}>{msg}</div>;
 }
 function Divider() {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0" }}>
       <div style={{ flex: 1, height: 1, background: "linear-gradient(90deg,transparent,#f0c0d0,transparent)" }} />
-      <span style={{ fontSize: 13, color: "var(--primary-faint)", fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 600 }}>or</span>
+      <span style={{ fontSize: 13, color: "var(--primary-faint)", fontFamily: "'Inter',sans-serif", fontWeight: 600 }}>or</span>
       <div style={{ flex: 1, height: 1, background: "linear-gradient(90deg,transparent,#f0c0d0,transparent)" }} />
     </div>
   );
@@ -1473,11 +1473,11 @@ function AdminPanel({ onImpersonate }) {
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <span style={{ fontSize: 19 }}>🔐</span>
-        <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "#2d1b4e", fontWeight: 700 }}>Admin Panel</span>
+        <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 17, color: "#2d1b4e", fontWeight: 700 }}>Admin Panel</span>
         <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: "var(--secondary-accent)", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: 1 }}>Admin Only</span>
       </div>
 
-      <div style={{ fontSize: 13, color: "#7a5090", marginBottom: 12, fontFamily: "'Noto Sans JP',sans-serif" }}>
+      <div style={{ fontSize: 13, color: "#7a5090", marginBottom: 12, fontFamily: "'Inter',sans-serif" }}>
         Search for a user by email to view the app as them.
       </div>
 
@@ -1487,25 +1487,25 @@ function AdminPanel({ onImpersonate }) {
           onChange={(e) => setQuery_(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && search()}
           placeholder="User email address"
-          style={{ flex: 1, padding: "10px 14px", borderRadius: 12, fontSize: 14, border: "1.5px solid rgba(90,45,107,0.25)", background: "rgba(255,255,255,0.8)", color: "#2d1b4e", fontFamily: "'Noto Sans JP',sans-serif", outline: "none" }}
+          style={{ flex: 1, padding: "10px 14px", borderRadius: 12, fontSize: 14, border: "1.5px solid rgba(90,45,107,0.25)", background: "rgba(255,255,255,0.8)", color: "#2d1b4e", fontFamily: "'Inter',sans-serif", outline: "none" }}
         />
-        <button onClick={search} disabled={searching || !query_.trim()} style={{ background: "linear-gradient(135deg,#2d1b4e,#5a2d6b)", border: "none", borderRadius: 12, padding: "10px 16px", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: (!query_.trim() || searching) ? 0.5 : 1 }}>
+        <button onClick={search} disabled={searching || !query_.trim()} style={{ background: "linear-gradient(135deg,#2d1b4e,#5a2d6b)", border: "none", borderRadius: 12, padding: "10px 16px", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: (!query_.trim() || searching) ? 0.5 : 1 }}>
           {searching ? "…" : "Search"}
         </button>
       </div>
 
       {searched && results.length === 0 && !searching && (
-        <div style={{ fontSize: 13, color: "var(--secondary-accent)", fontFamily: "'Noto Sans JP',sans-serif" }}>No user found with that email.</div>
+        <div style={{ fontSize: 13, color: "var(--secondary-accent)", fontFamily: "'Inter',sans-serif" }}>No user found with that email.</div>
       )}
 
       {results.map((u) => (
         <div key={u.uid} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "rgba(255,255,255,0.7)", marginBottom: 8, border: "1px solid rgba(90,45,107,0.15)" }}>
           <span style={{ fontSize: 23 }}>{u.avatar}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#2d1b4e", fontFamily: "'Noto Sans JP',sans-serif" }}>{u.name}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#2d1b4e", fontFamily: "'Inter',sans-serif" }}>{u.name}</div>
             <div style={{ fontSize: 12, color: "var(--secondary-accent)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
           </div>
-          <button onClick={() => onImpersonate(u)} style={{ background: "linear-gradient(135deg,#2d1b4e,#5a2d6b)", border: "none", borderRadius: 10, padding: "6px 12px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", flexShrink: 0 }}>
+          <button onClick={() => onImpersonate(u)} style={{ background: "linear-gradient(135deg,#2d1b4e,#5a2d6b)", border: "none", borderRadius: 10, padding: "6px 12px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif", flexShrink: 0 }}>
             View as
           </button>
         </div>
@@ -1587,20 +1587,20 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
     <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--border-card)" }}>
       {cancelConfirm ? (
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 14, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 12 }}>
+          <div style={{ fontSize: 14, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", marginBottom: 12 }}>
             Are you sure? You'll lose access to Club features immediately.
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             <button
               onClick={() => setCancelConfirm(false)}
-              style={{ flex: 1, padding: "11px 0", background: "rgba(var(--primary-rgb),0.1)", border: "1px solid rgba(var(--primary-rgb),0.2)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: "var(--primary)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
+              style={{ flex: 1, padding: "11px 0", background: "rgba(var(--primary-rgb),0.1)", border: "1px solid rgba(var(--primary-rgb),0.2)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: "var(--primary)", cursor: "pointer", fontFamily: "'Inter',sans-serif" }}
             >
               Keep plan
             </button>
             <button
               onClick={handleCancel}
               disabled={cancelling}
-              style={{ flex: 1, padding: "11px 0", background: "none", border: "1px solid rgba(var(--shadow-rgb),0.25)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: "var(--text-muted)", cursor: cancelling ? "default" : "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
+              style={{ flex: 1, padding: "11px 0", background: "none", border: "1px solid rgba(var(--shadow-rgb),0.25)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: "var(--text-muted)", cursor: cancelling ? "default" : "pointer", fontFamily: "'Inter',sans-serif" }}
             >
               {cancelling ? "Cancelling…" : "Yes, cancel"}
             </button>
@@ -1609,7 +1609,7 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
       ) : (
         <button
           onClick={handleCancel}
-          style={{ width: "100%", padding: "11px 0", background: "none", border: "none", fontSize: 13, color: "var(--text-muted)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", textDecoration: "underline" }}
+          style={{ width: "100%", padding: "11px 0", background: "none", border: "none", fontSize: 13, color: "var(--text-muted)", cursor: "pointer", fontFamily: "'Inter',sans-serif", textDecoration: "underline" }}
         >
           Cancel subscription
         </button>
@@ -1636,7 +1636,7 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
       <div style={wrap}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 8px" }}>
           <button onClick={() => go("account")} style={backBtn}>‹</button>
-          <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 19, fontWeight: 700, color: "var(--section-title)" }}>Your Plan</span>
+          <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 19, fontWeight: 700, color: "var(--section-title)" }}>Your Plan</span>
         </div>
         <div style={{ padding: "0 16px" }}>
 
@@ -1646,29 +1646,29 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
               <div style={{ width: 46, height: 46, borderRadius: 14, background: "linear-gradient(135deg,#f59e0b,#d97706)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>✨</div>
               <div>
-                <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 20, fontWeight: 700, color: "#fde68a" }}>Club Plan</div>
-                <div style={{ fontSize: 12, color: "rgba(253,230,138,0.65)", fontFamily: "'Noto Sans JP',sans-serif" }}>Free trial active</div>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 20, fontWeight: 700, color: "#fde68a" }}>Club Plan</div>
+                <div style={{ fontSize: 12, color: "rgba(253,230,138,0.65)", fontFamily: "'Inter',sans-serif" }}>Free trial active</div>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "stretch", gap: 10 }}>
               <div style={{ flex: 1, background: "rgba(245,158,11,0.12)", borderRadius: 14, padding: "14px 16px", border: "1px solid rgba(245,158,11,0.2)", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                <div style={{ fontSize: 11, color: "rgba(253,230,138,0.65)", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Days remaining</div>
-                <div style={{ fontSize: 40, fontWeight: 800, color: "#fde68a", fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1 }}>{trialDaysLeft}</div>
+                <div style={{ fontSize: 11, color: "rgba(253,230,138,0.65)", fontFamily: "'Inter',sans-serif", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Days remaining</div>
+                <div style={{ fontSize: 40, fontWeight: 800, color: "#fde68a", fontFamily: "'Inter',sans-serif", lineHeight: 1 }}>{trialDaysLeft}</div>
               </div>
               <div style={{ flex: 1, background: "rgba(245,158,11,0.12)", borderRadius: 14, padding: "14px 16px", border: "1px solid rgba(245,158,11,0.2)" }}>
-                <div style={{ fontSize: 11, color: "rgba(253,230,138,0.65)", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>First charge</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#fde68a", fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1.3 }}>{trialEndStr}</div>
-                <div style={{ fontSize: 12, color: "rgba(253,230,138,0.45)", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 4 }}>${clubPrice}/{clubInterval}</div>
+                <div style={{ fontSize: 11, color: "rgba(253,230,138,0.65)", fontFamily: "'Inter',sans-serif", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>First charge</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#fde68a", fontFamily: "'Inter',sans-serif", lineHeight: 1.3 }}>{trialEndStr}</div>
+                <div style={{ fontSize: 12, color: "rgba(253,230,138,0.45)", fontFamily: "'Inter',sans-serif", marginTop: 4 }}>${clubPrice}/{clubInterval}</div>
               </div>
             </div>
           </div>
 
           {/* Club features */}
           <div style={card}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10, fontFamily: "'Noto Sans JP',sans-serif" }}>Everything included in your trial</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10, fontFamily: "'Inter',sans-serif" }}>Everything included in your trial</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
               {clubFeatures.map(f => (
-                <div key={f} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                <div key={f} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>
                   <span style={{ width: 20, height: 20, borderRadius: 999, background: "linear-gradient(135deg,#f59e0b,#d97706)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", fontWeight: 800, flexShrink: 0 }}>✓</span>
                   {f}
                 </div>
@@ -1688,15 +1688,15 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
       <div style={wrap}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 8px" }}>
           <button onClick={() => go("account")} style={backBtn}>‹</button>
-          <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 19, fontWeight: 700, color: "var(--section-title)" }}>Your Plan</span>
+          <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 19, fontWeight: 700, color: "var(--section-title)" }}>Your Plan</span>
         </div>
         <div style={{ padding: "0 16px" }}>
           <div style={{ ...card, border: "2px solid rgba(245,158,11,0.3)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ fontSize: 36, lineHeight: 1 }}>✨</div>
               <div>
-                <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, fontWeight: 700, color: "var(--section-title)" }}>Club Plan</div>
-                <div style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 2 }}>You're all set — enjoy unlimited mahjong</div>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: "var(--section-title)" }}>Club Plan</div>
+                <div style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", marginTop: 2 }}>You're all set — enjoy unlimited mahjong</div>
               </div>
             </div>
             <CancelButton />
@@ -1727,7 +1727,7 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 8px" }}>
         <button onClick={() => go("account")} style={backBtn}>‹</button>
-        <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 19, fontWeight: 700, color: "var(--section-title)" }}>Plans & Pricing</span>
+        <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 19, fontWeight: 700, color: "var(--section-title)" }}>Plans & Pricing</span>
       </div>
 
       <div style={{ padding: "0 16px" }}>
@@ -1735,24 +1735,24 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
         {/* Hero */}
         <div style={{ textAlign: "center", padding: "16px 0 22px" }}>
           <div style={{ fontSize: 40, marginBottom: 10 }}>🎯</div>
-          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 22, fontWeight: 700, color: "var(--section-title)", marginBottom: 6 }}>Level up your game</div>
-          <div style={{ fontSize: 14, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1.6, maxWidth: 280, margin: "0 auto" }}>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 22, fontWeight: 700, color: "var(--section-title)", marginBottom: 6 }}>Level up your game</div>
+          <div style={{ fontSize: 14, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", lineHeight: 1.6, maxWidth: 280, margin: "0 auto" }}>
             Host more, play more, schedule recurring games — starting free for 30 days.
           </div>
         </div>
 
         {/* Current plan — muted */}
         <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", marginBottom: 6, paddingLeft: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Your current plan</div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", marginBottom: 6, paddingLeft: 4, fontFamily: "'Inter',sans-serif" }}>Your current plan</div>
           <div style={{ ...card, opacity: 0.7, padding: "14px 16px", marginBottom: 0 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, fontWeight: 700, color: "var(--section-title)" }}>{currentCfg?.name || "Free Plan"}</div>
-                <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 2 }}>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, fontWeight: 700, color: "var(--section-title)" }}>{currentCfg?.name || "Free Plan"}</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", marginTop: 2 }}>
                   Up to {freeLimits.maxGroups} groups · {freeLimits.gamesPerCycle} hosted game / {freeLimits.cycleDays} days
                 </div>
               </div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>${currentPrice}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif" }}>${currentPrice}</div>
             </div>
           </div>
         </div>
@@ -1775,23 +1775,23 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                         <span style={{ fontSize: 22 }}>✨</span>
-                        <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 24, fontWeight: 700, color: "#fde68a" }}>{plan.name}</span>
+                        <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 24, fontWeight: 700, color: "#fde68a" }}>{plan.name}</span>
                       </div>
                       {isClub && (
                         <div style={{ background: "rgba(245,158,11,0.18)", borderRadius: 999, padding: "3px 12px", display: "inline-block", border: "1px solid rgba(245,158,11,0.4)" }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#fde68a", fontFamily: "'Noto Sans JP',sans-serif" }}>30-day free trial</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#fde68a", fontFamily: "'Inter',sans-serif" }}>30-day free trial</span>
                         </div>
                       )}
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 30, fontWeight: 800, color: "#fde68a", fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1 }}>${planPrice}</div>
-                      <div style={{ fontSize: 12, color: "rgba(253,230,138,0.55)", fontFamily: "'Noto Sans JP',sans-serif" }}>/{plan.interval || "month"}</div>
+                      <div style={{ fontSize: 30, fontWeight: 800, color: "#fde68a", fontFamily: "'Inter',sans-serif", lineHeight: 1 }}>${planPrice}</div>
+                      <div style={{ fontSize: 12, color: "rgba(253,230,138,0.55)", fontFamily: "'Inter',sans-serif" }}>/{plan.interval || "month"}</div>
                     </div>
                   </div>
                   <div style={{ borderTop: "1px solid rgba(245,158,11,0.18)", marginBottom: 16 }} />
                   <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 22 }}>
                     {planFeats.map(f => (
-                      <div key={f} style={{ display: "flex", alignItems: "center", gap: 11, fontSize: 14, color: "rgba(253,230,138,0.9)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      <div key={f} style={{ display: "flex", alignItems: "center", gap: 11, fontSize: 14, color: "rgba(253,230,138,0.9)", fontFamily: "'Inter',sans-serif" }}>
                         <span style={{ width: 20, height: 20, borderRadius: 999, background: "linear-gradient(135deg,#f59e0b,#d97706)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", fontWeight: 800, flexShrink: 0 }}>✓</span>
                         {f}
                       </div>
@@ -1800,7 +1800,7 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
                   <button
                     onClick={isClub ? handleStartTrial : undefined}
                     disabled={loading}
-                    style={{ width: "100%", padding: "16px 20px", background: loading ? "rgba(245,158,11,0.4)" : "linear-gradient(135deg,#f59e0b,#d97706)", border: "none", borderRadius: 14, fontSize: 16, fontWeight: 800, color: "#1a0a2e", fontFamily: "'Noto Sans JP',sans-serif", cursor: loading ? "default" : "pointer", letterSpacing: 0.3, boxShadow: loading ? "none" : "0 4px 18px rgba(245,158,11,0.45)", transition: "all .2s" }}
+                    style={{ width: "100%", padding: "16px 20px", background: loading ? "rgba(245,158,11,0.4)" : "linear-gradient(135deg,#f59e0b,#d97706)", border: "none", borderRadius: 14, fontSize: 16, fontWeight: 800, color: "#1a0a2e", fontFamily: "'Inter',sans-serif", cursor: loading ? "default" : "pointer", letterSpacing: 0.3, boxShadow: loading ? "none" : "0 4px 18px rgba(245,158,11,0.45)", transition: "all .2s" }}
                     onMouseDown={e => { if (!loading) e.currentTarget.style.transform = "scale(.98)"; }}
                     onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
                     onTouchStart={e => { if (!loading) e.currentTarget.style.transform = "scale(.98)"; }}
@@ -1811,9 +1811,9 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
                 </div>
                 {isClub && (
                   <div style={{ textAlign: "center", padding: "14px 8px 4px", display: "flex", flexDirection: "column", gap: 3 }}>
-                    <div style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>No payment today</div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--section-title)", fontFamily: "'Noto Sans JP',sans-serif" }}>First charge on {billingDateStr}</div>
-                    <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel any time before then and pay nothing</div>
+                    <div style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif" }}>No payment today</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--section-title)", fontFamily: "'Inter',sans-serif" }}>First charge on {billingDateStr}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif" }}>Cancel any time before then and pay nothing</div>
                   </div>
                 )}
               </div>
@@ -1825,26 +1825,26 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
             <div key={plan.planKey} style={{ ...card, marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
                 <div>
-                  <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, fontWeight: 700, color: "var(--section-title)", marginBottom: 4 }}>{plan.name}</div>
-                  {plan.description && <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>{plan.description}</div>}
+                  <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: "var(--section-title)", marginBottom: 4 }}>{plan.name}</div>
+                  {plan.description && <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif" }}>{plan.description}</div>}
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: "var(--section-title)", fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1 }}>${planPrice}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>/{plan.interval || "month"}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "var(--section-title)", fontFamily: "'Inter',sans-serif", lineHeight: 1 }}>${planPrice}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif" }}>/{plan.interval || "month"}</div>
                 </div>
               </div>
               <div style={{ borderTop: "1px solid var(--border-card)", paddingTop: 12, marginBottom: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>Included</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, fontFamily: "'Inter',sans-serif" }}>Included</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                   {planFeats.map(f => (
-                    <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>
                       <span style={{ color: "var(--secondary-accent)", fontWeight: 700 }}>✓</span> {f}
                     </div>
                   ))}
                 </div>
               </div>
               <button
-                style={{ width: "100%", padding: "11px 16px", background: isDowngrade ? "rgba(var(--shadow-rgb),0.06)" : "linear-gradient(135deg,rgba(var(--primary-rgb),0.15),rgba(var(--primary-rgb),0.08))", border: isDowngrade ? "1px solid rgba(var(--shadow-rgb),0.2)" : "1px solid rgba(var(--primary-rgb),0.3)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: isDowngrade ? "var(--text-muted)" : "var(--primary)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}
+                style={{ width: "100%", padding: "11px 16px", background: isDowngrade ? "rgba(var(--shadow-rgb),0.06)" : "linear-gradient(135deg,rgba(var(--primary-rgb),0.15),rgba(var(--primary-rgb),0.08))", border: isDowngrade ? "1px solid rgba(var(--shadow-rgb),0.2)" : "1px solid rgba(var(--primary-rgb),0.3)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: isDowngrade ? "var(--text-muted)" : "var(--primary)", cursor: "pointer", fontFamily: "'Inter',sans-serif", transition: "all .2s" }}
                 onMouseDown={e => e.currentTarget.style.opacity = "0.7"}
                 onMouseUp={e => e.currentTarget.style.opacity = "1"}
                 onTouchStart={e => e.currentTarget.style.opacity = "0.7"}
@@ -1884,16 +1884,16 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
 
           return (
             <div style={{ marginTop: 28 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", marginBottom: 10, paddingLeft: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Compare plans</div>
+              <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", marginBottom: 10, paddingLeft: 4, fontFamily: "'Inter',sans-serif" }}>Compare plans</div>
               <div style={card}>
                 {rows.map((row, i) => (
                   <div key={row.label} style={{ display: "flex", alignItems: "center", paddingBottom: i < rows.length - 1 ? 12 : 0, marginBottom: i < rows.length - 1 ? 12 : 0, borderBottom: i < rows.length - 1 ? "1px solid var(--border-card)" : "none" }}>
-                    <div style={{ flex: 1, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{row.label}</div>
+                    <div style={{ flex: 1, fontSize: 13, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{row.label}</div>
                     {row.values.map((val, ci) => {
                       const isTop = allPlans[ci]?.planKey === topPlan?.planKey;
                       const positive = val === "✓" || (val !== "✕" && val !== "0");
                       return (
-                        <div key={allPlans[ci].planKey} style={{ width: colW, textAlign: "center", fontSize: row.boolean ? 15 : 12, fontWeight: 700, color: isTop ? "#f59e0b" : positive ? "var(--secondary-accent)" : "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", opacity: (!positive && row.boolean) ? 0.35 : 1 }}>
+                        <div key={allPlans[ci].planKey} style={{ width: colW, textAlign: "center", fontSize: row.boolean ? 15 : 12, fontWeight: 700, color: isTop ? "#f59e0b" : positive ? "var(--secondary-accent)" : "var(--text-muted)", fontFamily: "'Inter',sans-serif", opacity: (!positive && row.boolean) ? 0.35 : 1 }}>
                           {val}
                         </div>
                       );
@@ -1905,7 +1905,7 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
                 <div style={{ display: "flex", marginTop: 12, borderTop: "1px solid var(--border-card)", paddingTop: 10 }}>
                   <div style={{ flex: 1 }} />
                   {allPlans.map(p => (
-                    <div key={p.planKey} style={{ width: colW, textAlign: "center", fontSize: 10, fontWeight: 800, color: p.planKey === topPlan?.planKey ? "#f59e0b" : "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                    <div key={p.planKey} style={{ width: colW, textAlign: "center", fontSize: 10, fontWeight: 800, color: p.planKey === topPlan?.planKey ? "#f59e0b" : "var(--text-muted)", fontFamily: "'Inter',sans-serif", textTransform: "uppercase", letterSpacing: 0.4 }}>
                       {p.name?.replace(" Plan", "") || p.planKey}
                     </div>
                   ))}
@@ -1915,10 +1915,10 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
               {/* Shared features */}
               {sharedFeatures.length > 0 && (
                 <div style={{ marginTop: 10, paddingLeft: 4 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>All plans include</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-muted)", marginBottom: 8, fontFamily: "'Inter',sans-serif" }}>All plans include</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {sharedFeatures.map(f => (
-                      <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>
                         <span style={{ color: "var(--secondary-accent)", fontWeight: 700 }}>✓</span> {f}
                       </div>
                     ))}
@@ -2035,15 +2035,15 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
         }}>
           {user.avatar}
         </div>
-        <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 23, color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,.2)", letterSpacing: 0.5 }}>{user.name}</h1>
-        <p style={{ color: "rgba(255,255,255,.7)", fontSize: 14, marginTop: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>{user.email}</p>
+        <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 23, color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,.2)", letterSpacing: 0.5 }}>{user.name}</h1>
+        <p style={{ color: "rgba(255,255,255,.7)", fontSize: 14, marginTop: 4, fontFamily: "'Inter',sans-serif" }}>{user.email}</p>
 
         {/* Stats row */}
         <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 18 }}>
           {[[groups.length, "Groups"],[totalGames, "Games"],[upcoming, "Upcoming"]].map(([n, lbl]) => (
             <div key={lbl} style={{ textAlign: "center", background: "rgba(255,255,255,.18)", backdropFilter: "blur(8px)", borderRadius: 14, padding: "8px 16px", border: "1px solid rgba(255,255,255,.3)" }}>
-              <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 21, color: "#fff", fontWeight: 700 }}>{n}</div>
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,.72)", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 1 }}>{lbl}</div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 21, color: "#fff", fontWeight: 700 }}>{n}</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,.72)", fontFamily: "'Inter',sans-serif", marginTop: 1 }}>{lbl}</div>
             </div>
           ))}
         </div>
@@ -2059,8 +2059,8 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           border: "1px solid var(--border-card)",
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "var(--section-title)", fontWeight: 700 }}>My Profile</span>
-<button onClick={() => setEditing(!editing)} style={{ background: editing ? "var(--active-tab-gradient)" : "rgba(var(--primary-rgb),0.12)", border: "none", borderRadius: 999, padding: "5px 14px", fontSize: 13, fontWeight: 700, color: editing ? "#fff" : "var(--primary)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}>
+            <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 17, color: "var(--section-title)", fontWeight: 700 }}>My Profile</span>
+<button onClick={() => setEditing(!editing)} style={{ background: editing ? "var(--active-tab-gradient)" : "rgba(var(--primary-rgb),0.12)", border: "none", borderRadius: 999, padding: "5px 14px", fontSize: 13, fontWeight: 700, color: editing ? "#fff" : "var(--primary)", cursor: "pointer", fontFamily: "'Inter',sans-serif", transition: "all .2s" }}>
               {editing ? "Cancel" : "Edit ✏️"}
             </button>
           </div>
@@ -2082,7 +2082,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                     transition: "all .18s",
                   }}>
                     <div style={{ fontSize: 20, marginBottom: 4 }}>{icon}</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: skillLevel === lvl ? "#fff" : "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{lvl}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: skillLevel === lvl ? "#fff" : "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{lvl}</div>
                   </div>
                 ))}
               </div>
@@ -2158,14 +2158,14 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
             }}>
               {/* Header */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: isTrial ? 10 : 16 }}>
-                <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "var(--section-title)", fontWeight: 700 }}>Subscription</span>
+                <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 17, color: "var(--section-title)", fontWeight: 700 }}>Subscription</span>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
                   {isTrial ? (
-                    <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", background: "linear-gradient(135deg,rgba(245,158,11,0.2),rgba(245,158,11,0.1))", color: "#d97706", borderRadius: 999, padding: "4px 12px", border: "1px solid rgba(245,158,11,0.35)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", background: "linear-gradient(135deg,rgba(245,158,11,0.2),rgba(245,158,11,0.1))", color: "#d97706", borderRadius: 999, padding: "4px 12px", border: "1px solid rgba(245,158,11,0.35)", fontFamily: "'Inter',sans-serif" }}>
                       {planCfg?.name || "Club"} · Trial
                     </span>
                   ) : (
-                    <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.12),rgba(var(--primary-rgb),0.06))", color: "var(--primary)", borderRadius: 999, padding: "4px 12px", border: "1px solid rgba(var(--primary-rgb),0.2)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.12),rgba(var(--primary-rgb),0.06))", color: "var(--primary)", borderRadius: 999, padding: "4px 12px", border: "1px solid rgba(var(--primary-rgb),0.2)", fontFamily: "'Inter',sans-serif" }}>
                       {planCfg?.name || "Free Plan"}
                     </span>
                   )}
@@ -2175,8 +2175,8 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
               {/* Trial info strip */}
               {isTrial && (
                 <div style={{ background: "rgba(245,158,11,0.1)", borderRadius: 10, padding: "10px 12px", marginBottom: 14, border: "1px solid rgba(245,158,11,0.2)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ fontSize: 13, color: "#d97706", fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 600 }}>🎁 Free trial</div>
-                  <div style={{ fontSize: 12, color: "#d97706", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  <div style={{ fontSize: 13, color: "#d97706", fontFamily: "'Inter',sans-serif", fontWeight: 600 }}>🎁 Free trial</div>
+                  <div style={{ fontSize: 12, color: "#d97706", fontFamily: "'Inter',sans-serif" }}>
                     {trialDaysLeft}d left · billed {trialEndStr}
                   </div>
                 </div>
@@ -2187,14 +2187,14 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                 {/* Groups */}
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>👥 Groups</div>
-                    <div style={{ fontSize: 13, color: groupsUsed >= lim.maxGroups ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>👥 Groups</div>
+                    <div style={{ fontSize: 13, color: groupsUsed >= lim.maxGroups ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>
                       {groupsUsed} / {lim.maxGroups}
                     </div>
                   </div>
                   <Bar used={groupsUsed} max={lim.maxGroups} />
                   {groupsUsed >= lim.maxGroups && (
-                    <div style={{ fontSize: 12, color: "var(--primary)", marginTop: 5, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    <div style={{ fontSize: 12, color: "var(--primary)", marginTop: 5, fontFamily: "'Inter',sans-serif" }}>
                       Group limit reached
                     </div>
                   )}
@@ -2203,13 +2203,13 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                 {/* Hosted games */}
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>🀄 Hosted games / {lim.cycleDays}d</div>
-                    <div style={{ fontSize: 13, color: hostedThisCycle ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>🀄 Hosted games / {lim.cycleDays}d</div>
+                    <div style={{ fontSize: 13, color: hostedThisCycle ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>
                       {hostedThisCycle ? 1 : 0} / {lim.gamesPerCycle}
                     </div>
                   </div>
                   <Bar used={hostedThisCycle ? 1 : 0} max={lim.gamesPerCycle} />
-                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 5, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 5, fontFamily: "'Inter',sans-serif" }}>
                     {hostedThisCycle
                       ? `Next slot available ${cycleResetDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} (${hostCheck.daysLeft}d)`
                       : "Slot available now"}
@@ -2223,17 +2223,17 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                     : ["Group & game chat", "Send group and game invites", "Add games to calendar"];
                   return (
                     <div style={{ borderTop: "1px solid var(--border-card)", paddingTop: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>Included</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, fontFamily: "'Inter',sans-serif" }}>Included</div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                         {feats.map((f) => (
-                          <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                          <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>
                             <span style={{ color: "var(--secondary-accent)", fontWeight: 700 }}>✓</span> {f}
                           </div>
                         ))}
                       </div>
                       <button
                         onClick={() => go("managePlan")}
-                        style={{ marginTop: 14, width: "100%", padding: "12px 16px", background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.12),rgba(var(--primary-rgb),0.06))", border: "1px solid rgba(var(--primary-rgb),0.25)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: "var(--primary)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}
+                        style={{ marginTop: 14, width: "100%", padding: "12px 16px", background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.12),rgba(var(--primary-rgb),0.06))", border: "1px solid rgba(var(--primary-rgb),0.25)", borderRadius: 12, fontSize: 14, fontWeight: 700, color: "var(--primary)", cursor: "pointer", fontFamily: "'Inter',sans-serif", transition: "all .2s" }}
                         onMouseDown={e => e.currentTarget.style.opacity = "0.7"}
                         onMouseUp={e => e.currentTarget.style.opacity = "1"}
                         onTouchStart={e => e.currentTarget.style.opacity = "0.7"}
@@ -2257,7 +2257,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           boxShadow: "0 4px 20px rgba(var(--shadow-rgb),0.09), inset 0 1px 0 var(--shadow-inset)",
           border: "1px solid var(--border-card)",
         }}>
-          <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "var(--section-title)", fontWeight: 700 }}>Notifications</span>
+          <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 17, color: "var(--section-title)", fontWeight: 700 }}>Notifications</span>
           <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 14, background: "var(--bg-surface)", border: "1px solid rgba(var(--border-light-rgb),0.3)" }}>
               <div style={{ width: 40, height: 40, borderRadius: 12, background: notifEnabled ? "var(--active-tab-gradient)" : "rgba(var(--primary-rgb),0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, transition: "all .2s" }}>
@@ -2311,7 +2311,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           boxShadow: "0 4px 20px rgba(var(--shadow-rgb),0.09), inset 0 1px 0 var(--shadow-inset)",
           border: "1px solid var(--border-card)",
         }}>
-          <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "var(--section-title)", fontWeight: 700 }}>Appearance</span>
+          <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 17, color: "var(--section-title)", fontWeight: 700 }}>Appearance</span>
           <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
             {Object.values(themes).map((t) => {
               const active = activeThemeId === t.id;
@@ -2332,7 +2332,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                     boxShadow: active ? `0 4px 16px ${t.shadowPrimary}` : "none",
                     transition: "all .2s",
                     position: "relative",
-                    fontFamily: "'Noto Sans JP',sans-serif",
+                    fontFamily: "'Inter',sans-serif",
                   }}
                 >
                   {active && (
@@ -2366,8 +2366,8 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           border: "1px solid rgba(var(--border-light-rgb),0.4)",
         }}>
           <div style={{ fontSize: 23, marginBottom: 6 }}>🀄</div>
-          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "var(--primary-muted)", fontWeight: 600 }}>Mahjong Club</div>
-          <div style={{ fontSize: 12, color: "#c0a0b0", marginTop: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Version 1.0 · Made with ❤️</div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, color: "var(--primary-muted)", fontWeight: 600 }}>Mahjong Club</div>
+          <div style={{ fontSize: 12, color: "#c0a0b0", marginTop: 4, fontFamily: "'Inter',sans-serif" }}>Version 1.0 · Made with ❤️</div>
         </div>
 
         {/* Admin Panel */}
@@ -2378,7 +2378,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           width: "100%", padding: "13px", marginTop: 6, borderRadius: 999,
           background: "transparent", border: "2px solid rgba(var(--primary-rgb),0.35)",
           color: "var(--primary)", fontSize: 15, fontWeight: 700,
-          fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer",
+          fontFamily: "'Inter',sans-serif", cursor: "pointer",
           transition: "all .18s", letterSpacing: 0.3,
         }}
           onMouseDown={(e) => e.currentTarget.style.transform = "scale(.97)"}
@@ -2409,13 +2409,13 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
 
   return (
     <div style={{ marginTop: 4 }}>
-      <h2 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5, marginBottom: 14 }}>Your Games</h2>
+      <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5, marginBottom: 14 }}>Your Games</h2>
       {/* Tab pills */}
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {[["upcoming","📅 Upcoming"],["history","📖 History"]].map(([t, label]) => (
           <button key={t} onClick={() => { setTab(t); setShowAll(false); }} style={{
             padding: "6px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700,
-            fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", transition: "all .18s",
+            fontFamily: "'Inter',sans-serif", cursor: "pointer", transition: "all .18s",
             background: tab === t ? "var(--active-tab-gradient)" : "var(--bg-surface)",
             color: tab === t ? "#fff" : "#b08090",
             border: tab === t ? "none" : "1px solid rgba(var(--primary-rgb),0.2)",
@@ -2427,7 +2427,7 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
       {list.length === 0 ? (
         <div style={{ textAlign: "center", padding: "22px 0", color: "#c0a0b0" }}>
           <div style={{ fontSize: 31 }}>{tab === "upcoming" ? "📅" : "📖"}</div>
-          <p style={{ fontSize: 14, marginTop: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>
+          <p style={{ fontSize: 14, marginTop: 8, fontFamily: "'Inter',sans-serif" }}>
             {tab === "upcoming" ? "No upcoming games yet — time to schedule one!" : "No past games yet."}
           </p>
         </div>
@@ -2447,12 +2447,12 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
                 border: "1px solid var(--border-card)",
                 borderLeft: `4px solid ${gm.groupColor}`,
               }}>
-                <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", marginBottom: 4 }}>{gm.title}</div>
+                <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", marginBottom: 4 }}>{gm.title}</div>
                 {/* Group tag + optional guest badge */}
                 {!gm.isGuestGame && (
                   <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
                     <span style={{ fontSize: 13 }}>{gm.groupEmoji}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: gm.groupColor, fontFamily: "'Noto Sans JP',sans-serif" }}>{gm.groupName}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: gm.groupColor, fontFamily: "'Inter',sans-serif" }}>{gm.groupName}</span>
                   </div>
                 )}
                 {gm.isGuestGame && (
@@ -2486,7 +2486,7 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
             <button onClick={() => go("games")} style={{
               width: "100%", padding: "10px 0", background: "none", border: "1px dashed rgba(var(--primary-rgb),0.3)",
               borderRadius: 12, color: "var(--primary)", fontSize: 14, fontWeight: 700,
-              fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", marginTop: 2,
+              fontFamily: "'Inter',sans-serif", cursor: "pointer", marginTop: 2,
             }}>
               See {fullList.length - 3} more ↓
             </button>
@@ -2607,8 +2607,8 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg }) {
         <div style={{ textAlign: "center", position: "relative", display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
           <div style={{ fontSize: 39, filter: "drop-shadow(0 4px 10px rgba(0,0,0,.25))" }}>🀄</div>
           <div>
-            <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
-            <p style={{ color: "rgba(255,255,255,.78)", fontWeight: 400, fontSize: 13, marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 1 }}>Schedule · Play · Enjoy</p>
+            <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
+            <p style={{ color: "rgba(255,255,255,.78)", fontWeight: 400, fontSize: 13, marginTop: 3, fontFamily: "'Inter',sans-serif", letterSpacing: 1 }}>Schedule · Play · Enjoy</p>
           </div>
         </div>
       </div>
@@ -2621,7 +2621,7 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg }) {
         minHeight: "68vh",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h2 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5 }}>Your Groups</h2>
+          <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5 }}>Your Groups</h2>
           <div style={{ display: "flex", gap: 8 }}>
             <Btn sm outline onClick={() => go("joinGroup")}>Join</Btn>
             <Btn sm onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { go("account"); return; } go("newGroup"); }}>+ New</Btn>
@@ -2631,7 +2631,7 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg }) {
         {groups.length === 0 ? (
           <div style={{ textAlign: "center", padding: "44px 0", color: "var(--primary-subtle)" }}>
             <div style={{ fontSize: 49 }}>🀆</div>
-            <p style={{ fontWeight: 700, marginTop: 10, fontSize: 17, fontFamily: "'Shippori Mincho',serif", color: "var(--primary-muted)" }}>No groups yet</p>
+            <p style={{ fontWeight: 700, marginTop: 10, fontSize: 17, fontFamily: "'Inter',sans-serif", color: "var(--primary-muted)" }}>No groups yet</p>
             <p style={{ fontSize: 14, marginTop: 4 }}>Create or join one to get started!</p>
           </div>
         ) : (
@@ -2648,7 +2648,7 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg }) {
                 }}>
                   <div style={{ width: 50, height: 50, borderRadius: 15, flexShrink: 0, background: `linear-gradient(135deg,${g.color}33,${g.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 27, boxShadow: "inset 0 1px 0 var(--border-card)" }}>{g.emoji}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>{g.name}</div>
+                    <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{g.name}</div>
                     <div style={{ fontSize: 13, color: "#b08090", marginTop: 2 }}>{g.members.length} members</div>
                   </div>
                   {g.games.filter((gm) => gm.date > NOW).length > 0 && (
@@ -2662,7 +2662,7 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg }) {
               <button onClick={() => go("groups")} style={{
                 width: "100%", padding: "10px 0", background: "none", border: "1px dashed rgba(var(--primary-rgb),0.3)",
                 borderRadius: 12, color: "var(--primary)", fontSize: 14, fontWeight: 700,
-                fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", marginBottom: 16,
+                fontFamily: "'Inter',sans-serif", cursor: "pointer", marginBottom: 16,
               }}>
                 See {groups.length - 3} more ↓
               </button>
@@ -2708,7 +2708,7 @@ function GamesPage({ groups, guestGames = [], go }) {
 
         <div style={{ position: "relative" }}>
           <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.60)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Your Games</div>
-          <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 34, color: "#fff", textShadow: "0 2px 16px rgba(0,0,0,0.22)", lineHeight: 1, letterSpacing: 0.5 }}>
+          <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 34, color: "#fff", textShadow: "0 2px 16px rgba(0,0,0,0.22)", lineHeight: 1, letterSpacing: 0.5 }}>
             {allGames.length} {allGames.length === 1 ? "Game" : "Games"}
           </h1>
           <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
@@ -2734,7 +2734,7 @@ function GamesPage({ groups, guestGames = [], go }) {
           {[["upcoming","📅 Upcoming"],["history","📖 History"]].map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)} style={{
               padding: "8px 20px", borderRadius: 999, fontSize: 13, fontWeight: 700,
-              fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", transition: "all .18s",
+              fontFamily: "'Inter',sans-serif", cursor: "pointer", transition: "all .18s",
               background: tab === t ? "var(--active-tab-gradient)" : "var(--bg-surface)",
               color: tab === t ? "#fff" : "#b08090",
               border: tab === t ? "none" : "1px solid rgba(var(--primary-rgb),0.2)",
@@ -2749,7 +2749,7 @@ function GamesPage({ groups, guestGames = [], go }) {
         {list.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "52px 24px", textAlign: "center" }}>
             <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>{tab === "upcoming" ? "📅" : "📖"}</div>
-            <h2 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 20, color: "var(--primary-muted)", marginBottom: 8 }}>
+            <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 20, color: "var(--primary-muted)", marginBottom: 8 }}>
               {tab === "upcoming" ? "No upcoming games" : "No past games yet"}
             </h2>
             <p style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 260 }}>
@@ -2776,11 +2776,11 @@ function GamesPage({ groups, guestGames = [], go }) {
                   border: "1px solid var(--border-card)",
                   borderLeft: `4px solid ${gm.groupColor}`,
                 }}>
-                  <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", marginBottom: 4 }}>{gm.title}</div>
+                  <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", marginBottom: 4 }}>{gm.title}</div>
                   {!gm.isGuestGame ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
                       <span style={{ fontSize: 13 }}>{gm.groupEmoji}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: gm.groupColor, fontFamily: "'Noto Sans JP',sans-serif" }}>{gm.groupName}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: gm.groupColor, fontFamily: "'Inter',sans-serif" }}>{gm.groupName}</span>
                     </div>
                   ) : (
                     <div style={{ marginBottom: 5 }}>
@@ -2837,7 +2837,7 @@ function GroupsPage({ groups, go, user, planCfg }) {
         <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.60)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Your Groups</div>
-            <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 34, color: "#fff", textShadow: "0 2px 16px rgba(0,0,0,0.22)", lineHeight: 1, letterSpacing: 0.5 }}>
+            <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 34, color: "#fff", textShadow: "0 2px 16px rgba(0,0,0,0.22)", lineHeight: 1, letterSpacing: 0.5 }}>
               {groups.length} {groups.length === 1 ? "Group" : "Groups"}
             </h1>
             {totalUpcoming > 0 && (
@@ -2855,13 +2855,13 @@ function GroupsPage({ groups, go, user, planCfg }) {
             <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { go("account"); return; } go("newGroup"); }} style={{
               background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.40)",
               borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
-              color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
+              color: "#fff", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
               display: "flex", alignItems: "center", gap: 5,
             }}>＋ New</button>
             <button onClick={() => go("joinGroup")} style={{
               background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.25)",
               borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
-              color: "rgba(255,255,255,0.85)", fontFamily: "'Noto Sans JP',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
+              color: "rgba(255,255,255,0.85)", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
             }}>Join</button>
           </div>
         </div>
@@ -2882,20 +2882,20 @@ function GroupsPage({ groups, go, user, planCfg }) {
                 }}>{t}</div>
               ))}
             </div>
-            <h2 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 22, color: "var(--primary-muted)", marginBottom: 8 }}>Your table awaits</h2>
+            <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 22, color: "var(--primary-muted)", marginBottom: 8 }}>Your table awaits</h2>
             <p style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 28, maxWidth: 260 }}>
               Create a group to start scheduling games and inviting your players.
             </p>
             <div style={{ display: "flex", gap: 10, width: "100%" }}>
               <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { go("account"); return; } go("newGroup"); }} style={{
                 flex: 1, padding: "14px 0", borderRadius: 999, fontSize: 15, fontWeight: 700,
-                fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer",
+                fontFamily: "'Inter',sans-serif", cursor: "pointer",
                 background: "var(--active-tab-gradient)", color: "#fff",
                 border: "none", boxShadow: "0 4px 16px var(--shadow-btn)",
               }}>＋ Create Group</button>
               <button onClick={() => go("joinGroup")} style={{
                 flex: 1, padding: "14px 0", borderRadius: 999, fontSize: 15, fontWeight: 700,
-                fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer",
+                fontFamily: "'Inter',sans-serif", cursor: "pointer",
                 background: "var(--bg-surface)", color: "var(--primary)",
                 border: "1.5px solid rgba(var(--primary-rgb),0.25)",
               }}>Join Group</button>
@@ -2927,8 +2927,8 @@ function GroupsPage({ groups, go, user, planCfg }) {
                       border: `1.5px solid ${g.color}22`,
                     }}>{g.emoji}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 18, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.name}</div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                      <div style={{ fontWeight: 700, fontSize: 18, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.name}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3, fontFamily: "'Inter',sans-serif" }}>
                         {g.members.length} {g.members.length === 1 ? "member" : "members"}
                       </div>
                     </div>
@@ -2979,8 +2979,8 @@ function GroupsPage({ groups, go, user, planCfg }) {
                     }}>
                       <div style={{ width: 34, height: 34, borderRadius: 10, background: `${g.color}20`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>📅</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nextGame.title}</div>
-                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nextGame.title}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, fontFamily: "'Inter',sans-serif" }}>
                           {fmt(nextGame.date)}{nextGame.time ? ` · ${fmtT(nextGame.time)}` : ""}
                           {upcoming.length > 1 && <span style={{ marginLeft: 6, color: g.color, fontWeight: 700 }}>+{upcoming.length - 1} more</span>}
                         </div>
@@ -2993,8 +2993,8 @@ function GroupsPage({ groups, go, user, planCfg }) {
                       border: "1px dashed rgba(var(--primary-rgb),0.14)",
                       display: "flex", alignItems: "center", justifyContent: "space-between",
                     }}>
-                      <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>No upcoming games</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)", fontFamily: "'Noto Sans JP',sans-serif" }}>Schedule →</span>
+                      <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif" }}>No upcoming games</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)", fontFamily: "'Inter',sans-serif" }}>Schedule →</span>
                     </div>
                   )}
                 </div>
@@ -3080,8 +3080,8 @@ function OpenInvitesToggle({ value, onChange }) {
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>Allow Members to Invite</div>
-          <div style={{ fontSize: 13, color: "#b08090", marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>Allow Members to Invite</div>
+          <div style={{ fontSize: 13, color: "#b08090", marginTop: 3, fontFamily: "'Inter',sans-serif" }}>
             {value ? "All members can invite players to this group" : "Only you (the creator) can invite players"}
           </div>
         </div>
@@ -3162,7 +3162,7 @@ function JoinGroup({ uid, groups, onBack, onJoin, onJoinGame }) {
     return (
       <Shell title="Join" onBack={handleBack} color="var(--secondary-accent)">
         <div style={{ textAlign: "center", fontSize: 49, margin: "12px 0 20px" }}>🔑</div>
-        <p style={{ textAlign: "center", fontWeight: 700, fontSize: 16, color: "var(--text-body)", marginBottom: 24, fontFamily: "'Shippori Mincho',serif" }}>
+        <p style={{ textAlign: "center", fontWeight: 700, fontSize: 16, color: "var(--text-body)", marginBottom: 24, fontFamily: "'Inter',sans-serif" }}>
           What would you like to join?
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
@@ -3191,8 +3191,8 @@ function JoinGroup({ uid, groups, onBack, onJoin, onJoinGame }) {
                 border: "1.5px solid rgba(var(--primary-rgb),0.15)",
               }}>{icon}</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>{label}</div>
-                <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>{sub}</div>
+                <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{label}</div>
+                <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 3, fontFamily: "'Inter',sans-serif" }}>{sub}</div>
               </div>
               <span style={{ color: "var(--primary-faint)", fontSize: 22 }}>›</span>
             </button>
@@ -3238,7 +3238,7 @@ function JoinGroup({ uid, groups, onBack, onJoin, onJoinGame }) {
       {!searching && clean.length >= 3 && !gameMatch && <p style={{ color: "var(--primary)", fontWeight: 800, fontSize: 15, marginBottom: 14, textAlign: "center" }}>No game found with that code</p>}
       {gameMatch && !alreadyInGame && (
         <div className="bIn" style={{ background: "var(--bg-card)", border: "1.5px solid var(--border-card)", borderRadius: 16, padding: "16px 18px", marginBottom: 18, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08)" }}>
-          <div style={{ fontWeight: 800, fontSize: 17, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", marginBottom: 8 }}>{gameMatch.title}</div>
+          <div style={{ fontWeight: 800, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", marginBottom: 8 }}>{gameMatch.title}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             {gameMatch.date && <div style={{ fontSize: 14, color: "var(--text-muted)" }}>📅 {fmt(gameMatch.date)}{gameMatch.time ? ` · ${fmtT(gameMatch.time)}` : ""}</div>}
             {gameMatch.location && <div style={{ fontSize: 14, color: "var(--text-muted)" }}>📍 {gameMatch.location}</div>}
@@ -3299,14 +3299,14 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
         {/* Title */}
         <div style={{ textAlign: "center", position: "relative" }}>
           <div style={{ fontSize: 51, marginBottom: 6 }}>{group.emoji}</div>
-          <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 27, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.25)", letterSpacing: 1 }}>{group.name}</h1>
-          <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.75)", fontFamily: "'Noto Sans JP',sans-serif" }}>{group.members.length} member{group.members.length !== 1 ? "s" : ""}</div>
+          <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 27, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.25)", letterSpacing: 1 }}>{group.name}</h1>
+          <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.75)", fontFamily: "'Inter',sans-serif" }}>{group.members.length} member{group.members.length !== 1 ? "s" : ""}</div>
         </div>
       </div>
 
       <div style={{ display: "flex", background: "var(--bg-nav)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderBottom: "1px solid rgba(var(--border-light-rgb),.4)" }}>
         {[["games","🀀 Games"],["members","👥 Members"]].map(([t, label]) => (
-          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "13px 0", fontSize: 15, fontWeight: 700, background: "none", border: "none", cursor: "pointer", color: tab === t ? group.color : "var(--primary-faint)", borderBottom: `3px solid ${tab === t ? group.color : "transparent"}`, fontFamily: "'Noto Sans JP',sans-serif", transition: "all .2s" }}>{label}</button>
+          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "13px 0", fontSize: 15, fontWeight: 700, background: "none", border: "none", cursor: "pointer", color: tab === t ? group.color : "var(--primary-faint)", borderBottom: `3px solid ${tab === t ? group.color : "transparent"}`, fontFamily: "'Inter',sans-serif", transition: "all .2s" }}>{label}</button>
         ))}
       </div>
 
@@ -3320,7 +3320,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
               {[["upcoming","📅 Upcoming"],["history","📖 History"]].map(([t, label]) => (
                 <button key={t} onClick={() => setGamesTab(t)} style={{
                   padding: "6px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700,
-                  fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", transition: "all .18s",
+                  fontFamily: "'Inter',sans-serif", cursor: "pointer", transition: "all .18s",
                   background: gamesTab === t ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "var(--bg-surface)",
                   color: gamesTab === t ? "#fff" : "#b08090",
                   border: gamesTab === t ? "none" : "1px solid rgba(var(--primary-rgb),0.2)",
@@ -3332,7 +3332,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
             {gamesList.length === 0 ? (
               <div style={{ textAlign: "center", color: "var(--primary-subtle)", padding: "36px 0" }}>
                 <div style={{ fontSize: 41 }}>{gamesTab === "upcoming" ? "📅" : "📖"}</div>
-                <p style={{ fontWeight: 700, marginTop: 8, fontFamily: "'Shippori Mincho',serif", color: "var(--primary-muted)" }}>
+                <p style={{ fontWeight: 700, marginTop: 8, fontFamily: "'Inter',sans-serif", color: "var(--primary-muted)" }}>
                   {gamesTab === "upcoming" ? "No upcoming games yet!" : "No past games yet."}
                 </p>
                 {gamesTab === "upcoming" && <p style={{ fontSize: 14, marginTop: 4 }}>Be the first to schedule one.</p>}
@@ -3390,8 +3390,8 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
           }}>
             <div style={{ width: 36, height: 4, borderRadius: 999, background: "rgba(var(--primary-rgb),0.2)", margin: "0 auto 20px" }} />
             <div style={{ fontSize: 28, textAlign: "center", marginBottom: 8 }}>👑</div>
-            <h3 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 20, color: "var(--text-body)", textAlign: "center", marginBottom: 6 }}>Transfer Host</h3>
-            <p style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", marginBottom: 20, lineHeight: 1.5, fontFamily: "'Noto Sans JP',sans-serif" }}>
+            <h3 style={{ fontFamily: "'Inter',sans-serif", fontSize: 20, color: "var(--text-body)", textAlign: "center", marginBottom: 6 }}>Transfer Host</h3>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", marginBottom: 20, lineHeight: 1.5, fontFamily: "'Inter',sans-serif" }}>
               {transferMode === "leave" ? "Assign a new host before leaving the group." : "Choose a member to become the new host."}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
@@ -3406,7 +3406,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
                     boxShadow: selected ? `0 2px 10px ${group.color}22` : "none",
                   }}>
                     <div style={{ width: 38, height: 38, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, border: selected ? `1.5px solid ${group.color}44` : "1.5px solid var(--border-card)", transition: "all .16s" }}>{m.avatar}</div>
-                    <span style={{ flex: 1, fontWeight: 600, fontSize: 15, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{m.name}</span>
+                    <span style={{ flex: 1, fontWeight: 600, fontSize: 15, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{m.name}</span>
                     <div style={{
                       width: 22, height: 22, borderRadius: 999, flexShrink: 0, transition: "all .16s",
                       background: selected ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "transparent",
@@ -3428,7 +3428,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
               style={{ background: selectedNewHost ? `linear-gradient(135deg,${group.color},${group.color}cc)` : undefined }}>
               {transferMode === "leave" ? "👑 Transfer & Leave" : "👑 Transfer Host"}
             </Btn>
-            <button onClick={() => setTransferMode(null)} style={{ width: "100%", marginTop: 10, padding: "12px 0", background: "none", border: "none", fontSize: 14, fontWeight: 700, color: "var(--text-muted)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
+            <button onClick={() => setTransferMode(null)} style={{ width: "100%", marginTop: 10, padding: "12px 0", background: "none", border: "none", fontSize: 14, fontWeight: 700, color: "var(--text-muted)", cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Cancel</button>
           </div>
         </div>
       )}
@@ -3569,7 +3569,7 @@ function GroupChat({ group, uid, user, onClose }) {
         }}>
           <div style={{ width: 40, height: 40, borderRadius: 13, background: `linear-gradient(135deg,${group.color}33,${group.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21 }}>{group.emoji}</div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, fontWeight: 700, color: "var(--text-body)" }}>Group Chat</div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: "var(--text-body)" }}>Group Chat</div>
             <div style={{ fontSize: 13, color: "#b08090" }}>{group.name} · {group.members.length} members</div>
           </div>
           <button onClick={() => { inputRef.current?.focus(); inputRef.current?.scrollIntoView({ behavior: "smooth" }); }} style={{ background: `linear-gradient(135deg,${group.color},${group.color}cc)`, border: "none", borderRadius: 999, width: 34, height: 34, fontSize: 20, cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 2px 10px ${group.color}55`, marginRight: 4 }}>+</button>
@@ -3580,8 +3580,8 @@ function GroupChat({ group, uid, user, onClose }) {
         {notifBanner && (
           <div style={{ margin: "8px 14px 0", background: "rgba(var(--primary-rgb),0.08)", border: "1px solid rgba(var(--primary-rgb),0.2)", borderRadius: 12, padding: "9px 12px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             <span style={{ fontSize: 18 }}>🔔</span>
-            <div style={{ flex: 1, fontSize: 13, color: "var(--section-title)", fontFamily: "'Noto Sans JP',sans-serif" }}>Get notified when members post</div>
-            <button onClick={requestNotifications} style={{ background: `linear-gradient(135deg,${group.color},${group.color}cc)`, border: "none", borderRadius: 999, padding: "4px 12px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", whiteSpace: "nowrap" }}>Enable</button>
+            <div style={{ flex: 1, fontSize: 13, color: "var(--section-title)", fontFamily: "'Inter',sans-serif" }}>Get notified when members post</div>
+            <button onClick={requestNotifications} style={{ background: `linear-gradient(135deg,${group.color},${group.color}cc)`, border: "none", borderRadius: 999, padding: "4px 12px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter',sans-serif", whiteSpace: "nowrap" }}>Enable</button>
             <button onClick={() => setNotifBanner(false)} style={{ background: "none", border: "none", color: "#c0a0b0", fontSize: 16, cursor: "pointer", padding: 0, lineHeight: 1 }}>✕</button>
           </div>
         )}
@@ -3591,7 +3591,7 @@ function GroupChat({ group, uid, user, onClose }) {
           {messages.length === 0 && (
             <div style={{ textAlign: "center", color: "#c0a0b0", padding: "48px 0" }}>
               <div style={{ fontSize: 40 }}>💬</div>
-              <p style={{ fontSize: 15, marginTop: 10, fontFamily: "'Shippori Mincho',serif", color: "var(--primary-muted)" }}>No messages yet</p>
+              <p style={{ fontSize: 15, marginTop: 10, fontFamily: "'Inter',sans-serif", color: "var(--primary-muted)" }}>No messages yet</p>
               <p style={{ fontSize: 13, marginTop: 4 }}>Tap <b>+</b> to say hello to the group!</p>
             </div>
           )}
@@ -3640,7 +3640,7 @@ function GroupChat({ group, uid, user, onClose }) {
                         borderRadius: 999, padding: "2px 8px", fontSize: 14,
                         cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3,
                         color: reacted ? group.color : "#b08090", fontWeight: reacted ? 700 : 400,
-                        fontFamily: "'Noto Sans JP',sans-serif", transition: "all .13s",
+                        fontFamily: "'Inter',sans-serif", transition: "all .13s",
                       }}>
                         {emoji}<span style={{ fontSize: 12 }}>{reactors.length}</span>
                       </button>
@@ -3657,7 +3657,7 @@ function GroupChat({ group, uid, user, onClose }) {
                         borderRadius: 999, height: 28, padding: "0 7px", fontSize: 13,
                         cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3,
                         color: emojiPickerOpen[msg.id] ? "var(--primary)" : "#b08090",
-                        fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif",
+                        fontWeight: 700, fontFamily: "'Inter',sans-serif",
                         transition: "all .13s",
                       }}
                     ><span style={{ fontSize: 15 }}>☺</span><span>+</span></button>
@@ -3693,7 +3693,7 @@ function GroupChat({ group, uid, user, onClose }) {
                     border: `1.5px solid ${showReplyInput ? "rgba(var(--primary-rgb),0.35)" : "rgba(var(--primary-rgb),0.15)"}`,
                     borderRadius: 999, padding: "2px 9px", fontSize: 13,
                     cursor: "pointer", color: showReplyInput ? "var(--primary)" : "#b08090",
-                    fontFamily: "'Noto Sans JP',sans-serif", fontWeight: showReplyInput ? 700 : 400,
+                    fontFamily: "'Inter',sans-serif", fontWeight: showReplyInput ? 700 : 400,
                     transition: "all .13s",
                   }}>
                     ↩ {replyCount > 0 ? `${replyCount} repl${replyCount === 1 ? "y" : "ies"}` : "Reply"}
@@ -3760,7 +3760,7 @@ function GroupChat({ group, uid, user, onClose }) {
             fontSize: 15, fontWeight: 700,
             cursor: text.trim() ? "pointer" : "default",
             transition: "all .18s", flexShrink: 0,
-            fontFamily: "'Noto Sans JP',sans-serif",
+            fontFamily: "'Inter',sans-serif",
           }}>Send</button>
         </div>}
       </div>
@@ -3886,7 +3886,7 @@ function GameChat({ game, group, uid, user, onClose }) {
         }}>
           <div style={{ width: 40, height: 40, borderRadius: 13, background: `linear-gradient(135deg,${group.color}33,${group.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21 }}>💬</div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, fontWeight: 700, color: "var(--text-body)" }}>{game.title}</div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: "var(--text-body)" }}>{game.title}</div>
             <div style={{ fontSize: 13, color: "#b08090" }}>Game Chat</div>
           </div>
           <button onClick={() => { inputRef.current?.focus(); inputRef.current?.scrollIntoView({ behavior: "smooth" }); }} style={{ background: `linear-gradient(135deg,${group.color},${group.color}cc)`, border: "none", borderRadius: 999, width: 34, height: 34, fontSize: 20, cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 2px 10px ${group.color}55`, marginRight: 4 }}>+</button>
@@ -3898,7 +3898,7 @@ function GameChat({ game, group, uid, user, onClose }) {
           {messages.length === 0 && (
             <div style={{ textAlign: "center", color: "#c0a0b0", padding: "48px 0" }}>
               <div style={{ fontSize: 40 }}>💬</div>
-              <p style={{ fontSize: 15, marginTop: 10, fontFamily: "'Shippori Mincho',serif", color: "var(--primary-muted)" }}>No messages yet</p>
+              <p style={{ fontSize: 15, marginTop: 10, fontFamily: "'Inter',sans-serif", color: "var(--primary-muted)" }}>No messages yet</p>
               <p style={{ fontSize: 13, marginTop: 4 }}>Tap <b>+</b> to say hello to the game!</p>
             </div>
           )}
@@ -3944,7 +3944,7 @@ function GameChat({ game, group, uid, user, onClose }) {
                         borderRadius: 999, padding: "2px 8px", fontSize: 14,
                         cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3,
                         color: reacted ? group.color : "#b08090", fontWeight: reacted ? 700 : 400,
-                        fontFamily: "'Noto Sans JP',sans-serif", transition: "all .13s",
+                        fontFamily: "'Inter',sans-serif", transition: "all .13s",
                       }}>
                         {emoji}<span style={{ fontSize: 12 }}>{reactors.length}</span>
                       </button>
@@ -3960,7 +3960,7 @@ function GameChat({ game, group, uid, user, onClose }) {
                         borderRadius: 999, height: 28, padding: "0 7px", fontSize: 13,
                         cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3,
                         color: emojiPickerOpen[msg.id] ? "var(--primary)" : "#b08090",
-                        fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif",
+                        fontWeight: 700, fontFamily: "'Inter',sans-serif",
                         transition: "all .13s",
                       }}
                     ><span style={{ fontSize: 15 }}>☺</span><span>+</span></button>
@@ -3996,7 +3996,7 @@ function GameChat({ game, group, uid, user, onClose }) {
                     border: `1.5px solid ${showReplyInput ? "rgba(var(--primary-rgb),0.35)" : "rgba(var(--primary-rgb),0.15)"}`,
                     borderRadius: 999, padding: "2px 9px", fontSize: 13,
                     cursor: "pointer", color: showReplyInput ? "var(--primary)" : "#b08090",
-                    fontFamily: "'Noto Sans JP',sans-serif", fontWeight: showReplyInput ? 700 : 400,
+                    fontFamily: "'Inter',sans-serif", fontWeight: showReplyInput ? 700 : 400,
                     transition: "all .13s",
                   }}>
                     ↩ {replyCount > 0 ? `${replyCount} repl${replyCount === 1 ? "y" : "ies"}` : "Reply"}
@@ -4063,7 +4063,7 @@ function GameChat({ game, group, uid, user, onClose }) {
             fontSize: 15, fontWeight: 700,
             cursor: text.trim() ? "pointer" : "default",
             transition: "all .18s", flexShrink: 0,
-            fontFamily: "'Noto Sans JP',sans-serif",
+            fontFamily: "'Inter',sans-serif",
           }}>Send</button>
         </div>}
       </div>
@@ -4082,7 +4082,7 @@ function AddToCalendar({ game, groupName, compact = false }) {
       <div style={{ position: "relative" }}>
         <button
           onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-          style={{ background: "rgba(var(--primary-rgb),0.1)", border: "1px solid rgba(var(--primary-rgb),0.25)", borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 700, color: "var(--primary)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
+          style={{ background: "rgba(var(--primary-rgb),0.1)", border: "1px solid rgba(var(--primary-rgb),0.25)", borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 700, color: "var(--primary)", cursor: "pointer", fontFamily: "'Inter',sans-serif" }}
         >📅 Add</button>
         {open && (
           <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", bottom: "calc(100% + 6px)", right: 0, background: "#fff", borderRadius: 14, boxShadow: "0 8px 28px rgba(var(--shadow-rgb),0.18)", border: "1px solid rgba(var(--primary-rgb),0.15)", overflow: "hidden", zIndex: 100, minWidth: 180 }}>
@@ -4097,7 +4097,7 @@ function AddToCalendar({ game, groupName, compact = false }) {
   // Full card for game detail view
   return (
     <div style={{ background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, padding: "15px 16px", marginBottom: 12, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)", border: "1px solid var(--border-card)" }}>
-      <div style={{ fontWeight: 700, color: "var(--text-body)", marginBottom: 12, fontFamily: "'Shippori Mincho',serif" }}>Add to Calendar</div>
+      <div style={{ fontWeight: 700, color: "var(--text-body)", marginBottom: 12, fontFamily: "'Inter',sans-serif" }}>Add to Calendar</div>
       <div style={{ display: "flex", gap: 10 }}>
         <button onClick={() => window.open(googleUrl, "_blank")} style={calFullBtn("#4285f4")}>
           <span style={{ fontSize: 19 }}>🗓</span>
@@ -4111,8 +4111,8 @@ function AddToCalendar({ game, groupName, compact = false }) {
     </div>
   );
 }
-const calMenuBtn = { display: "block", width: "100%", padding: "11px 16px", background: "none", border: "none", textAlign: "left", fontSize: 14, fontWeight: 700, color: "var(--text-body)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" };
-const calFullBtn = (color) => ({ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "12px 8px", borderRadius: 12, background: `${color}12`, border: `1.5px solid ${color}33`, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", fontSize: 13, fontWeight: 700, color: "var(--text-body)" });
+const calMenuBtn = { display: "block", width: "100%", padding: "11px 16px", background: "none", border: "none", textAlign: "left", fontSize: 14, fontWeight: 700, color: "var(--text-body)", cursor: "pointer", fontFamily: "'Inter',sans-serif" };
+const calFullBtn = (color) => ({ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "12px 8px", borderRadius: 12, background: `${color}12`, border: `1.5px solid ${color}33`, cursor: "pointer", fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 700, color: "var(--text-body)" });
 
 function GCard({ game, groupName = "", color, faded }) {
   return (
@@ -4125,8 +4125,8 @@ function GCard({ game, groupName = "", color, faded }) {
       border: faded ? "1px solid rgba(200,180,190,0.3)" : "1px solid var(--border-card)",
       borderLeft: `4px solid ${color}`,
     }}>
-      <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif", marginBottom: 3 }}>{game.title}</div>
-      {groupName && <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>{groupName}</div>}
+      <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", marginBottom: 3 }}>{game.title}</div>
+      {groupName && <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 4, fontFamily: "'Inter',sans-serif" }}>{groupName}</div>}
       <div style={{ fontSize: 14, color: "#b08090", marginTop: 3 }}>📅 {fmt(game.date)}</div>
       <div style={{ fontSize: 14, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(game.time, game.endTime)}</div>
       <div style={{ fontSize: 14, color: "#b08090", marginTop: 1 }}>📍 {game.location}</div>
@@ -4249,11 +4249,11 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
       <Lbl mt>Time</Lbl>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Start</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Inter',sans-serif" }}>Start</div>
           <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
         </div>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>End</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Inter',sans-serif" }}>End</div>
           <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
         </div>
       </div>
@@ -4261,12 +4261,12 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
       <Fld value={loc} set={setLoc} placeholder="e.g. 12 Oak Street" />
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-input)", border: "1.5px solid var(--border-input)", borderRadius: "var(--radius-input)", padding: "10px 14px", marginBottom: 14, marginTop: 10 }}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>Tables</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>Tables</div>
           <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 1 }}>{tables * 4} seats total</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={() => setTables((t) => Math.max(1, t - 1))} style={{ width: 32, height: 32, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>−</button>
-          <span style={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: 16, color: group.color, fontFamily: "'Shippori Mincho',serif" }}>{tables}</span>
+          <span style={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: 16, color: group.color, fontFamily: "'Inter',sans-serif" }}>{tables}</span>
           <button onClick={() => setTables((t) => t + 1)} style={{ width: 32, height: 32, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>+</button>
         </div>
       </div>
@@ -4283,7 +4283,7 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
               border: allSelected ? "none" : `1.5px solid rgba(var(--primary-rgb),0.25)`,
               borderRadius: 999, padding: "5px 13px", fontSize: 12, fontWeight: 700,
               color: allSelected ? "#fff" : "var(--primary)", cursor: "pointer",
-              fontFamily: "'Noto Sans JP',sans-serif", transition: "all .18s",
+              fontFamily: "'Inter',sans-serif", transition: "all .18s",
               boxShadow: allSelected ? `0 2px 8px ${group.color}44` : "none",
             }}>{allSelected ? "✓ All Selected" : "Select All"}</button>
           </div>
@@ -4308,8 +4308,8 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
                     transition: "all .18s",
                   }}>{m.avatar}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{m.name}</div>
-                    {isCoHostMember && <div style={{ fontSize: 11, fontWeight: 700, color: "#b8860b", marginTop: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>👑 Co-host</div>}
+                    <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{m.name}</div>
+                    {isCoHostMember && <div style={{ fontSize: 11, fontWeight: 700, color: "#b8860b", marginTop: 1, fontFamily: "'Inter',sans-serif" }}>👑 Co-host</div>}
                   </div>
                   {selected && (
                     <button
@@ -4356,11 +4356,11 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
         {/* Toggle row */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>
               🔁 Recurring Game
-              {recurringLocked && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, background: "rgba(var(--primary-rgb),0.1)", color: "var(--primary)", borderRadius: 999, padding: "2px 8px", fontFamily: "'Noto Sans JP',sans-serif" }}>Paid plan</span>}
+              {recurringLocked && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, background: "rgba(var(--primary-rgb),0.1)", color: "var(--primary)", borderRadius: 999, padding: "2px 8px", fontFamily: "'Inter',sans-serif" }}>Paid plan</span>}
             </div>
-            <div style={{ fontSize: 13, color: "#b08090", marginTop: 2, fontFamily: "'Noto Sans JP',sans-serif" }}>
+            <div style={{ fontSize: 13, color: "#b08090", marginTop: 2, fontFamily: "'Inter',sans-serif" }}>
               {recurringLocked ? "Upgrade to schedule repeating sessions" : "Automatically schedule repeating sessions"}
             </div>
           </div>
@@ -4399,7 +4399,7 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
                   boxShadow: freq === f.id ? `0 4px 14px ${group.color}44` : "none",
                 }}>
                   <div style={{ fontSize: 19, marginBottom: 3 }}>{f.icon}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif" }}>{f.label}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>{f.label}</div>
                 </div>
               ))}
             </div>
@@ -4415,7 +4415,7 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
                   color: occurrences === n ? "#fff" : "#7a4a58",
                   border: occurrences === n ? "none" : "1px solid rgba(var(--primary-rgb),0.2)",
                   boxShadow: occurrences === n ? `0 4px 12px ${group.color}44` : "none",
-                  fontFamily: "'Noto Sans JP',sans-serif",
+                  fontFamily: "'Inter',sans-serif",
                 }}>{n}</div>
               ))}
             </div>
@@ -4423,13 +4423,13 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
             {/* Preview dates */}
             {date && (
               <div style={{ background: "var(--bg-surface)", borderRadius: 12, padding: "12px 14px", border: "1px solid rgba(var(--border-light-rgb),0.4)" }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--primary-faint)", textTransform: "uppercase", letterSpacing: .5, marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--primary-faint)", textTransform: "uppercase", letterSpacing: .5, marginBottom: 8, fontFamily: "'Inter',sans-serif" }}>
                   Preview — {occurrences} sessions
                 </div>
                 {previewDates().map((ts, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: i < occurrences - 1 ? 6 : 0 }}>
-                    <div style={{ width: 20, height: 20, borderRadius: 999, background: `linear-gradient(135deg,${group.color}44,${group.color}22)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: group.color, flexShrink: 0, fontFamily: "'Noto Sans JP',sans-serif" }}>{i + 1}</div>
-                    <span style={{ fontSize: 14, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{fmt(ts)} · {fmtT(time)}</span>
+                    <div style={{ width: 20, height: 20, borderRadius: 999, background: `linear-gradient(135deg,${group.color}44,${group.color}22)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: group.color, flexShrink: 0, fontFamily: "'Inter',sans-serif" }}>{i + 1}</div>
+                    <span style={{ fontSize: 14, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{fmt(ts)} · {fmtT(time)}</span>
                   </div>
                 ))}
               </div>
@@ -4445,7 +4445,7 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <Lbl>Game Join Code</Lbl>
-            <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif",
+            <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "'Inter',sans-serif",
               color: codeStatus === "available" ? "#22a722" : codeStatus === "taken" ? "#d94040" : codeStatus === "invalid" ? "#d94040" : "#b08090",
             }}>
               {codeStatus === "available" ? "✓ Available" : codeStatus === "taken" ? "✗ Already in use" : codeStatus === "invalid" ? "✗ Invalid format" : "Checking…"}
@@ -4468,7 +4468,7 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
               style={{ width: 44, height: 44, borderRadius: "var(--radius-input)", border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
             >🔄</button>
           </div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6, fontFamily: "'Inter',sans-serif" }}>
             Letters, numbers, _ and − allowed · 3–20 characters
           </div>
         </div>
@@ -4503,7 +4503,7 @@ function GuestGameView({ uid, groupId, gameId, go, flash }) {
   if (!game || !groupMeta) return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
       <div style={{ fontSize: 41 }}>🀄</div>
-      <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 17, color: "var(--primary-muted)" }}>Loading game…</div>
+      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 17, color: "var(--primary-muted)" }}>Loading game…</div>
     </div>
   );
 
@@ -4692,9 +4692,9 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
         </div>
         {/* Title + meta */}
         <div style={{ textAlign: "center", position: "relative" }}>
-          <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 25, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.2)", marginBottom: 8 }}>{game.title}</h1>
+          <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 25, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.2)", marginBottom: 8 }}>{game.title}</h1>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-            <div style={{ fontSize: 15, color: "rgba(255,255,255,0.85)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+            <div style={{ fontSize: 15, color: "rgba(255,255,255,0.85)", fontFamily: "'Inter',sans-serif" }}>
               📅 {fmt(game.date)}{game.time ? ` · ${fmtT(game.time)}` : ""}{game.endTime ? ` – ${fmtT(game.endTime)}` : ""}
             </div>
             {game.location && (
@@ -4704,7 +4704,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
                     window.location.href = `https://maps.apple.com/?q=${encodeURIComponent(game.location)}`;
                   }
                 }}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 8px", borderRadius: 999, fontSize: 15, color: "rgba(255,255,255,0.72)", fontFamily: "'Noto Sans JP',sans-serif", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 8px", borderRadius: 999, fontSize: 15, color: "rgba(255,255,255,0.72)", fontFamily: "'Inter',sans-serif", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}
               >📍 {game.location}</button>
             )}
           </div>
@@ -4729,7 +4729,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
             }} />
           </div>
           {isFull && (
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)", marginTop: 4, textAlign: "center", fontFamily: "'Noto Sans JP',sans-serif" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)", marginTop: 4, textAlign: "center", fontFamily: "'Inter',sans-serif" }}>
               🀄 Game is full — {unifiedWaitlist.length} on waitlist
             </div>
           )}
@@ -4762,7 +4762,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
           const AttendeeRow = ({ entry }) => (
             <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0" }}>
               <span style={{ fontSize: 19 }}>{entry.avatar}</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", flex: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{entry.name}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", flex: 1, fontFamily: "'Inter',sans-serif" }}>{entry.name}</span>
               {entry.id === game.hostId && <span style={{ fontSize: 11, color: "#8a6a00", fontWeight: 700, background: "rgba(212,168,67,0.15)", borderRadius: 999, padding: "2px 8px" }}>⭐ Host</span>}
               {(game.coHostIds || []).includes(entry.id) && <span style={{ fontSize: 11, color: "#8a6a00", fontWeight: 700, background: "rgba(212,168,67,0.12)", borderRadius: 999, padding: "2px 8px" }}>👑 Co-host</span>}
               {entry.isGuest && <span style={{ fontSize: 11, color: "var(--secondary-accent)", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
@@ -4784,7 +4784,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
             <div style={{ background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, marginBottom: 12, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)", border: "1px solid var(--border-card)", overflow: "hidden" }}>
               {/* Header — whole row toggles expand; chips also switch active tab */}
               <div onClick={() => setShowAttendees((v) => !v)} style={{ padding: "15px 16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ fontWeight: 700, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>RSVPs</div>
+                <div style={{ fontWeight: 700, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>RSVPs</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ display: "flex", gap: 6 }}>
                     {rsvpTabs.map((t) => {
@@ -4792,7 +4792,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
                       return (
                         <button key={t.key}
                           onClick={(e) => { e.stopPropagation(); setShowAttendees(true); setRsvpTab(t.key); }}
-                          style={{ background: isActive ? t.color : "rgba(var(--primary-rgb),0.08)", border: isActive ? "none" : "1px solid rgba(var(--primary-rgb),0.15)", borderRadius: 999, padding: "4px 10px", fontSize: 12, fontWeight: 700, color: isActive ? "#fff" : "var(--text-muted)", cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", transition: "all .15s", boxShadow: isActive ? `0 2px 8px ${t.color}55` : "none" }}>
+                          style={{ background: isActive ? t.color : "rgba(var(--primary-rgb),0.08)", border: isActive ? "none" : "1px solid rgba(var(--primary-rgb),0.15)", borderRadius: 999, padding: "4px 10px", fontSize: 12, fontWeight: 700, color: isActive ? "#fff" : "var(--text-muted)", cursor: "pointer", fontFamily: "'Inter',sans-serif", transition: "all .15s", boxShadow: isActive ? `0 2px 8px ${t.color}55` : "none" }}>
                           {t.icon} {t.list.length}
                         </button>
                       );
@@ -4810,7 +4810,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
                       <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0" }}>
                         <div style={{ width: 20, height: 20, borderRadius: 999, background: "rgba(var(--primary-rgb),0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "var(--primary)", flexShrink: 0 }}>{i + 1}</div>
                         <span style={{ fontSize: 19 }}>{entry.avatar}</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", flex: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>{entry.name}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", flex: 1, fontFamily: "'Inter',sans-serif" }}>{entry.name}</span>
                         {entry.isGuest && <span style={{ fontSize: 11, color: "var(--secondary-accent)", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
                         {entry.id === uid && <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 700, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, padding: "2px 8px" }}>You</span>}
                       </div>
@@ -4827,7 +4827,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
         {/* Your RSVP / Waitlist */}
         {!past && (
           <div style={{ background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, padding: "15px 16px", marginBottom: 12, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)", border: "1px solid var(--border-card)" }}>
-            <div style={{ fontWeight: 700, color: "var(--text-body)", marginBottom: 10, fontFamily: "'Shippori Mincho',serif" }}>Your RSVP</div>
+            <div style={{ fontWeight: 700, color: "var(--text-body)", marginBottom: 10, fontFamily: "'Inter',sans-serif" }}>Your RSVP</div>
 
             {/* Host / co-host cannot change their own RSVP */}
             {game.hostId === uid || isCoHost ? (
@@ -4835,10 +4835,10 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, background: "linear-gradient(135deg,rgba(155,110,168,0.15),rgba(var(--primary-rgb),0.1))", border: "1px solid rgba(155,110,168,0.25)", marginBottom: 10 }}>
                   <span style={{ fontSize: 19 }}>{isCoHost && game.hostId !== uid ? "👑" : "⭐"}</span>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>
                       {isCoHost && game.hostId !== uid ? "You're a co-host — you're always going!" : "You're the host — you're always going!"}
                     </div>
-                    <div style={{ fontSize: 12, color: "#b08090", marginTop: 2, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    <div style={{ fontSize: 12, color: "#b08090", marginTop: 2, fontFamily: "'Inter',sans-serif" }}>
                       {isCoHost && game.hostId !== uid ? "The host can remove your co-host role in Edit → Players" : "To step down, transfer host in Edit → Players"}
                     </div>
                   </div>
@@ -4847,12 +4847,12 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
             ) : isFull && myRsvp !== "yes" ? (
               /* Full game waitlist */
               <div>
-                <div style={{ fontSize: 14, color: "#7a4a58", marginBottom: 12, fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1.6 }}>
+                <div style={{ fontSize: 14, color: "#7a4a58", marginBottom: 12, fontFamily: "'Inter',sans-serif", lineHeight: 1.6 }}>
                   This game is full. {onWaitlistMe ? "You're on the waitlist — we'll let you know if a spot opens up! 🌸" : "Join the waitlist and you'll be notified if a spot opens up."}
                 </div>
                 <button onClick={() => onWaitlist(onWaitlistMe ? "leave" : "join")} style={{
                   width: "100%", padding: "11px 0", borderRadius: 12, fontSize: 14, fontWeight: 700,
-                  cursor: "pointer", transition: "all .2s", fontFamily: "'Noto Sans JP',sans-serif", border: "none",
+                  cursor: "pointer", transition: "all .2s", fontFamily: "'Inter',sans-serif", border: "none",
                   background: onWaitlistMe ? "rgba(var(--primary-rgb),0.12)" : "linear-gradient(135deg,rgba(155,110,168,0.85),rgba(var(--primary-rgb),0.85))",
                   color: onWaitlistMe ? "var(--primary)" : "#fff",
                   boxShadow: onWaitlistMe ? "none" : "0 4px 14px rgba(var(--shadow-rgb),0.3)",
@@ -4864,7 +4864,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
               /* Normal RSVP buttons */
               <div style={{ display: "flex", gap: 8 }}>
                 {[["yes","✅ Going","#9b6ea8"],["maybe","🤔 Maybe","#c4936e"],["no","❌ Can't","#c9607a"]].map(([v, label, col]) => (
-                  <button key={v} onClick={() => onRsvp(v)} style={{ flex: 1, padding: "10px 4px", borderRadius: 12, fontSize: 13, fontWeight: 700, background: myRsvp === v ? col : "#f7eef2", color: myRsvp === v ? "#fff" : "#c0a0ac", border: "none", cursor: "pointer", transition: "all .18s", fontFamily: "'Noto Sans JP',sans-serif" }}>{label}</button>
+                  <button key={v} onClick={() => onRsvp(v)} style={{ flex: 1, padding: "10px 4px", borderRadius: 12, fontSize: 13, fontWeight: 700, background: myRsvp === v ? col : "#f7eef2", color: myRsvp === v ? "#fff" : "#c0a0ac", border: "none", cursor: "pointer", transition: "all .18s", fontFamily: "'Inter',sans-serif" }}>{label}</button>
                 ))}
               </div>
             )}
@@ -4878,8 +4878,8 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
             <div onClick={() => setSeatingOpen(v => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", cursor: "pointer", userSelect: "none" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 18 }}>🎲</span>
-                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)", fontFamily: "'Shippori Mincho',serif" }}>Table Seating</span>
-                {seating && <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(var(--primary-rgb),0.12)", color: "var(--primary)", borderRadius: 999, padding: "2px 9px", fontFamily: "'Noto Sans JP',sans-serif" }}>Assigned</span>}
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>Table Seating</span>
+                {seating && <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(var(--primary-rgb),0.12)", color: "var(--primary)", borderRadius: 999, padding: "2px 9px", fontFamily: "'Inter',sans-serif" }}>Assigned</span>}
 
               </div>
               <span style={{ fontSize: 17, color: "var(--primary-faint)", display: "inline-block", transform: seatingOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }}>⌄</span>
@@ -4892,24 +4892,24 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
                   <>
                     {movingUid && (
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(var(--primary-rgb),0.1)", border: "1px solid rgba(var(--primary-rgb),0.22)", borderRadius: 10, padding: "8px 12px", marginBottom: 12 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)", fontFamily: "'Inter',sans-serif" }}>
                           Tap a player to swap with {playerLookup[movingUid]?.name || "…"}
                         </span>
                         <button onClick={() => setMovingUid(null)} style={{ background: "none", border: "none", fontSize: 16, color: "var(--primary)", cursor: "pointer", padding: "0 4px" }}>✕</button>
                       </div>
                     )}
-                    <button onClick={handleRandomize} disabled={seatingPool.length === 0} style={{ width: "100%", padding: "10px 0", borderRadius: 999, border: "none", background: seatingPool.length === 0 ? "rgba(var(--primary-rgb),0.1)" : "var(--active-tab-gradient)", color: seatingPool.length === 0 ? "var(--text-muted)" : "#fff", fontWeight: 700, fontSize: 14, cursor: seatingPool.length === 0 ? "default" : "pointer", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 14, boxShadow: seatingPool.length === 0 ? "none" : "0 4px 14px rgba(var(--shadow-rgb),0.28)", letterSpacing: 0.3 }}>
+                    <button onClick={handleRandomize} disabled={seatingPool.length === 0} style={{ width: "100%", padding: "10px 0", borderRadius: 999, border: "none", background: seatingPool.length === 0 ? "rgba(var(--primary-rgb),0.1)" : "var(--active-tab-gradient)", color: seatingPool.length === 0 ? "var(--text-muted)" : "#fff", fontWeight: 700, fontSize: 14, cursor: seatingPool.length === 0 ? "default" : "pointer", fontFamily: "'Inter',sans-serif", marginBottom: 14, boxShadow: seatingPool.length === 0 ? "none" : "0 4px 14px rgba(var(--shadow-rgb),0.28)", letterSpacing: 0.3 }}>
                       🎲 Randomize Tables
                     </button>
                   </>
                 )}
 
-                {seatingLoading && <div style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", marginBottom: 10, fontFamily: "'Noto Sans JP',sans-serif" }}>Loading player profiles…</div>}
+                {seatingLoading && <div style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", marginBottom: 10, fontFamily: "'Inter',sans-serif" }}>Loading player profiles…</div>}
 
                 {/* Table cards */}
                 {seating ? seating.map((table, ti) => (
                   <div key={ti} style={{ background: "rgba(255,255,255,0.55)", borderRadius: 12, padding: "10px 12px", marginBottom: 10, border: "1px solid rgba(var(--border-light-rgb),0.3)" }}>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: "var(--section-title)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: "var(--section-title)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontFamily: "'Inter',sans-serif" }}>
                       Table {ti + 1} · {table.length} players
                     </div>
                     {table.map(pid => {
@@ -4922,16 +4922,16 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
                           onClick={isHost ? () => handlePlayerTap(pid) : undefined}
                           style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 8px", borderRadius: 9, cursor: isHost ? "pointer" : "default", marginBottom: 2, transition: "background .15s, box-shadow .15s", background: isMoving ? "rgba(var(--primary-rgb),0.15)" : isTarget ? "rgba(var(--primary-rgb),0.05)" : "transparent", boxShadow: isMoving ? `0 0 0 2px var(--primary)` : isTarget ? "0 0 0 1px rgba(var(--primary-rgb),0.25)" : "none" }}>
                           <span style={{ fontSize: 21, flexShrink: 0 }}>{p?.avatar || "👤"}</span>
-                          <span style={{ flex: 1, fontWeight: 600, fontSize: 14, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>{p?.name || pid}</span>
+                          <span style={{ flex: 1, fontWeight: 600, fontSize: 14, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{p?.name || pid}</span>
                           {skill && <span style={{ fontSize: 14, flexShrink: 0 }} title={skill}>{SKILL_ICON[skill]}</span>}
-                          {isMoving && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", fontFamily: "'Noto Sans JP',sans-serif" }}>moving</span>}
-                          {pid === uid && <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 700, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, padding: "2px 8px", fontFamily: "'Noto Sans JP',sans-serif" }}>You</span>}
+                          {isMoving && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", fontFamily: "'Inter',sans-serif" }}>moving</span>}
+                          {pid === uid && <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 700, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, padding: "2px 8px", fontFamily: "'Inter',sans-serif" }}>You</span>}
                         </div>
                       );
                     })}
                   </div>
                 )) : isHost && !seatingLoading && (
-                  <div style={{ textAlign: "center", padding: "10px 0 4px", fontSize: 13, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  <div style={{ textAlign: "center", padding: "10px 0 4px", fontSize: 13, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif" }}>
                     {seatingPool.length === 0 ? "No confirmed players yet." : "Tap Randomize to generate table assignments."}
                   </div>
                 )}
@@ -5111,7 +5111,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
         {[["details","📋 Details"],["players","👥 Players"]].map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)} style={{
             flex: 1, padding: "9px 0", borderRadius: 999, fontSize: 14, fontWeight: 700,
-            fontFamily: "'Noto Sans JP',sans-serif", cursor: "pointer", transition: "all .18s",
+            fontFamily: "'Inter',sans-serif", cursor: "pointer", transition: "all .18s",
             background: tab === t ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "var(--bg-surface)",
             color: tab === t ? "#fff" : "#b08090",
             border: tab === t ? "none" : "1px solid rgba(var(--primary-rgb),0.2)",
@@ -5130,11 +5130,11 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
           <Lbl mt>Time</Lbl>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Start</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Inter',sans-serif" }}>Start</div>
               <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
             </div>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>End</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#b08090", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6, fontFamily: "'Inter',sans-serif" }}>End</div>
               <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ ...inputSt, marginBottom: 0 }} />
             </div>
           </div>
@@ -5142,12 +5142,12 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
           <Fld value={loc} set={setLoc} placeholder="e.g. 12 Oak Street" />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-input)", border: "1.5px solid var(--border-input)", borderRadius: "var(--radius-input)", padding: "10px 14px", marginBottom: 14, marginTop: 10 }}>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-body)", fontFamily: "'Noto Sans JP',sans-serif" }}>Tables</div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>Tables</div>
               <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 1 }}>{tables * 4} seats total</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <button onClick={() => setTables((t) => Math.max(1, t - 1))} style={{ width: 32, height: 32, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>−</button>
-              <span style={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: 16, color: group.color, fontFamily: "'Shippori Mincho',serif" }}>{tables}</span>
+              <span style={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: 16, color: group.color, fontFamily: "'Inter',sans-serif" }}>{tables}</span>
               <button onClick={() => setTables((t) => t + 1)} style={{ width: 32, height: 32, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>+</button>
             </div>
           </div>
@@ -5160,9 +5160,9 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
               <Lbl>Game Join Code</Lbl>
               <div style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--bg-surface)", border: "1.5px solid rgba(var(--border-light-rgb),0.4)", borderRadius: "var(--radius-input)", padding: "10px 14px" }}>
                 <span style={{ fontFamily: "monospace", fontSize: 20, letterSpacing: 4, fontWeight: 800, color: "var(--text-body)", flex: 1 }}>{joinCode}</span>
-                <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Noto Sans JP',sans-serif" }}>🔒 Fixed</span>
+                <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif" }}>🔒 Fixed</span>
               </div>
-              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6, fontFamily: "'Inter',sans-serif" }}>
                 Game codes cannot be changed after the game is created.
               </div>
             </div>
@@ -5177,7 +5177,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
         <div className="sUp">
           {/* Group members */}
           <div style={glassCard}>
-            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "var(--section-title)", fontWeight: 700, marginBottom: 12 }}>Invite Group Members</div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, color: "var(--section-title)", fontWeight: 700, marginBottom: 12 }}>Invite Group Members</div>
             {group.members.map((m) => {
               const isIn = invitedIds.has(m.id);
               const isMe = m.id === myUid;
@@ -5188,7 +5188,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)" }}>{m.name}</div>
                     {isMe && <div style={{ fontSize: 12, color: "var(--primary)", fontWeight: 700 }}>Host · Always invited</div>}
-                    {!isMe && isCo && <div style={{ fontSize: 11, fontWeight: 700, color: "#b8860b", marginTop: 1, fontFamily: "'Noto Sans JP',sans-serif" }}>👑 Co-host</div>}
+                    {!isMe && isCo && <div style={{ fontSize: 11, fontWeight: 700, color: "#b8860b", marginTop: 1, fontFamily: "'Inter',sans-serif" }}>👑 Co-host</div>}
                   </div>
                   {!isMe && isIn && (
                     <button
@@ -5221,8 +5221,8 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
 
           {/* Guests */}
           <div style={glassCard}>
-            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "var(--section-title)", fontWeight: 700, marginBottom: 4 }}>Guests</div>
-            <div style={{ fontSize: 13, color: "#b08090", marginBottom: 12, fontFamily: "'Noto Sans JP',sans-serif" }}>Invite someone outside the group</div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, color: "var(--section-title)", fontWeight: 700, marginBottom: 4 }}>Guests</div>
+            <div style={{ fontSize: 13, color: "#b08090", marginBottom: 12, fontFamily: "'Inter',sans-serif" }}>Invite someone outside the group</div>
 
             {guests.map((g) => (
               <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 10 }}>
@@ -5261,7 +5261,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
               {!transferring ? (
                 <button onClick={() => setTransferring(true)} style={{
                   width: "100%", padding: "11px 0", borderRadius: 12, fontSize: 14, fontWeight: 700,
-                  cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", border: "1px solid rgba(var(--primary-rgb),0.3)",
+                  cursor: "pointer", fontFamily: "'Inter',sans-serif", border: "1px solid rgba(var(--primary-rgb),0.3)",
                   background: "transparent", color: "var(--primary)", transition: "all .18s",
                 }}>
                   🔄 Transfer Host
@@ -5273,14 +5273,14 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
                   border: "1px solid rgba(var(--border-light-rgb),0.5)",
                   boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.09)",
                 }}>
-                  <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: "var(--section-title)", fontWeight: 700, marginBottom: 4 }}>Transfer Host</div>
-                  <div style={{ fontSize: 13, color: "#b08090", marginBottom: 14, fontFamily: "'Noto Sans JP',sans-serif", lineHeight: 1.6 }}>
+                  <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, color: "var(--section-title)", fontWeight: 700, marginBottom: 4 }}>Transfer Host</div>
+                  <div style={{ fontSize: 13, color: "#b08090", marginBottom: 14, fontFamily: "'Inter',sans-serif", lineHeight: 1.6 }}>
                     Select a new host. They'll take over responsibilities and you can update your own RSVP freely.
                   </div>
 
                   {/* Eligible members — invited, not me, not already host */}
                   {group.members.filter((m) => m.id !== myUid && invitedIds.has(m.id)).length === 0 ? (
-                    <div style={{ fontSize: 14, color: "#c0a0b0", textAlign: "center", padding: "12px 0", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                    <div style={{ fontSize: 14, color: "#c0a0b0", textAlign: "center", padding: "12px 0", fontFamily: "'Inter',sans-serif" }}>
                       No other invited members to transfer to.
                     </div>
                   ) : (
@@ -5303,12 +5303,12 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
                   <div style={{ display: "flex", gap: 8 }}>
                     <button onClick={() => { setTransferring(false); setSelectedNewHost(null); }} style={{
                       flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 14, fontWeight: 700,
-                      cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif",
+                      cursor: "pointer", fontFamily: "'Inter',sans-serif",
                       background: "rgba(200,180,190,0.25)", border: "1px solid rgba(var(--primary-rgb),0.2)", color: "#b08090",
                     }}>Cancel</button>
                     <button onClick={() => { if (selectedNewHost) onTransferHost(selectedNewHost); }} disabled={!selectedNewHost} style={{
                       flex: 2, padding: "10px 0", borderRadius: 12, fontSize: 14, fontWeight: 700,
-                      cursor: selectedNewHost ? "pointer" : "not-allowed", fontFamily: "'Noto Sans JP',sans-serif", border: "none",
+                      cursor: selectedNewHost ? "pointer" : "not-allowed", fontFamily: "'Inter',sans-serif", border: "none",
                       background: selectedNewHost ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "rgba(200,180,190,0.3)",
                       color: selectedNewHost ? "#fff" : "#bbb",
                       boxShadow: selectedNewHost ? `0 4px 14px ${group.color}44` : "none",
@@ -5368,7 +5368,7 @@ function Invite({ group, game, flash, onBack }) {
           ["📋","Copy Message","Paste anywhere","#c4936e","copy"],
           ["📤","Share...","All options","#d4829b","share"],
         ].map(([icon, label, sub, color, method]) => (
-          <button key={method} onClick={() => share(method)} style={{ background: "#fff", borderRadius: 16, padding: "15px 10px", cursor: "pointer", boxShadow: "0 3px 14px rgba(0,0,0,.08)", border: `2px solid ${color}33`, textAlign: "center", fontFamily: "'Noto Sans JP',sans-serif", transition: "transform .14s" }}
+          <button key={method} onClick={() => share(method)} style={{ background: "#fff", borderRadius: 16, padding: "15px 10px", cursor: "pointer", boxShadow: "0 3px 14px rgba(0,0,0,.08)", border: `2px solid ${color}33`, textAlign: "center", fontFamily: "'Inter',sans-serif", transition: "transform .14s" }}
             onMouseDown={(e) => { e.currentTarget.style.transform = "scale(.95)"; }}
             onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
             onTouchStart={(e) => { e.currentTarget.style.transform = "scale(.95)"; }}
@@ -5397,7 +5397,7 @@ function Invite({ group, game, flash, onBack }) {
         </div>
         <button
           onClick={() => { navigator.clipboard.writeText(joinUrl).then(() => flash("Link copied!", "🔗")).catch(() => flash("Link copied!", "🔗")); }}
-          style={{ marginTop: 16, display: "block", width: "100%", background: `${group.color}15`, border: `1px solid ${group.color}30`, borderRadius: 10, padding: "9px 0", fontSize: 13, color: group.color, fontWeight: 700, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}
+          style={{ marginTop: 16, display: "block", width: "100%", background: `${group.color}15`, border: `1px solid ${group.color}30`, borderRadius: 10, padding: "9px 0", fontSize: 13, color: group.color, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}
         >
           Copy link
         </button>
@@ -5407,13 +5407,13 @@ function Invite({ group, game, flash, onBack }) {
         <div style={{ textAlign: "center", background: "#fff", borderRadius: 14, padding: "14px 16px", boxShadow: "0 2px 10px rgba(0,0,0,.05)", marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: "#bbb", fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>Game Join Code</div>
           <div style={{ fontFamily: "monospace", fontSize: 34, color: group.color, letterSpacing: 6, marginTop: 4, fontWeight: 800 }}>{game.joinCode}</div>
-          <div style={{ fontSize: 12, color: "#c0a0ac", marginTop: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Share this code to invite players directly to this game</div>
+          <div style={{ fontSize: 12, color: "#c0a0ac", marginTop: 4, fontFamily: "'Inter',sans-serif" }}>Share this code to invite players directly to this game</div>
         </div>
       )}
       {!game && (
         <div style={{ textAlign: "center", background: "#fff", borderRadius: 14, padding: "14px 16px", boxShadow: "0 2px 10px rgba(0,0,0,.05)" }}>
           <div style={{ fontSize: 12, color: "#bbb", fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>Group Join Code</div>
-          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 39, color: group.color, letterSpacing: 8, marginTop: 4 }}>{group.code}</div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 39, color: group.color, letterSpacing: 8, marginTop: 4 }}>{group.code}</div>
         </div>
       )}
     </Shell>
@@ -5435,7 +5435,7 @@ function Shell({ title, onBack, color, children }) {
       }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.15) 0%,transparent 60%)", pointerEvents: "none" }} />
         <button onClick={onBack} style={{ background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", flexShrink: 0, backdropFilter: "blur(8px)" }}>‹</button>
-        <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 24, color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,.2)", position: "relative" }}>{title}</h1>
+        <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 24, color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,.2)", position: "relative" }}>{title}</h1>
       </div>
       <div style={{
         padding: "20px 16px",
@@ -5497,7 +5497,7 @@ function AdminHub({ uid: adminUid, user: adminUser, go, flash, onImpersonate }) 
   const hubStyle = {
     minHeight: "100dvh",
     background: "linear-gradient(160deg,#1a0d30 0%,#2d1b4e 40%,#3d1f5e 100%)",
-    fontFamily: "'Noto Sans JP',sans-serif",
+    fontFamily: "'Inter',sans-serif",
     color: "#fff",
   };
   const headerStyle = {
@@ -5511,18 +5511,18 @@ function AdminHub({ uid: adminUid, user: adminUser, go, flash, onImpersonate }) 
     border: "none", background: "none", cursor: "pointer",
     color: active ? "#e8a0d0" : "rgba(255,255,255,0.5)",
     borderBottom: active ? "2px solid #e8a0d0" : "2px solid transparent",
-    transition: "all .18s", fontFamily: "'Noto Sans JP',sans-serif",
+    transition: "all .18s", fontFamily: "'Inter',sans-serif",
     marginBottom: -1,
   });
 
   return (
     <div style={hubStyle}>
       <div style={headerStyle}>
-        <button onClick={() => go("home")} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "7px 14px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>
+        <button onClick={() => go("home")} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "7px 14px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
           ← Back
         </button>
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 22, fontWeight: 700, color: "#fff" }}>🏛️ Admin Hub</div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 22, fontWeight: 700, color: "#fff" }}>🏛️ Admin Hub</div>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>Signed in as {adminUser.name}</div>
         </div>
         <div style={{ fontSize: 11, fontWeight: 800, color: "#e8a0d0", background: "rgba(232,160,208,0.15)", borderRadius: 999, padding: "4px 12px", textTransform: "uppercase", letterSpacing: 1 }}>Admin</div>
@@ -5626,14 +5626,14 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
     setSavingPlan(false);
   };
 
-  const inp = { width: "100%", padding: "9px 13px", borderRadius: 10, fontSize: 14, border: "1.5px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", outline: "none", boxSizing: "border-box" };
-  const SecHd = ({ children }) => <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.65)", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 10, fontFamily: "'Noto Sans JP',sans-serif" }}>{children}</div>;
+  const inp = { width: "100%", padding: "9px 13px", borderRadius: 10, fontSize: 14, border: "1.5px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Inter',sans-serif", outline: "none", boxSizing: "border-box" };
+  const SecHd = ({ children }) => <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.65)", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 10, fontFamily: "'Inter',sans-serif" }}>{children}</div>;
 
   const planChip = (u) => {
     const key = u.subscription?.plan || "free";
     const pkg = packages.find((p) => (p.planKey || p.id) === key);
     return (
-      <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(155,63,160,0.22)", color: "#e8a0d0", borderRadius: 999, padding: "2px 9px", fontFamily: "'Noto Sans JP',sans-serif", letterSpacing: 0.3 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(155,63,160,0.22)", color: "#e8a0d0", borderRadius: 999, padding: "2px 9px", fontFamily: "'Inter',sans-serif", letterSpacing: 0.3 }}>
         {pkg?.name || key}
       </span>
     );
@@ -5649,8 +5649,8 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
       <div>
         {/* Back + header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
-          <button onClick={() => setSelected(null)} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "6px 14px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>← Users</button>
-          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff", flex: 1 }}>{u.name}</div>
+          <button onClick={() => setSelected(null)} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "6px 14px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>← Users</button>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, color: "#fff", flex: 1 }}>{u.name}</div>
           {u.isAdmin && <span style={{ fontSize: 11, fontWeight: 800, color: "#e8a0d0", background: "rgba(232,160,208,0.18)", borderRadius: 999, padding: "3px 10px", textTransform: "uppercase", letterSpacing: 1 }}>Admin</span>}
         </div>
 
@@ -5660,19 +5660,19 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
             <span style={{ fontSize: 40 }}>{u.avatar || "👤"}</span>
             <div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: "#fff", fontFamily: "'Shippori Mincho',serif" }}>{u.name}</div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: "#fff", fontFamily: "'Inter',sans-serif" }}>{u.name}</div>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>{u.email}</div>
               {u.skillLevel && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{u.skillLevel}</div>}
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={toggleAdmin} disabled={promoting} style={{ padding: "7px 14px", borderRadius: 10, background: u.isAdmin ? "rgba(232,160,208,0.15)" : "rgba(255,255,255,0.1)", border: `1px solid ${u.isAdmin ? "rgba(232,160,208,0.35)" : "rgba(255,255,255,0.2)"}`, color: u.isAdmin ? "#e8a0d0" : "#ccc", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: promoting ? 0.5 : 1 }}>
+            <button onClick={toggleAdmin} disabled={promoting} style={{ padding: "7px 14px", borderRadius: 10, background: u.isAdmin ? "rgba(232,160,208,0.15)" : "rgba(255,255,255,0.1)", border: `1px solid ${u.isAdmin ? "rgba(232,160,208,0.35)" : "rgba(255,255,255,0.2)"}`, color: u.isAdmin ? "#e8a0d0" : "#ccc", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: promoting ? 0.5 : 1 }}>
               {promoting ? "…" : u.isAdmin ? "Revoke Admin" : "Make Admin"}
             </button>
-            <button onClick={() => { onImpersonate(u); go("home"); }} style={{ padding: "7px 14px", borderRadius: 10, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>
+            <button onClick={() => { onImpersonate(u); go("home"); }} style={{ padding: "7px 14px", borderRadius: 10, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
               View as
             </button>
-            <button onClick={() => setConfirmDelete(true)} disabled={deleting} style={{ padding: "7px 14px", borderRadius: 10, background: "rgba(220,60,60,0.15)", border: "1px solid rgba(220,60,60,0.35)", color: "#ff8080", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: deleting ? 0.5 : 1 }}>
+            <button onClick={() => setConfirmDelete(true)} disabled={deleting} style={{ padding: "7px 14px", borderRadius: 10, background: "rgba(220,60,60,0.15)", border: "1px solid rgba(220,60,60,0.35)", color: "#ff8080", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: deleting ? 0.5 : 1 }}>
               {deleting ? "Deleting…" : "Delete User"}
             </button>
           </div>
@@ -5683,7 +5683,7 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <SecHd>Subscription</SecHd>
             {!planEdit && (
-              <button onClick={() => { setPlanEdit(true); setPlanKey(currentPlanKey); setPlanNote(u.subscription?.overrideNote || ""); }} style={{ background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", borderRadius: 8, padding: "5px 13px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>
+              <button onClick={() => { setPlanEdit(true); setPlanKey(currentPlanKey); setPlanNote(u.subscription?.overrideNote || ""); }} style={{ background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", borderRadius: 8, padding: "5px 13px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
                 Change Plan
               </button>
             )}
@@ -5692,30 +5692,30 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
           {!planEdit ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontFamily: "'Noto Sans JP',sans-serif" }}>Current Plan</span>
-                <span style={{ fontSize: 15, fontWeight: 700, color: "#fff", fontFamily: "'Shippori Mincho',serif" }}>{currentPkg?.name || currentPlanKey}</span>
+                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontFamily: "'Inter',sans-serif" }}>Current Plan</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "#fff", fontFamily: "'Inter',sans-serif" }}>{currentPkg?.name || currentPlanKey}</span>
               </div>
               {currentPkg && currentPkg.price > 0 && (
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontFamily: "'Noto Sans JP',sans-serif" }}>Standard Price</span>
+                  <span style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontFamily: "'Inter',sans-serif" }}>Standard Price</span>
                   <span style={{ fontSize: 14, color: "#e8a0d0", fontWeight: 700 }}>${currentPkg.price} / {currentPkg.interval}</span>
                 </div>
               )}
               {u.subscription?.overrideNote && (
                 <div style={{ background: "rgba(155,63,160,0.15)", borderRadius: 10, padding: "9px 13px", border: "1px solid rgba(155,63,160,0.25)" }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>Admin Note</div>
-                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", fontFamily: "'Noto Sans JP',sans-serif" }}>{u.subscription.overrideNote}</div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontFamily: "'Inter',sans-serif" }}>Admin Note</div>
+                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", fontFamily: "'Inter',sans-serif" }}>{u.subscription.overrideNote}</div>
                 </div>
               )}
               {u.subscription?.changedAt && (
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontFamily: "'Inter',sans-serif" }}>
                   Last changed {new Date(u.subscription.changedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                 </div>
               )}
             </div>
           ) : (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(232,160,208,0.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Plan</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(232,160,208,0.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontFamily: "'Inter',sans-serif" }}>Plan</div>
               <select value={planKey} onChange={(e) => setPlanKey(e.target.value)} style={{ ...inp, marginBottom: 12 }}>
                 <option value="free">Free (default)</option>
                 {packages.map((p) => {
@@ -5724,11 +5724,11 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
                   return <option key={p.id} value={key}>{p.name}{p.price > 0 ? ` — $${p.price}/${p.interval}` : ""}</option>;
                 })}
               </select>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(232,160,208,0.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontFamily: "'Noto Sans JP',sans-serif" }}>Admin Note (optional)</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(232,160,208,0.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontFamily: "'Inter',sans-serif" }}>Admin Note (optional)</div>
               <input value={planNote} onChange={(e) => setPlanNote(e.target.value)} placeholder="e.g. Comped Pro — contest winner, expires Jun 2026" style={{ ...inp, marginBottom: 14 }} />
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => setPlanEdit(false)} style={{ flex: 1, padding: "9px", borderRadius: 10, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
-                <button onClick={savePlan} disabled={savingPlan} style={{ flex: 2, padding: "9px", borderRadius: 10, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: savingPlan ? 0.5 : 1 }}>
+                <button onClick={() => setPlanEdit(false)} style={{ flex: 1, padding: "9px", borderRadius: 10, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Cancel</button>
+                <button onClick={savePlan} disabled={savingPlan} style={{ flex: 2, padding: "9px", borderRadius: 10, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: savingPlan ? 0.5 : 1 }}>
                   {savingPlan ? "Saving…" : "Apply Plan Change"}
                 </button>
               </div>
@@ -5741,11 +5741,11 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
             <div style={{ background: "#1e1030", border: "1px solid rgba(220,60,60,0.4)", borderRadius: 20, padding: "28px 24px", maxWidth: 380, width: "100%" }}>
               <div style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}>🗑️</div>
-              <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 20, fontWeight: 700, color: "#fff", textAlign: "center", marginBottom: 8 }}>Delete {u.name}?</div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 20, fontWeight: 700, color: "#fff", textAlign: "center", marginBottom: 8 }}>Delete {u.name}?</div>
               <div style={{ fontSize: 13, color: "rgba(255,140,140,0.85)", textAlign: "center", lineHeight: 1.6, marginBottom: 24 }}>This will permanently delete their account and remove them from all groups and games. This cannot be undone.</div>
               <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: "12px 0", borderRadius: 12, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
-                <button onClick={handleDeleteUser} style={{ flex: 1, padding: "12px 0", borderRadius: 12, background: "linear-gradient(135deg,#c0392b,#e74c3c)", border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Delete permanently</button>
+                <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: "12px 0", borderRadius: 12, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Cancel</button>
+                <button onClick={handleDeleteUser} style={{ flex: 1, padding: "12px 0", borderRadius: 12, background: "linear-gradient(135deg,#c0392b,#e74c3c)", border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Delete permanently</button>
               </div>
             </div>
           </div>
@@ -5763,12 +5763,12 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff" }}>All Users</div>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, color: "#fff" }}>All Users</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>{users.length} total</div>
       </div>
 
       <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or email…"
-        style={{ width: "100%", padding: "11px 16px", borderRadius: 12, fontSize: 14, border: "1.5px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", outline: "none", boxSizing: "border-box", marginBottom: 18 }}
+        style={{ width: "100%", padding: "11px 16px", borderRadius: 12, fontSize: 14, border: "1.5px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Inter',sans-serif", outline: "none", boxSizing: "border-box", marginBottom: 18 }}
       />
 
       {loading && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>Loading…</div>}
@@ -5822,7 +5822,7 @@ function AdminLogs() {
 
   return (
     <div>
-      <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff", marginBottom: 20 }}>Activity Logs</div>
+      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, color: "#fff", marginBottom: 20 }}>Activity Logs</div>
       {loading && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>Loading…</div>}
       {!loading && logs.length === 0 && (
         <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>No logs yet. Activity will appear here as users interact with the app.</div>
@@ -5979,8 +5979,8 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
     } catch { flash("Failed to delete plan"); }
   };
 
-  const inp = { width: "100%", padding: "10px 14px", borderRadius: 10, fontSize: 14, border: "1.5px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", outline: "none", boxSizing: "border-box", marginBottom: 10 };
-  const Lbl2 = ({ children }) => <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.7)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontFamily: "'Noto Sans JP',sans-serif" }}>{children}</div>;
+  const inp = { width: "100%", padding: "10px 14px", borderRadius: 10, fontSize: 14, border: "1.5px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Inter',sans-serif", outline: "none", boxSizing: "border-box", marginBottom: 10 };
+  const Lbl2 = ({ children }) => <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.7)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontFamily: "'Inter',sans-serif" }}>{children}</div>;
   const numInp = (field, label, min = 1) => (
     <div style={{ flex: 1 }}>
       <Lbl2>{label}</Lbl2>
@@ -5994,13 +5994,13 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
     return (
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
-          <button onClick={() => setView(isNew ? "list" : "detail")} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "6px 14px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>← Back</button>
-          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff" }}>{isNew ? "New Plan" : `Edit — ${selected?.name}`}</div>
+          <button onClick={() => setView(isNew ? "list" : "detail")} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "6px 14px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>← Back</button>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, color: "#fff" }}>{isNew ? "New Plan" : `Edit — ${selected?.name}`}</div>
         </div>
 
         <Lbl2>Plan Key (ID)</Lbl2>
         <input value={form.planKey} onChange={(e) => setForm({ ...form, planKey: e.target.value })} placeholder="e.g. free, pro, club" disabled={!isNew} style={{ ...inp, opacity: isNew ? 1 : 0.5 }} />
-        {isNew && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: -6, marginBottom: 10, fontFamily: "'Noto Sans JP',sans-serif" }}>Permanent ID used in code. Use lowercase letters only (e.g. "free", "pro").</div>}
+        {isNew && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: -6, marginBottom: 10, fontFamily: "'Inter',sans-serif" }}>Permanent ID used in code. Use lowercase letters only (e.g. "free", "pro").</div>}
 
         <Lbl2>Display Name</Lbl2>
         <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Free, Pro, Club" style={inp} />
@@ -6030,7 +6030,7 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
 
         {/* Limits section */}
         <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 14, padding: "16px", marginBottom: 10, border: "1px solid rgba(155,110,168,0.25)" }}>
-          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#e8a0d0", marginBottom: 14 }}>Plan Limits</div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, color: "#e8a0d0", marginBottom: 14 }}>Plan Limits</div>
           <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
             {numInp("limitMaxGroups", "Max Groups")}
             {numInp("limitGamesPerCycle", "Hosted Games / Cycle")}
@@ -6044,13 +6044,13 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
             }}>
               <div style={{ width: 18, height: 18, borderRadius: 999, background: "#fff", position: "absolute", top: 3, left: form.limitAllowRecurring ? 21 : 3, transition: "left .2s", boxShadow: "0 1px 4px rgba(0,0,0,.25)" }} />
             </div>
-            <div style={{ fontSize: 14, color: "#fff", fontFamily: "'Noto Sans JP',sans-serif" }}>Allow recurring games</div>
+            <div style={{ fontSize: 14, color: "#fff", fontFamily: "'Inter',sans-serif" }}>Allow recurring games</div>
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
-          <button onClick={() => setView(isNew ? "list" : "detail")} style={{ flex: 1, padding: "11px", borderRadius: 12, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
-          <button onClick={save} disabled={saving || !form.name.trim() || !form.planKey.trim()} style={{ flex: 2, padding: "11px", borderRadius: 12, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: (saving || !form.name.trim() || !form.planKey.trim()) ? 0.5 : 1 }}>
+          <button onClick={() => setView(isNew ? "list" : "detail")} style={{ flex: 1, padding: "11px", borderRadius: 12, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Cancel</button>
+          <button onClick={save} disabled={saving || !form.name.trim() || !form.planKey.trim()} style={{ flex: 2, padding: "11px", borderRadius: 12, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: (saving || !form.name.trim() || !form.planKey.trim()) ? 0.5 : 1 }}>
             {saving ? "Saving…" : "Save & Push to Users"}
           </button>
         </div>
@@ -6067,9 +6067,9 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
     return (
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
-          <button onClick={() => setView("list")} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "6px 14px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>← Plans</button>
-          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff", flex: 1 }}>{pkg.name}</div>
-          <button onClick={() => openEdit(pkg)} style={{ background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", borderRadius: 10, padding: "7px 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Edit</button>
+          <button onClick={() => setView("list")} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "6px 14px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>← Plans</button>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, color: "#fff", flex: 1 }}>{pkg.name}</div>
+          <button onClick={() => openEdit(pkg)} style={{ background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", borderRadius: 10, padding: "7px 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Edit</button>
         </div>
 
         {/* Plan overview */}
@@ -6081,17 +6081,17 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
               ["Users on this plan", count],
             ].map(([lbl, val]) => (
               <div key={lbl}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3, fontFamily: "'Noto Sans JP',sans-serif" }}>{lbl}</div>
-                <div style={{ fontSize: 16, color: "#fff", fontWeight: 700, fontFamily: "'Shippori Mincho',serif" }}>{String(val)}</div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 3, fontFamily: "'Inter',sans-serif" }}>{lbl}</div>
+                <div style={{ fontSize: 16, color: "#fff", fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>{String(val)}</div>
               </div>
             ))}
           </div>
-          {pkg.description && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", fontFamily: "'Noto Sans JP',sans-serif" }}>{pkg.description}</div>}
+          {pkg.description && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", fontFamily: "'Inter',sans-serif" }}>{pkg.description}</div>}
         </div>
 
         {/* Limits */}
         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "18px 20px", marginBottom: 14, border: "1px solid rgba(155,110,168,0.2)" }}>
-          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#e8a0d0", marginBottom: 14 }}>Plan Limits</div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, color: "#e8a0d0", marginBottom: 14 }}>Plan Limits</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             {[
               ["Max Groups", lim.maxGroups ?? FREE_PLAN.maxGroups],
@@ -6100,8 +6100,8 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
               ["Recurring Games", lim.allowRecurring ? "✅ Allowed" : "🔒 Locked"],
             ].map(([lbl, val]) => (
               <div key={lbl} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 14px" }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontFamily: "'Noto Sans JP',sans-serif" }}>{lbl}</div>
-                <div style={{ fontSize: 18, color: "#fff", fontWeight: 700, fontFamily: "'Shippori Mincho',serif" }}>{String(val)}</div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontFamily: "'Inter',sans-serif" }}>{lbl}</div>
+                <div style={{ fontSize: 18, color: "#fff", fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>{String(val)}</div>
               </div>
             ))}
           </div>
@@ -6110,9 +6110,9 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
         {/* Features */}
         {pkg.features?.length > 0 && (
           <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "18px 20px", marginBottom: 14, border: "1px solid rgba(155,110,168,0.2)" }}>
-            <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#e8a0d0", marginBottom: 12 }}>Included Features</div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, color: "#e8a0d0", marginBottom: 12 }}>Included Features</div>
             {pkg.features.map((f, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "rgba(255,255,255,0.8)", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 7 }}>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "rgba(255,255,255,0.8)", fontFamily: "'Inter',sans-serif", marginBottom: 7 }}>
                 <span style={{ color: "#9b3fa0", fontWeight: 700, fontSize: 16 }}>✓</span> {f}
               </div>
             ))}
@@ -6121,32 +6121,32 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
 
         {/* Users on this plan */}
         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "18px 20px", marginBottom: 14, border: "1px solid rgba(155,110,168,0.2)" }}>
-          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 15, color: "#e8a0d0", marginBottom: 14 }}>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, color: "#e8a0d0", marginBottom: 14 }}>
             Users on this plan ({planUsersLoading ? "…" : planUsers.length})
           </div>
           {planUsersLoading && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)" }}>Loading…</div>}
           {!planUsersLoading && planUsers.length === 0 && (
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", fontFamily: "'Noto Sans JP',sans-serif" }}>No users on this plan.</div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", fontFamily: "'Inter',sans-serif" }}>No users on this plan.</div>
           )}
           {planUsers.map((u) => (
             <div key={u.uid}>
               {changingUser?.uid === u.uid ? (
                 // Inline plan-change form
                 <div style={{ background: "rgba(155,63,160,0.12)", borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: "1px solid rgba(155,63,160,0.3)" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 10, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 10, fontFamily: "'Inter',sans-serif" }}>
                     Move {u.name} to…
                   </div>
-                  <select value={changePlanKey} onChange={(e) => setChangePlanKey(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13, border: "1px solid rgba(155,110,168,0.4)", background: "rgba(255,255,255,0.1)", color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 8, outline: "none" }}>
+                  <select value={changePlanKey} onChange={(e) => setChangePlanKey(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13, border: "1px solid rgba(155,110,168,0.4)", background: "rgba(255,255,255,0.1)", color: "#fff", fontFamily: "'Inter',sans-serif", marginBottom: 8, outline: "none" }}>
                     <option value="free">Free (default)</option>
                     {packages.map((p) => {
                       const k = p.planKey || p.id;
                       return <option key={p.id} value={k}>{p.name}{p.price > 0 ? ` — $${p.price}/${p.interval}` : ""}</option>;
                     })}
                   </select>
-                  <input value={changePlanNote} onChange={(e) => setChangePlanNote(e.target.value)} placeholder="Admin note (optional)" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13, border: "1px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Noto Sans JP',sans-serif", marginBottom: 10, outline: "none", boxSizing: "border-box" }} />
+                  <input value={changePlanNote} onChange={(e) => setChangePlanNote(e.target.value)} placeholder="Admin note (optional)" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: 13, border: "1px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Inter',sans-serif", marginBottom: 10, outline: "none", boxSizing: "border-box" }} />
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => setChangingUser(null)} style={{ flex: 1, padding: "7px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>Cancel</button>
-                    <button onClick={applyPlanChange} disabled={savingChange} style={{ flex: 2, padding: "7px", borderRadius: 8, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", opacity: savingChange ? 0.5 : 1 }}>
+                    <button onClick={() => setChangingUser(null)} style={{ flex: 1, padding: "7px", borderRadius: 8, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Cancel</button>
+                    <button onClick={applyPlanChange} disabled={savingChange} style={{ flex: 2, padding: "7px", borderRadius: 8, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: savingChange ? 0.5 : 1 }}>
                       {savingChange ? "Saving…" : "Apply"}
                     </button>
                   </div>
@@ -6161,7 +6161,7 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
                       <div style={{ fontSize: 11, color: "#e8a0d0", marginTop: 2 }}>📝 {u.subscription.overrideNote}</div>
                     )}
                   </div>
-                  <button onClick={() => { setChangingUser(u); setChangePlanKey(u.subscription?.plan || "free"); setChangePlanNote(u.subscription?.overrideNote || ""); }} style={{ padding: "5px 11px", borderRadius: 8, background: "rgba(155,63,160,0.2)", border: "1px solid rgba(155,63,160,0.35)", color: "#e8a0d0", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", flexShrink: 0 }}>
+                  <button onClick={() => { setChangingUser(u); setChangePlanKey(u.subscription?.plan || "free"); setChangePlanNote(u.subscription?.overrideNote || ""); }} style={{ padding: "5px 11px", borderRadius: 8, background: "rgba(155,63,160,0.2)", border: "1px solid rgba(155,63,160,0.35)", color: "#e8a0d0", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif", flexShrink: 0 }}>
                     Change Plan
                   </button>
                 </div>
@@ -6170,7 +6170,7 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
           ))}
         </div>
 
-        <button onClick={() => remove(pkg)} style={{ width: "100%", padding: "11px", borderRadius: 12, background: "rgba(200,50,80,0.15)", border: "1px solid rgba(200,50,80,0.3)", color: "#e87070", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif", marginTop: 4 }}>
+        <button onClick={() => remove(pkg)} style={{ width: "100%", padding: "11px", borderRadius: 12, background: "rgba(200,50,80,0.15)", border: "1px solid rgba(200,50,80,0.3)", color: "#e87070", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Inter',sans-serif", marginTop: 4 }}>
           Delete Plan
         </button>
       </div>
@@ -6181,8 +6181,8 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff" }}>Subscription Plans</div>
-        <button onClick={openNew} style={{ background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", borderRadius: 10, padding: "8px 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Noto Sans JP',sans-serif" }}>+ New Plan</button>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, color: "#fff" }}>Subscription Plans</div>
+        <button onClick={openNew} style={{ background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", borderRadius: 10, padding: "8px 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>+ New Plan</button>
       </div>
 
       {loading && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>Loading…</div>}
@@ -6204,25 +6204,25 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
-                  <span style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 18, color: "#fff", fontWeight: 700 }}>{pkg.name}</span>
-                  <span style={{ fontSize: 13, color: "#e8a0d0", fontWeight: 700, background: "rgba(155,63,160,0.2)", borderRadius: 999, padding: "2px 10px", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, color: "#fff", fontWeight: 700 }}>{pkg.name}</span>
+                  <span style={{ fontSize: 13, color: "#e8a0d0", fontWeight: 700, background: "rgba(155,63,160,0.2)", borderRadius: 999, padding: "2px 10px", fontFamily: "'Inter',sans-serif" }}>
                     {planKey}
                   </span>
-                  <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", fontFamily: "'Inter',sans-serif" }}>
                     {pkg.price === 0 ? "Free" : `$${pkg.price}/${pkg.interval}`}
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", fontFamily: "'Inter',sans-serif" }}>
                     👥 {lim.maxGroups ?? FREE_PLAN.maxGroups} groups
                   </span>
-                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", fontFamily: "'Inter',sans-serif" }}>
                     🀄 {lim.gamesPerCycle ?? FREE_PLAN.gamesPerCycle} game/{lim.cycleDays ?? FREE_PLAN.cycleDays}d
                   </span>
-                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", fontFamily: "'Inter',sans-serif" }}>
                     🔁 {lim.allowRecurring ? "Recurring ✓" : "No recurring"}
                   </span>
-                  <span style={{ fontSize: 12, color: "#e8a0d0", fontWeight: 700, fontFamily: "'Noto Sans JP',sans-serif" }}>
+                  <span style={{ fontSize: 12, color: "#e8a0d0", fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>
                     {count} user{count !== 1 ? "s" : ""}
                   </span>
                 </div>

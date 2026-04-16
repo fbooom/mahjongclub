@@ -84,9 +84,9 @@ export const sakura = {
   adminMuted:          "#7a5090",
 
   // ── Typography ─────────────────────────────────────────────────────────────
-  fontBody:            "'Noto Sans JP', sans-serif",
-  fontDisplay:         "'Shippori Mincho', serif",
-  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Shippori+Mincho:wght@400;500;600;700;800&display=swap",
+  fontBody:            "'Inter', sans-serif",
+  fontDisplay:         "'Inter', sans-serif",
+  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap",
 
   // ── Shape ──────────────────────────────────────────────────────────────────
   radiusInput:         "12px",
@@ -166,9 +166,9 @@ export const forest = {
   adminLight:          "#2e7d4f",
   adminMuted:          "#246040",
 
-  fontBody:            "'Noto Sans JP', sans-serif",
-  fontDisplay:         "'Shippori Mincho', serif",
-  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Shippori+Mincho:wght@400;500;600;700;800&display=swap",
+  fontBody:            "'Inter', sans-serif",
+  fontDisplay:         "'Inter', sans-serif",
+  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap",
 
   radiusInput:         "12px",
   radiusCard:          "18px",
@@ -242,9 +242,9 @@ export const jadeDragon = {
   adminLight:          "#8a6bc9",
   adminMuted:          "#6a50a8",
 
-  fontBody:            "'Noto Sans JP', sans-serif",
-  fontDisplay:         "'Shippori Mincho', serif",
-  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Shippori+Mincho:wght@400;500;600;700;800&display=swap",
+  fontBody:            "'Inter', sans-serif",
+  fontDisplay:         "'Inter', sans-serif",
+  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap",
 
   radiusInput:         "12px",
   radiusCard:          "18px",
@@ -323,9 +323,9 @@ export const tiles = {
   adminMuted:          "#1354b0",
 
   // ── Typography ─────────────────────────────────────────────────────────────
-  fontBody:            "'Noto Sans JP', sans-serif",
-  fontDisplay:         "'Shippori Mincho', serif",
-  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Shippori+Mincho:wght@400;500;600;700;800&display=swap",
+  fontBody:            "'Inter', sans-serif",
+  fontDisplay:         "'Inter', sans-serif",
+  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap",
 
   // ── Shape ──────────────────────────────────────────────────────────────────
   radiusInput:         "12px",
