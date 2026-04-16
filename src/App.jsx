@@ -1298,7 +1298,7 @@ function AuthScreen() {
       {/* Logo */}
       <div style={{ textAlign: "center", marginBottom: 24, position: "relative" }}>
         <div style={{ fontSize: 55, filter: "drop-shadow(0 6px 18px rgba(0,0,0,.3))", marginBottom: 10 }}>🀄</div>
-        <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
+        <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
         <p style={{ color: "rgba(255,255,255,.72)", fontSize: 13, fontFamily: "'Inter',sans-serif", letterSpacing: 1, marginTop: 5 }}>Schedule · Play · Enjoy</p>
       </div>
 
@@ -2607,7 +2607,7 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg }) {
         <div style={{ textAlign: "center", position: "relative", display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
           <div style={{ fontSize: 39, filter: "drop-shadow(0 4px 10px rgba(0,0,0,.25))" }}>🀄</div>
           <div>
-            <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
+            <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.25)", letterSpacing: 2, lineHeight: 1.1 }}>Mahjong Club</h1>
             <p style={{ color: "rgba(255,255,255,.78)", fontWeight: 400, fontSize: 13, marginTop: 3, fontFamily: "'Inter',sans-serif", letterSpacing: 1 }}>Schedule · Play · Enjoy</p>
           </div>
         </div>

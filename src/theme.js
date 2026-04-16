@@ -86,7 +86,7 @@ export const sakura = {
   // ── Typography ─────────────────────────────────────────────────────────────
   fontBody:            "'Inter', sans-serif",
   fontDisplay:         "'Inter', sans-serif",
-  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap",
+  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Shippori+Mincho:wght@700&display=swap",
 
   // ── Shape ──────────────────────────────────────────────────────────────────
   radiusInput:         "12px",
@@ -168,7 +168,7 @@ export const forest = {
 
   fontBody:            "'Inter', sans-serif",
   fontDisplay:         "'Inter', sans-serif",
-  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap",
+  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Shippori+Mincho:wght@700&display=swap",
 
   radiusInput:         "12px",
   radiusCard:          "18px",
@@ -244,7 +244,7 @@ export const jadeDragon = {
 
   fontBody:            "'Inter', sans-serif",
   fontDisplay:         "'Inter', sans-serif",
-  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap",
+  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Shippori+Mincho:wght@700&display=swap",
 
   radiusInput:         "12px",
   radiusCard:          "18px",
@@ -325,7 +325,7 @@ export const tiles = {
   // ── Typography ─────────────────────────────────────────────────────────────
   fontBody:            "'Inter', sans-serif",
   fontDisplay:         "'Inter', sans-serif",
-  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap",
+  googleFontUrl:       "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Shippori+Mincho:wght@700&display=swap",
 
   // ── Shape ──────────────────────────────────────────────────────────────────
   radiusInput:         "12px",
