@@ -23,15 +23,18 @@ service cloud.firestore {
       // Admins can read all profiles (needed for AdminHub user list).
       allow read: if isOwner(uid) || isAdmin();
 
-      // Users can write their own profile.
-      // Admins can update any profile (e.g. toggle isAdmin flag).
-      allow write: if isOwner(uid) || isAdmin();
+      // Users can write (create) their own profile on sign-up.
+      allow create: if isOwner(uid);
 
-      // Prevent standard users from self-promoting to admin.
-      // If the document already exists and the caller is not an admin,
-      // block any write that would set isAdmin = true.
-      allow update: if isOwner(uid) &&
-        !(request.resource.data.isAdmin == true && !isAdmin());
+      // Users can update their own profile; admins can update any profile.
+      // IMPORTANT: neither owners nor admins may change the isAdmin field
+      // directly from the client — that must go through the setAdminRole
+      // Cloud Function (which uses the admin SDK and bypasses these rules).
+      allow update: if (isOwner(uid) || isAdmin()) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin']);
+
+      // Only admins can delete user documents (normally done via deleteUser CF).
+      allow delete: if isAdmin();
     }
 
     // ── Groups ───────────────────────────────────────────────────────────────

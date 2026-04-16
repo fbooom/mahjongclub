@@ -582,15 +582,25 @@ export default function App() {
     setPage("home");
     setGid(null);
     setGmid(null);
+    // Fire-and-forget audit log — does not block the UI
+    httpsCallable(getFunctions(), "logImpersonation")({
+      action: "start", targetUid: targetUser.uid, targetName: targetUser.name,
+    }).catch(() => {}); // non-blocking; failure is silent to the admin
   };
 
   const stopImpersonating = () => {
+    const prev = impersonating;
     setImpersonating(null);
     setGroups([]);
     setGuestGames([]);
     setPage("home");
     setGid(null);
     setGmid(null);
+    if (prev) {
+      httpsCallable(getFunctions(), "logImpersonation")({
+        action: "stop", targetUid: prev.uid, targetName: prev.name,
+      }).catch(() => {});
+    }
   };
 
   // ── Deep-link invite processing ──
@@ -5617,12 +5627,13 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
     if (!selected) return;
     setPromoting(true);
     try {
-      await updateDoc(doc(db, "users", selected.uid), { isAdmin: !selected.isAdmin });
+      const setAdminRole = httpsCallable(getFunctions(), "setAdminRole");
+      await setAdminRole({ targetUid: selected.uid, isAdmin: !selected.isAdmin });
       const patch = { isAdmin: !selected.isAdmin };
       updateLocal(selected.uid, patch);
       setSelected((p) => ({ ...p, ...patch }));
       flash(`${selected.name} is now ${!selected.isAdmin ? "an Admin" : "a Standard user"}`);
-    } catch { flash("Failed to update user role"); }
+    } catch (e) { flash(`Failed to update user role: ${e.message}`); }
     setPromoting(false);
   };
 

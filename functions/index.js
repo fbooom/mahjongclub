@@ -501,7 +501,18 @@ exports.cancelSubscription = onCall(
 
     const userSnap = await db.collection("users").doc(uid).get();
     const userData = userSnap.data();
-    const subId    = userData?.subscription?.stripeSubscriptionId;
+
+    // Rate limit: one cancellation attempt per 60 seconds per user
+    const lastAttempt = userData?.subscription?.lastCancelAttempt;
+    if (lastAttempt && (Date.now() - lastAttempt.toMillis()) < 60_000) {
+      throw new HttpsError("resource-exhausted", "Please wait before trying again.");
+    }
+    // Record the attempt timestamp immediately
+    await db.collection("users").doc(uid).update({
+      "subscription.lastCancelAttempt": FieldValue.serverTimestamp(),
+    });
+
+    const subId = userData?.subscription?.stripeSubscriptionId;
 
     // Cancel in Stripe if a subscription exists
     if (subId) {
@@ -528,3 +539,74 @@ exports.cancelSubscription = onCall(
     return { success: true };
   }
 );
+
+/* ── SET ADMIN ROLE ─────────────────────────────────────────────────────────
+ * Callable by admins only. Changes a user's isAdmin flag server-side
+ * (bypasses Firestore client rules) and writes an immutable audit log entry.
+ * The client rule blocks direct isAdmin writes, so this is the only path.
+ * ────────────────────────────────────────────────────────────────────────── */
+exports.setAdminRole = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+
+  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
+  if (callerSnap.data()?.isAdmin !== true) {
+    throw new HttpsError("permission-denied", "Only admins can change user roles.");
+  }
+
+  const { targetUid, isAdmin } = request.data;
+  if (!targetUid || typeof targetUid !== "string") {
+    throw new HttpsError("invalid-argument", "targetUid is required.");
+  }
+  if (typeof isAdmin !== "boolean") {
+    throw new HttpsError("invalid-argument", "isAdmin must be a boolean.");
+  }
+  if (targetUid === request.auth.uid) {
+    throw new HttpsError("invalid-argument", "Admins cannot change their own role.");
+  }
+
+  // Admin SDK write — bypasses Firestore client security rules
+  await db.doc(`users/${targetUid}`).update({ isAdmin });
+
+  // Immutable audit log
+  await db.collection("adminLogs").add({
+    ts:        FieldValue.serverTimestamp(),
+    type:      "roleChange",
+    action:    isAdmin ? "granted admin role" : "revoked admin role",
+    targetUid,
+    adminUid:  request.auth.uid,
+    adminName: callerSnap.data()?.name || "Unknown",
+  });
+
+  return { success: true };
+});
+
+/* ── LOG IMPERSONATION ───────────────────────────────────────────────────────
+ * Called by the client when an admin starts or stops impersonating a user.
+ * Verifies admin status server-side before writing the audit entry.
+ * ────────────────────────────────────────────────────────────────────────── */
+exports.logImpersonation = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+
+  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
+  if (callerSnap.data()?.isAdmin !== true) {
+    throw new HttpsError("permission-denied", "Only admins can impersonate users.");
+  }
+
+  const { targetUid, targetName, action } = request.data;
+  if (!["start", "stop"].includes(action)) {
+    throw new HttpsError("invalid-argument", "action must be 'start' or 'stop'.");
+  }
+
+  await db.collection("adminLogs").add({
+    ts:        FieldValue.serverTimestamp(),
+    type:      "impersonation",
+    action:    action === "start"
+                 ? `started impersonating ${targetName || targetUid}`
+                 : "stopped impersonating",
+    targetUid: targetUid || null,
+    adminUid:  request.auth.uid,
+    adminName: callerSnap.data()?.name || "Unknown",
+  });
+
+  return { success: true };
+});
