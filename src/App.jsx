@@ -40,20 +40,13 @@ function getPlan(user) {
   return user?.subscription?.plan || "free";
 }
 
-// cfg = live plan config from Firestore (or null → apply free-plan defaults).
-// If cfg is present but a limit field is absent/null, that limit is unlimited (Infinity).
+// cfg = live plan config from Firestore. Absent or null limit fields mean unlimited (Infinity).
+// No code-side defaults — all limits must be set explicitly in Firestore.
 function getPlanLimits(cfg) {
-  if (!cfg) {
-    return {
-      maxGroups:     FREE_PLAN.maxGroups,
-      gamesPerCycle: FREE_PLAN.gamesPerCycle,
-      cycleDays:     FREE_PLAN.cycleDays,
-    };
-  }
   return {
-    maxGroups:     cfg.limits?.maxGroups     ?? Infinity,
-    gamesPerCycle: cfg.limits?.gamesPerCycle ?? Infinity,
-    cycleDays:     cfg.limits?.cycleDays     ?? FREE_PLAN.cycleDays,
+    maxGroups:     cfg?.limits?.maxGroups     ?? Infinity,
+    gamesPerCycle: cfg?.limits?.gamesPerCycle ?? Infinity,
+    cycleDays:     cfg?.limits?.cycleDays     ?? 30,
   };
 }
 
@@ -6323,9 +6316,9 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
           <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, color: "#e8a0d0", marginBottom: 14 }}>Plan Limits</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             {[
-              ["Max Groups", lim.maxGroups ?? FREE_PLAN.maxGroups],
-              ["Hosted Games / Cycle", lim.gamesPerCycle ?? FREE_PLAN.gamesPerCycle],
-              ["Cycle Duration", `${lim.cycleDays ?? FREE_PLAN.cycleDays} days`],
+              ["Max Groups", lim.maxGroups != null ? lim.maxGroups : "∞"],
+              ["Hosted Games / Cycle", lim.gamesPerCycle != null ? lim.gamesPerCycle : "∞"],
+              ["Cycle Duration", `${lim.cycleDays ?? 30} days`],
               ["Recurring Games", lim.allowRecurring ? "✅ Allowed" : "🔒 Locked"],
             ].map(([lbl, val]) => (
               <div key={lbl} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 14px" }}>
@@ -6443,10 +6436,10 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
                 </div>
                 <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", fontFamily: "'Inter',sans-serif" }}>
-                    👥 {lim.maxGroups ?? FREE_PLAN.maxGroups} groups
+                    👥 {lim.maxGroups != null ? lim.maxGroups : "∞"} groups
                   </span>
                   <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", fontFamily: "'Inter',sans-serif" }}>
-                    🀄 {lim.gamesPerCycle ?? FREE_PLAN.gamesPerCycle} game/{lim.cycleDays ?? FREE_PLAN.cycleDays}d
+                    🀄 {lim.gamesPerCycle != null ? lim.gamesPerCycle : "∞"} game/{lim.cycleDays ?? 30}d
                   </span>
                   <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", fontFamily: "'Inter',sans-serif" }}>
                     🔁 {lim.allowRecurring ? "Recurring ✓" : "No recurring"}
