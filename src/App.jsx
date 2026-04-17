@@ -382,6 +382,7 @@ export default function App() {
   const [authUser, setAuthUser] = useState(undefined); // undefined = checking, null = logged out
   const [user, setUser] = useState(null);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showNewSheet, setShowNewSheet] = useState(false);
   const [impersonating, setImpersonating] = useState(null); // { uid, name, avatar, email }
   const gamesUnsubs = useRef({});
   const groupMeta = useRef({});
@@ -822,6 +823,7 @@ export default function App() {
       )}
 
       {showWelcome && <WelcomeModal onClose={() => { setShowWelcome(false); go("account"); }} />}
+      {showNewSheet && <NewActionSheet uid={uid} groups={groups} user={displayUser} planCfg={userPlanCfg} go={go} flash={flash} onClose={() => setShowNewSheet(false)} />}
 
       {/* Page content + toast — wrapped so toast floats just above the nav */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
@@ -837,9 +839,9 @@ export default function App() {
           </div>
         )}
       <div ref={scrollRef} data-scroll-container style={{ height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 16, paddingTop: impersonating ? 52 : 0 }}>
-        {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} activeTheme={activeTheme} planCfg={userPlanCfg} flash={flash} />}
+        {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} activeTheme={activeTheme} planCfg={userPlanCfg} flash={flash} onNew={() => setShowNewSheet(true)} />}
         {page === "games" && <GamesPage groups={groups} guestGames={guestGames} go={go} />}
-        {page === "groups" && <GroupsPage groups={groups} go={go} user={displayUser} planCfg={userPlanCfg} flash={flash} />}
+        {page === "groups" && <GroupsPage groups={groups} go={go} user={displayUser} planCfg={userPlanCfg} flash={flash} onNew={() => setShowNewSheet(true)} />}
         {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} activeThemeId={activeTheme.id} onThemeChange={handleThemeChange} planCfg={userPlanCfg} />}
         {page === "newGroup" && (
           <NewGroup onBack={() => go("groups")}
@@ -1090,6 +1092,152 @@ export default function App() {
       </div>
     </div>
     </>
+  );
+}
+
+/* ── NEW ACTION SHEET ─────────────────────────────────────────────────────────
+ * Shown when the user taps + New. Determines which options are actually
+ * available based on plan limits and group-host status, and presents only
+ * those options — or an upgrade message when nothing is available.
+ * ─────────────────────────────────────────────────────────────────────────── */
+function NewActionSheet({ uid, groups, user, planCfg, go, flash, onClose }) {
+  const groupCheck  = canAddGroup(groups.length, user, planCfg);
+  const gameCheck   = canHostGame(user, planCfg);
+  const hostedGroups = groups.filter(g => g.members?.some(m => m.id === uid && m.host));
+  const isHost       = hostedGroups.length > 0;
+  const lim          = getPlanLimits(planCfg);
+
+  // What can the user actually do right now?
+  const canGroup = groupCheck.ok;
+  const canGame  = gameCheck.ok && isHost;   // needs both: plan slot + host of ≥1 group
+
+  const handleGame = () => {
+    onClose();
+    if (hostedGroups.length === 1) {
+      go("newGame", hostedGroups[0].id);
+    } else {
+      go("groups"); // user picks which group to schedule in
+    }
+  };
+
+  const handleGroup = () => { onClose(); go("newGroup"); };
+  const handleUpgrade = () => { onClose(); go("account"); };
+
+  const overlay = {
+    position: "fixed", inset: 0, zIndex: 10000,
+    background: "rgba(0,0,0,0.5)",
+    backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+    display: "flex", alignItems: "flex-end", justifyContent: "center",
+  };
+  const sheet = {
+    background: "linear-gradient(160deg,var(--bg-card-base) 0%,var(--bg-card-alt) 100%)",
+    borderRadius: "24px 24px 0 0",
+    padding: "28px 20px 36px",
+    width: "100%", maxWidth: 480,
+    boxShadow: "0 -8px 40px rgba(var(--shadow-rgb),0.28)",
+    border: "1px solid var(--border-card)",
+  };
+  const optionBtn = (disabled) => ({
+    width: "100%", padding: "16px 18px", borderRadius: 16, cursor: disabled ? "default" : "pointer",
+    display: "flex", alignItems: "center", gap: 14, textAlign: "left",
+    background: disabled ? "rgba(var(--primary-rgb),0.04)" : "var(--bg-surface)",
+    border: `1px solid ${disabled ? "rgba(var(--primary-rgb),0.1)" : "var(--border-card)"}`,
+    marginBottom: 10, opacity: disabled ? 0.5 : 1,
+    boxShadow: disabled ? "none" : "0 2px 8px rgba(var(--shadow-rgb),0.07)",
+  });
+
+  // ── Scenario: both plan limits reached ──────────────────────────────────────
+  if (!groupCheck.ok && !gameCheck.ok) {
+    return (
+      <div style={overlay} onClick={onClose}>
+        <div className="bIn" style={sheet} onClick={e => e.stopPropagation()}>
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: "var(--section-title)", marginBottom: 8 }}>You've reached your plan limits</div>
+            <div style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6 }}>
+              Your plan allows {lim.maxGroups} group{lim.maxGroups !== 1 ? "s" : ""} and {lim.gamesPerCycle} hosted game every {lim.cycleDays} days — both are currently at capacity. Upgrade to unlock unlimited groups and games.
+            </div>
+          </div>
+          <Btn full onClick={handleUpgrade} style={{ marginBottom: 8 }}>Upgrade my plan</Btn>
+          <Btn full outline onClick={onClose}>Not now</Btn>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Scenario: group limit reached + not a host of any group ────────────────
+  if (!canGroup && gameCheck.ok && !isHost) {
+    return (
+      <div style={overlay} onClick={onClose}>
+        <div className="bIn" style={sheet} onClick={e => e.stopPropagation()}>
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: "var(--section-title)", marginBottom: 8 }}>No actions available</div>
+            <div style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6 }}>
+              You've reached your group limit, and scheduling a game requires you to host at least one group. Upgrade to add more groups and get back to the table.
+            </div>
+          </div>
+          <Btn full onClick={handleUpgrade} style={{ marginBottom: 8 }}>Upgrade my plan</Btn>
+          <Btn full outline onClick={onClose}>Not now</Btn>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Standard sheet: show whichever options are available ───────────────────
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div className="bIn" style={sheet} onClick={e => e.stopPropagation()}>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: "var(--section-title)", marginBottom: 18 }}>What would you like to create?</div>
+
+        {/* Schedule a Game */}
+        {gameCheck.ok && (
+          <button style={optionBtn(!isHost)} onClick={isHost ? handleGame : undefined}>
+            <div style={{ fontSize: 32, flexShrink: 0 }}>🀄</div>
+            <div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, fontWeight: 700, color: isHost ? "var(--text-heading)" : "var(--text-muted)" }}>Schedule a Game</div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, fontFamily: "'Inter',sans-serif" }}>
+                {isHost
+                  ? hostedGroups.length === 1
+                    ? `In ${hostedGroups[0].name}`
+                    : `${hostedGroups.length} groups available`
+                  : "You need to host a group to schedule games"}
+              </div>
+            </div>
+          </button>
+        )}
+        {!gameCheck.ok && canGroup && (
+          <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", marginBottom: 10, padding: "8px 12px", background: "rgba(var(--primary-rgb),0.06)", borderRadius: 10 }}>
+            🀄 Game slot resets in {gameCheck.daysLeft} day{gameCheck.daysLeft === 1 ? "" : "s"} — upgrade for unlimited hosted games
+          </div>
+        )}
+
+        {/* Create a Group */}
+        {canGroup && (
+          <button style={optionBtn(false)} onClick={handleGroup}>
+            <div style={{ fontSize: 32, flexShrink: 0 }}>👥</div>
+            <div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, fontWeight: 700, color: "var(--text-heading)" }}>Create a Group</div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, fontFamily: "'Inter',sans-serif" }}>Invite friends and start scheduling</div>
+            </div>
+          </button>
+        )}
+        {!canGroup && gameCheck.ok && isHost && (
+          <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", marginBottom: 10, padding: "8px 12px", background: "rgba(var(--primary-rgb),0.06)", borderRadius: 10 }}>
+            👥 Group limit reached — <span style={{ color: "var(--primary)", cursor: "pointer", fontWeight: 700 }} onClick={handleUpgrade}>upgrade</span> to add more
+          </div>
+        )}
+
+        {/* Not a host note when within game limit */}
+        {gameCheck.ok && !isHost && canGroup && (
+          <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", marginBottom: 10, padding: "8px 12px", background: "rgba(var(--primary-rgb),0.06)", borderRadius: 10 }}>
+            💡 To schedule games, create a group and become its host first
+          </div>
+        )}
+
+        <Btn full outline onClick={onClose} style={{ marginTop: 4 }}>Cancel</Btn>
+      </div>
+    </div>
   );
 }
 
@@ -2534,7 +2682,7 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
 }
 
 /* HOME */
-function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash }) {
+function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash, onNew }) {
 
   // Background pattern — roses for Flowers, birds for Bam Bird, dragons for Dragons, tiles for all others
   const color = activeTheme?.primary || "#a0456e";
@@ -2660,7 +2808,7 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash }) {
           <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5 }}>Your Groups</h2>
           <div style={{ display: "flex", gap: 8 }}>
             <Btn sm outline onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("joinGroup"); }}>Join</Btn>
-            <Btn sm onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("newGroup"); }}>+ New</Btn>
+            <Btn sm onClick={onNew}>+ New</Btn>
           </div>
         </div>
 
@@ -2845,7 +2993,7 @@ function GamesPage({ groups, guestGames = [], go }) {
 }
 
 /* GROUPS PAGE */
-function GroupsPage({ groups, go, user, planCfg, flash }) {
+function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
   const totalUpcoming = groups.reduce((sum, g) => sum + g.games.filter((gm) => gm.date > NOW).length, 0);
 
   return (
@@ -2888,7 +3036,7 @@ function GroupsPage({ groups, go, user, planCfg, flash }) {
             )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
-            <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("newGroup"); }} style={{
+            <button onClick={onNew} style={{
               background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.40)",
               borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
               color: "#fff", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
@@ -2923,12 +3071,12 @@ function GroupsPage({ groups, go, user, planCfg, flash }) {
               Create a group to start scheduling games and inviting your players.
             </p>
             <div style={{ display: "flex", gap: 10, width: "100%" }}>
-              <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("newGroup"); }} style={{
+              <button onClick={onNew} style={{
                 flex: 1, padding: "14px 0", borderRadius: 999, fontSize: 15, fontWeight: 700,
                 fontFamily: "'Inter',sans-serif", cursor: "pointer",
                 background: "var(--active-tab-gradient)", color: "#fff",
                 border: "none", boxShadow: "0 4px 16px var(--shadow-btn)",
-              }}>＋ Create Group</button>
+              }}>＋ Create</button>
               <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("joinGroup"); }} style={{
                 flex: 1, padding: "14px 0", borderRadius: 999, fontSize: 15, fontWeight: 700,
                 fontFamily: "'Inter',sans-serif", cursor: "pointer",
