@@ -1889,8 +1889,9 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
   }
 
   /* ── All plans page (upgrade + downgrade) ── */
-  const currentCfg   = planConfigs[currentPlan] ?? freeCfg;
-  const currentPrice = currentCfg?.price ?? 0;
+  const currentCfg    = planConfigs[currentPlan] ?? freeCfg;
+  const currentPrice  = currentCfg?.price ?? 0;
+  const currentLimits = getPlanLimits(currentCfg ?? null);
 
   // Every plan except the one the user is currently on, sorted cheapest → most expensive
   const otherPlans = Object.values(planConfigs)
@@ -1931,7 +1932,7 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
               <div>
                 <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, fontWeight: 700, color: "var(--section-title)" }}>{currentCfg?.name || "Basic"}</div>
                 <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", marginTop: 2 }}>
-                  Up to {freeLimits.maxGroups} groups · {freeLimits.gamesPerCycle} hosted game / {freeLimits.cycleDays} days
+                  Up to {isFinite(currentLimits.maxGroups) ? currentLimits.maxGroups : "∞"} groups · {isFinite(currentLimits.gamesPerCycle) ? currentLimits.gamesPerCycle : "∞"} hosted game / {currentLimits.cycleDays} days
                 </div>
               </div>
               <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif" }}>${currentPrice}</div>
