@@ -2910,7 +2910,7 @@ function GamesPage({ groups, guestGames = [], go }) {
 
       {/* ── Tab pills ── */}
       <div style={{ display: "flex", gap: 8, padding: "18px 16px 0", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", marginBottom: 0 }}>
-        {[["upcoming","📅 Upcoming"],["completed","✅ Completed"],["archived","📦 Archived"]].map(([t, label]) => (
+        {[["upcoming","Upcoming"],["completed","Completed"],["archived","Archived"]].map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)} style={{
             padding: "7px 18px", borderRadius: 999, fontSize: 13, fontWeight: 700,
             fontFamily: "'Inter',sans-serif", cursor: "pointer", border: "none",
