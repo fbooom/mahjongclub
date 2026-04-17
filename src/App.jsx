@@ -2574,40 +2574,22 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
 
 /* ── ALL GAMES PANEL (shared by Home + Account) ── */
 function AllGamesPanel({ groups, guestGames = [], go }) {
-  const [tab, setTab] = useState("upcoming");
-
-  // Flatten all member games across all groups, then merge in guest games
   const memberGames = groups.flatMap((g) =>
     g.games.map((gm) => ({ ...gm, groupName: g.name, groupColor: g.color, groupId: g.id, groupEmoji: g.emoji }))
   );
   const allGames = [...memberGames, ...guestGames];
   const upcoming = allGames.filter((gm) => gm.status !== "archived" && gm.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
-  const completed = allGames.filter((gm) => gm.status !== "archived" && gm.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
-  const fullList = tab === "upcoming" ? upcoming : completed;
-  const list = fullList.slice(0, 3);
+  const list = upcoming.slice(0, 3);
 
   return (
     <div style={{ marginTop: 4 }}>
-      <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5, marginBottom: 14 }}>Your Games</h2>
-      {/* Tab pills */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-        {[["upcoming","📅 Upcoming"],["completed","✅ Completed"]].map(([t, label]) => (
-          <button key={t} onClick={() => { setTab(t); setShowAll(false); }} style={{
-            padding: "6px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700,
-            fontFamily: "'Inter',sans-serif", cursor: "pointer", transition: "all .18s",
-            background: tab === t ? "var(--active-tab-gradient)" : "var(--bg-surface)",
-            color: tab === t ? "#fff" : "#b08090",
-            border: tab === t ? "none" : "1px solid rgba(var(--primary-rgb),0.2)",
-            boxShadow: tab === t ? "0 3px 12px rgba(var(--shadow-rgb),0.3)" : "none",
-          }}>{label}</button>
-        ))}
-      </div>
+      <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5, marginBottom: 14 }}>Your Upcoming Games</h2>
 
       {list.length === 0 ? (
         <div style={{ textAlign: "center", padding: "22px 0", color: "#c0a0b0" }}>
-          <div style={{ fontSize: 31 }}>{tab === "upcoming" ? "📅" : "✅"}</div>
+          <div style={{ fontSize: 31 }}>📅</div>
           <p style={{ fontSize: 14, marginTop: 8, fontFamily: "'Inter',sans-serif" }}>
-            {tab === "upcoming" ? "No upcoming games yet — time to schedule one!" : "No completed games yet."}
+            No upcoming games yet — time to schedule one!
           </p>
         </div>
       ) : (
@@ -2616,18 +2598,14 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
             <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.05}s`, cursor: "pointer" }}
               onClick={() => go(gm.isGuestGame ? "guestGame" : "game", gm.groupId, gm.id)}>
               <div style={{
-                background: tab === "upcoming"
-                  ? "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))"
-                  : "rgba(245,235,242,0.55)",
+                background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))",
                 backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
                 borderRadius: 16, padding: "13px 15px", marginBottom: 10,
-                opacity: tab === "completed" ? 0.75 : 1,
-                boxShadow: tab === "upcoming" ? "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)" : "none",
+                boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)",
                 border: "1px solid var(--border-card)",
                 borderLeft: `4px solid ${gm.groupColor}`,
               }}>
                 <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", marginBottom: 4 }}>{gm.title}</div>
-                {/* Group tag + optional guest badge */}
                 {!gm.isGuestGame && (
                   <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
                     <span style={{ fontSize: 13 }}>{gm.groupEmoji}</span>
@@ -2661,15 +2639,19 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
               </div>
             </div>
           ))}
-          {fullList.length > 3 && (
+          {upcoming.length > 3 && (
             <button onClick={() => go("games")} style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-              width: "100%", padding: "8px 0", background: "none", border: "none",
-              color: "var(--primary)", fontSize: 13, fontWeight: 600,
-              fontFamily: "'Inter',sans-serif", cursor: "pointer", marginTop: 4, opacity: 0.75,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              width: "100%", padding: "12px 16px", cursor: "pointer", marginTop: 2,
+              background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.08),rgba(var(--primary-rgb),0.04))",
+              border: "1px solid rgba(var(--primary-rgb),0.14)",
+              borderRadius: 14,
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5)",
             }}>
-              {fullList.length - 3} more · View all
-              <span style={{ fontSize: 16, lineHeight: 1 }}>›</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)", fontFamily: "'Inter',sans-serif" }}>
+                +{upcoming.length - 3} more upcoming games
+              </span>
+              <span style={{ fontSize: 18, color: "var(--primary)", opacity: 0.7, lineHeight: 1 }}>›</span>
             </button>
           )}
         </>
@@ -2841,13 +2823,17 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash, onNew
             ))}
             {groups.filter(g => g.status !== "archived").length > 3 && (
               <button onClick={() => go("groups")} style={{
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                width: "100%", padding: "8px 0", background: "none", border: "none",
-                color: "var(--primary)", fontSize: 13, fontWeight: 600,
-                fontFamily: "'Inter',sans-serif", cursor: "pointer", marginBottom: 16, opacity: 0.75,
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                width: "100%", padding: "12px 16px", cursor: "pointer", marginBottom: 16,
+                background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.08),rgba(var(--primary-rgb),0.04))",
+                border: "1px solid rgba(var(--primary-rgb),0.14)",
+                borderRadius: 14,
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5)",
               }}>
-                {groups.filter(g => g.status !== "archived").length - 3} more · View all
-                <span style={{ fontSize: 16, lineHeight: 1 }}>›</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)", fontFamily: "'Inter',sans-serif" }}>
+                  +{groups.filter(g => g.status !== "archived").length - 3} more groups
+                </span>
+                <span style={{ fontSize: 18, color: "var(--primary)", opacity: 0.7, lineHeight: 1 }}>›</span>
               </button>
             )}
 
