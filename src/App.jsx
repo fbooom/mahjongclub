@@ -2641,7 +2641,7 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
           ))}
           {upcoming.length > 3 && (
             <button onClick={() => go("games")} style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
+              display: "flex", alignItems: "center", justifyContent: "center",
               width: "100%", padding: "12px 16px", cursor: "pointer", marginTop: 2,
               background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.08),rgba(var(--primary-rgb),0.04))",
               border: "1px solid rgba(var(--primary-rgb),0.14)",
@@ -2649,9 +2649,8 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
               boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5)",
             }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)", fontFamily: "'Inter',sans-serif" }}>
-                +{upcoming.length - 3} more upcoming games
+                +{upcoming.length - 3} more upcoming games &nbsp;›
               </span>
-              <span style={{ fontSize: 18, color: "var(--primary)", opacity: 0.7, lineHeight: 1 }}>›</span>
             </button>
           )}
         </>
@@ -2831,9 +2830,8 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash, onNew
                 boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5)",
               }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)", fontFamily: "'Inter',sans-serif" }}>
-                  +{groups.filter(g => g.status !== "archived").length - 3} more groups
+                  +{groups.filter(g => g.status !== "archived").length - 3} more groups &nbsp;›
                 </span>
-                <span style={{ fontSize: 18, color: "var(--primary)", opacity: 0.7, lineHeight: 1 }}>›</span>
               </button>
             )}
 
