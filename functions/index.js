@@ -611,3 +611,99 @@ exports.logImpersonation = onCall({ invoker: "public" }, async (request) => {
 
   return { success: true };
 });
+
+/* ── ARCHIVE CLEANUP (runs daily) ──────────────────────────────────────────
+ * Deletes archived groups and archived games that meet both conditions:
+ *   1. archivedAt  > 60 days ago  (been archived long enough)
+ *   2. updatedAt   > 10 days ago  (not recently modified)
+ *
+ * For groups: also deletes all sub-collections (games, messages) and any
+ * gameCodes entries that reference deleted games.
+ * For games within active groups: deletes the game doc and its gameCodes entry.
+ * ────────────────────────────────────────────────────────────────────────── */
+exports.archiveCleanup = onSchedule("every 24 hours", async () => {
+  const now = Date.now();
+  const sixtyDaysAgo = now - 60 * 24 * 60 * 60 * 1000;
+  const tenDaysAgo   = now - 10 * 24 * 60 * 60 * 1000;
+
+  let deletedGroups = 0;
+  let deletedGames  = 0;
+
+  // ── 1. Archived groups ─────────────────────────────────────────────────
+  const archivedGroupsSnap = await db.collection("groups")
+    .where("status", "==", "archived")
+    .get();
+
+  for (const groupDoc of archivedGroupsSnap.docs) {
+    const g = groupDoc.data();
+    const archivedAt = g.archivedAt?.toMillis?.() ?? 0;
+    const updatedAt  = g.updatedAt?.toMillis?.()  ?? 0;
+
+    if (archivedAt > sixtyDaysAgo) continue;  // not old enough
+    if (updatedAt  > tenDaysAgo)   continue;  // recently modified
+
+    // Delete sub-collections: games (and their messages), messages
+    const gamesSnap = await groupDoc.ref.collection("games").get();
+    for (const gameDoc of gamesSnap.docs) {
+      // Delete game chat messages
+      const gameMsgSnap = await gameDoc.ref.collection("messages").get();
+      const msgBatch = db.batch();
+      gameMsgSnap.docs.forEach((d) => msgBatch.delete(d.ref));
+      if (!gameMsgSnap.empty) await msgBatch.commit();
+
+      // Delete gameCodes entry if present
+      const code = gameDoc.data().joinCode;
+      if (code) {
+        try { await db.doc(`gameCodes/${code}`).delete(); } catch (_) { /* ok */ }
+      }
+
+      await gameDoc.ref.delete();
+    }
+
+    // Delete group chat messages
+    const groupMsgSnap = await groupDoc.ref.collection("messages").get();
+    const gmBatch = db.batch();
+    groupMsgSnap.docs.forEach((d) => gmBatch.delete(d.ref));
+    if (!groupMsgSnap.empty) await gmBatch.commit();
+
+    // Delete the group document
+    await groupDoc.ref.delete();
+    deletedGroups++;
+  }
+
+  // ── 2. Archived games within active groups ─────────────────────────────
+  const archivedGamesSnap = await db.collectionGroup("games")
+    .where("status", "==", "archived")
+    .get();
+
+  for (const gameDoc of archivedGamesSnap.docs) {
+    const game = gameDoc.data();
+    const archivedAt = game.archivedAt?.toMillis?.() ?? 0;
+    const updatedAt  = game.updatedAt?.toMillis?.()  ?? 0;
+
+    if (archivedAt > sixtyDaysAgo) continue;
+    if (updatedAt  > tenDaysAgo)   continue;
+
+    // Check parent group still exists (skip if already deleted in step 1)
+    const parentGroupRef = gameDoc.ref.parent.parent;
+    const parentSnap = await parentGroupRef.get();
+    if (!parentSnap.exists) continue;
+
+    // Delete game chat messages
+    const gameMsgSnap = await gameDoc.ref.collection("messages").get();
+    const msgBatch = db.batch();
+    gameMsgSnap.docs.forEach((d) => msgBatch.delete(d.ref));
+    if (!gameMsgSnap.empty) await msgBatch.commit();
+
+    // Delete gameCodes entry if present
+    const code = game.joinCode;
+    if (code) {
+      try { await db.doc(`gameCodes/${code}`).delete(); } catch (_) { /* ok */ }
+    }
+
+    await gameDoc.ref.delete();
+    deletedGames++;
+  }
+
+  console.log(`archiveCleanup complete — deleted ${deletedGroups} groups, ${deletedGames} games`);
+});

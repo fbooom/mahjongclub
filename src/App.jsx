@@ -50,10 +50,12 @@ function getPlanLimits(cfg) {
 }
 
 // Returns { ok: true } or { ok: false }
-function canAddGroup(groupCount, user, cfg) {
+// Only active (non-archived) groups count toward the limit.
+function canAddGroup(groups, user, cfg) {
   if (getPlan(user) !== "free") return { ok: true };
   const { maxGroups } = getPlanLimits(cfg);
-  return groupCount >= maxGroups ? { ok: false } : { ok: true };
+  const activeCount = (Array.isArray(groups) ? groups : []).filter(g => g.status !== "archived").length;
+  return activeCount >= maxGroups ? { ok: false } : { ok: true };
 }
 
 // Returns { ok: true } or { ok: false }
@@ -64,7 +66,7 @@ function canHostGame(user, groups, cfg) {
   const uid = user?.uid;
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const futureHosted = (groups || []).reduce((n, g) =>
-    n + (g.games || []).filter(gm => gm.hostId === uid && gm.date >= todayStart.getTime()).length, 0);
+    n + (g.games || []).filter(gm => gm.hostId === uid && gm.date >= todayStart.getTime() && gm.status !== "archived").length, 0);
   return futureHosted >= gamesPerCycle ? { ok: false } : { ok: true };
 }
 
@@ -844,7 +846,7 @@ export default function App() {
         {page === "newGroup" && (
           <NewGroup onBack={() => go("groups")}
             onSave={async (g) => {
-              if (!canAddGroup(groups.length, user, userPlanCfg).ok) {
+              if (!canAddGroup(groups, user, userPlanCfg).ok) {
                 const lim = getPlanLimits(userPlanCfg);
                 flash(`Free plan allows up to ${lim.maxGroups} groups`, "🔒"); go("groups"); return;
               }
@@ -861,7 +863,7 @@ export default function App() {
         {page === "joinGroup" && (
           <JoinGroup uid={uid} groups={groups} onBack={() => go("home")}
             onJoin={async (id) => {
-              if (!canAddGroup(groups.length, user, userPlanCfg).ok) {
+              if (!canAddGroup(groups, user, userPlanCfg).ok) {
                 flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return;
               }
               try {
@@ -899,16 +901,14 @@ export default function App() {
                 go("group", group.id); flash("Group updated!", "✨");
               } catch { flash("Error updating group", "❌"); }
             }}
-            onDelete={async () => {
+            onArchive={async () => {
               try {
-                const batch = writeBatch(db);
-                const gamesSnap = await getDocs(collection(db, "groups", group.id, "games"));
-                gamesSnap.docs.forEach((d) => batch.delete(d.ref));
-                batch.delete(doc(db, "groups", group.id));
-                await batch.commit();
-                setGroups((prev) => prev.filter((g) => g.id !== group.id));
-                go("groups"); flash("Group deleted", "🗑");
-              } catch { flash("Error deleting group", "❌"); }
+                await updateDoc(doc(db, "groups", group.id), {
+                  status: "archived", archivedAt: serverTimestamp(), updatedAt: serverTimestamp(),
+                });
+                setGroups((prev) => prev.map((g) => g.id === group.id ? { ...g, status: "archived" } : g));
+                go("groups"); flash("Group archived", "📦");
+              } catch { flash("Error archiving group", "❌"); }
             }} />
         )}
         {page === "group" && group && (
@@ -1009,14 +1009,17 @@ export default function App() {
                 flash(action === "join" ? "Added to waitlist!" : "Removed from waitlist", action === "join" ? "⏳" : "👋");
               } catch { flash("Error updating waitlist", "❌"); }
             }}
-            onDelete={async () => {
+            onArchive={async () => {
               try {
-                const batch = writeBatch(db);
-                batch.delete(doc(db, "groups", group.id, "games", game.id));
-                if (game.joinCode) batch.delete(doc(db, "gameCodes", game.joinCode));
-                await batch.commit();
-                go("group", group.id); flash("Deleted");
-              } catch { flash("Error deleting game", "❌"); }
+                await updateDoc(doc(db, "groups", group.id, "games", game.id), {
+                  status: "archived", archivedAt: serverTimestamp(), updatedAt: serverTimestamp(),
+                });
+                setGroups((prev) => prev.map((g) => {
+                  if (g.id !== group.id) return g;
+                  return { ...g, games: g.games.map((gm) => gm.id === game.id ? { ...gm, status: "archived" } : gm) };
+                }));
+                go("group", group.id); flash("Game archived", "📦");
+              } catch { flash("Error archiving game", "❌"); }
             }} />
         )}
         {page === "editGame" && game && group && (
@@ -1096,7 +1099,7 @@ export default function App() {
  * those options — or an upgrade message when nothing is available.
  * ─────────────────────────────────────────────────────────────────────────── */
 function NewActionSheet({ uid, groups, user, planCfg, go, flash, onClose }) {
-  const groupCheck  = canAddGroup(groups.length, user, planCfg);
+  const groupCheck  = canAddGroup(groups, user, planCfg);
   const gameCheck   = canHostGame(user, groups, planCfg);
   const hostedGroups = groups.filter(g => g.members?.some(m => m.id === uid && m.host));
   const isHost       = hostedGroups.length > 0;
@@ -2387,7 +2390,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                   <Bar used={futureHostedCount} max={lim.gamesPerCycle} />
                   <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 5, fontFamily: "'Inter',sans-serif" }}>
                     {futureHostedCount >= lim.gamesPerCycle
-                      ? "Limit reached — delete or wait for a game to pass to free up a slot"
+                      ? "Limit reached — archive or wait for a game to pass to free up a slot"
                       : "Slot available — schedule a game"}
                   </div>
                 </div>
@@ -2578,9 +2581,9 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
     g.games.map((gm) => ({ ...gm, groupName: g.name, groupColor: g.color, groupId: g.id, groupEmoji: g.emoji }))
   );
   const allGames = [...memberGames, ...guestGames];
-  const upcoming = allGames.filter((gm) => gm.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
-  const history = allGames.filter((gm) => gm.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
-  const fullList = tab === "upcoming" ? upcoming : history;
+  const upcoming = allGames.filter((gm) => gm.status !== "archived" && gm.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
+  const completed = allGames.filter((gm) => gm.status !== "archived" && gm.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
+  const fullList = tab === "upcoming" ? upcoming : completed;
   const list = fullList.slice(0, 3);
 
   return (
@@ -2588,7 +2591,7 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
       <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5, marginBottom: 14 }}>Your Games</h2>
       {/* Tab pills */}
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-        {[["upcoming","📅 Upcoming"],["history","📖 History"]].map(([t, label]) => (
+        {[["upcoming","📅 Upcoming"],["completed","✅ Completed"]].map(([t, label]) => (
           <button key={t} onClick={() => { setTab(t); setShowAll(false); }} style={{
             padding: "6px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700,
             fontFamily: "'Inter',sans-serif", cursor: "pointer", transition: "all .18s",
@@ -2602,9 +2605,9 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
 
       {list.length === 0 ? (
         <div style={{ textAlign: "center", padding: "22px 0", color: "#c0a0b0" }}>
-          <div style={{ fontSize: 31 }}>{tab === "upcoming" ? "📅" : "📖"}</div>
+          <div style={{ fontSize: 31 }}>{tab === "upcoming" ? "📅" : "✅"}</div>
           <p style={{ fontSize: 14, marginTop: 8, fontFamily: "'Inter',sans-serif" }}>
-            {tab === "upcoming" ? "No upcoming games yet — time to schedule one!" : "No past games yet."}
+            {tab === "upcoming" ? "No upcoming games yet — time to schedule one!" : "No completed games yet."}
           </p>
         </div>
       ) : (
@@ -2618,7 +2621,7 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
                   : "rgba(245,235,242,0.55)",
                 backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
                 borderRadius: 16, padding: "13px 15px", marginBottom: 10,
-                opacity: tab === "history" ? 0.75 : 1,
+                opacity: tab === "completed" ? 0.75 : 1,
                 boxShadow: tab === "upcoming" ? "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)" : "none",
                 border: "1px solid var(--border-card)",
                 borderLeft: `4px solid ${gm.groupColor}`,
@@ -2799,12 +2802,12 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash, onNew
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5 }}>Your Groups</h2>
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn sm outline onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("joinGroup"); }}>Join</Btn>
+            <Btn sm outline onClick={() => { if (!canAddGroup(groups, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("joinGroup"); }}>Join</Btn>
             <Btn sm onClick={onNew}>+ New</Btn>
           </div>
         </div>
 
-        {groups.length === 0 ? (
+        {groups.filter(g => g.status !== "archived").length === 0 ? (
           <div style={{ textAlign: "center", padding: "44px 0", color: "var(--primary-subtle)" }}>
             <div style={{ fontSize: 49 }}>🀆</div>
             <p style={{ fontWeight: 700, marginTop: 10, fontSize: 17, fontFamily: "'Inter',sans-serif", color: "var(--primary-muted)" }}>No groups yet</p>
@@ -2812,7 +2815,7 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash, onNew
           </div>
         ) : (
           <>
-            {groups.slice(0, 3).map((g, i) => (
+            {groups.filter(g => g.status !== "archived").slice(0, 3).map((g, i) => (
               <div key={g.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer" }} onClick={() => go("group", g.id)}>
                 <div style={{
                   background: "linear-gradient(135deg,var(--bg-card-base) 0%,var(--bg-card-alt) 100%)",
@@ -2827,20 +2830,20 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash, onNew
                     <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{g.name}</div>
                     <div style={{ fontSize: 13, color: "#b08090", marginTop: 2 }}>{g.members.length} members</div>
                   </div>
-                  {g.games.filter((gm) => gm.date > NOW).length > 0 && (
-                    <div style={{ background: `linear-gradient(135deg,${g.color},${g.color}cc)`, color: "#fff", borderRadius: 999, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, boxShadow: `0 2px 8px ${g.color}55` }}>{g.games.filter((gm) => gm.date > NOW).length}</div>
+                  {g.games.filter((gm) => gm.status !== "archived" && gm.date > NOW).length > 0 && (
+                    <div style={{ background: `linear-gradient(135deg,${g.color},${g.color}cc)`, color: "#fff", borderRadius: 999, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, boxShadow: `0 2px 8px ${g.color}55` }}>{g.games.filter((gm) => gm.status !== "archived" && gm.date > NOW).length}</div>
                   )}
                   <span style={{ color: "var(--primary-faint)", fontSize: 21 }}>›</span>
                 </div>
               </div>
             ))}
-            {groups.length > 3 && (
+            {groups.filter(g => g.status !== "archived").length > 3 && (
               <button onClick={() => go("groups")} style={{
                 width: "100%", padding: "10px 0", background: "none", border: "1px dashed rgba(var(--primary-rgb),0.3)",
                 borderRadius: 12, color: "var(--primary)", fontSize: 14, fontWeight: 700,
                 fontFamily: "'Inter',sans-serif", cursor: "pointer", marginBottom: 16,
               }}>
-                See {groups.length - 3} more ↓
+                See {groups.filter(g => g.status !== "archived").length - 3} more ↓
               </button>
             )}
 
@@ -2861,9 +2864,9 @@ function GamesPage({ groups, guestGames = [], go }) {
     g.games.map((gm) => ({ ...gm, groupName: g.name, groupColor: g.color, groupId: g.id, groupEmoji: g.emoji }))
   );
   const allGames = [...memberGames, ...guestGames];
-  const upcoming = allGames.filter((gm) => gm.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
-  const history = allGames.filter((gm) => gm.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
-  const list = tab === "upcoming" ? upcoming : history;
+  const upcoming = allGames.filter((gm) => gm.status !== "archived" && gm.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
+  const completed = allGames.filter((gm) => gm.status !== "archived" && gm.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
+  const list = tab === "upcoming" ? upcoming : completed;
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)" }}>
@@ -2894,10 +2897,10 @@ function GamesPage({ groups, guestGames = [], go }) {
                 <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>{upcoming.length} upcoming</span>
               </div>
             )}
-            {history.length > 0 && (
+            {completed.length > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.12)", borderRadius: 999, padding: "4px 11px", backdropFilter: "blur(8px)" }}>
-                <span style={{ fontSize: 13 }}>📖</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.75)" }}>{history.length} played</span>
+                <span style={{ fontSize: 13 }}>✅</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.75)" }}>{completed.length} completed</span>
               </div>
             )}
           </div>
@@ -2907,7 +2910,7 @@ function GamesPage({ groups, guestGames = [], go }) {
       {/* ── Tab pills ── */}
       <div style={{ padding: "18px 16px 0" }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          {[["upcoming","📅 Upcoming"],["history","📖 History"]].map(([t, label]) => (
+          {[["upcoming","📅 Upcoming"],["completed","✅ Completed"]].map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)} style={{
               padding: "8px 20px", borderRadius: 999, fontSize: 13, fontWeight: 700,
               fontFamily: "'Inter',sans-serif", cursor: "pointer", transition: "all .18s",
@@ -2924,9 +2927,9 @@ function GamesPage({ groups, guestGames = [], go }) {
       <div style={{ padding: "0 16px 24px" }}>
         {list.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "52px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>{tab === "upcoming" ? "📅" : "📖"}</div>
+            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>{tab === "upcoming" ? "📅" : "✅"}</div>
             <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 20, color: "var(--primary-muted)", marginBottom: 8 }}>
-              {tab === "upcoming" ? "No upcoming games" : "No past games yet"}
+              {tab === "upcoming" ? "No upcoming games" : "No completed games yet"}
             </h2>
             <p style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 260 }}>
               {tab === "upcoming" ? "Head to a group and schedule your next session." : "Completed games will appear here."}
@@ -2947,7 +2950,7 @@ function GamesPage({ groups, guestGames = [], go }) {
                     : "rgba(245,235,242,0.55)",
                   backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
                   borderRadius: 18, padding: "14px 15px", marginBottom: 10,
-                  opacity: tab === "history" ? 0.78 : 1,
+                  opacity: tab === "completed" ? 0.78 : 1,
                   boxShadow: tab === "upcoming" ? "0 4px 18px rgba(var(--shadow-rgb),0.09), inset 0 1px 0 var(--shadow-inset)" : "none",
                   border: "1px solid var(--border-card)",
                   borderLeft: `4px solid ${gm.groupColor}`,
@@ -2986,7 +2989,11 @@ function GamesPage({ groups, guestGames = [], go }) {
 
 /* GROUPS PAGE */
 function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
-  const totalUpcoming = groups.reduce((sum, g) => sum + g.games.filter((gm) => gm.date > NOW).length, 0);
+  const [groupFilter, setGroupFilter] = useState("active");
+  const activeGroups = groups.filter(g => g.status !== "archived");
+  const archivedGroups = groups.filter(g => g.status === "archived");
+  const displayGroups = groupFilter === "active" ? activeGroups : archivedGroups;
+  const totalUpcoming = activeGroups.reduce((sum, g) => sum + g.games.filter((gm) => gm.date > NOW && gm.status !== "archived").length, 0);
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)" }}>
@@ -3014,7 +3021,7 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.60)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Your Groups</div>
             <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 34, color: "#fff", textShadow: "0 2px 16px rgba(0,0,0,0.22)", lineHeight: 1, letterSpacing: 0.5 }}>
-              {groups.length} {groups.length === 1 ? "Group" : "Groups"}
+              {activeGroups.length} {activeGroups.length === 1 ? "Group" : "Groups"}
             </h1>
             {totalUpcoming > 0 && (
               <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 12 }}>
@@ -3034,7 +3041,7 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
               color: "#fff", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
               display: "flex", alignItems: "center", gap: 5,
             }}>＋ New</button>
-            <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("joinGroup"); }} style={{
+            <button onClick={() => { if (!canAddGroup(groups, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("joinGroup"); }} style={{
               background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.25)",
               borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
               color: "rgba(255,255,255,0.85)", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
@@ -3043,10 +3050,24 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
         </div>
       </div>
 
+      {/* ── Active / Archived filter pills ── */}
+      <div style={{ display: "flex", gap: 8, padding: "14px 16px 0" }}>
+        {[["active","Active"],["archived","Archived"]].map(([val, label]) => (
+          <button key={val} onClick={() => setGroupFilter(val)} style={{
+            padding: "7px 18px", borderRadius: 999, fontSize: 13, fontWeight: 700,
+            fontFamily: "'Inter',sans-serif", cursor: "pointer", border: "none",
+            background: groupFilter === val ? "var(--active-tab-gradient)" : "var(--bg-surface)",
+            color: groupFilter === val ? "#fff" : "var(--text-muted)",
+            boxShadow: groupFilter === val ? "0 2px 10px var(--shadow-btn)" : "none",
+            transition: "all .15s",
+          }}>{label}{val === "archived" && archivedGroups.length > 0 ? ` (${archivedGroups.length})` : ""}</button>
+        ))}
+      </div>
+
       {/* ── List ── */}
       <div style={{ padding: "18px 16px 24px" }}>
-        {groups.length === 0 ? (
-          /* ── Empty state ── */
+        {groupFilter === "active" && activeGroups.length === 0 ? (
+          /* ── Empty state (active) ── */
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "52px 24px 24px", textAlign: "center" }}>
             <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
               {["🀇","🀙","🀅"].map((t, i) => (
@@ -3069,7 +3090,7 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
                 background: "var(--active-tab-gradient)", color: "#fff",
                 border: "none", boxShadow: "0 4px 16px var(--shadow-btn)",
               }}>＋ Create</button>
-              <button onClick={() => { if (!canAddGroup(groups.length, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("joinGroup"); }} style={{
+              <button onClick={() => { if (!canAddGroup(groups, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("joinGroup"); }} style={{
                 flex: 1, padding: "14px 0", borderRadius: 999, fontSize: 15, fontWeight: 700,
                 fontFamily: "'Inter',sans-serif", cursor: "pointer",
                 background: "var(--bg-surface)", color: "var(--primary)",
@@ -3077,13 +3098,23 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
               }}>Join Group</button>
             </div>
           </div>
+        ) : groupFilter === "archived" && archivedGroups.length === 0 ? (
+          /* ── Empty state (archived) ── */
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "52px 24px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>📦</div>
+            <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 20, color: "var(--primary-muted)", marginBottom: 8 }}>No archived groups</h2>
+            <p style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 260 }}>
+              Archived groups will appear here. They don't count toward your plan limits.
+            </p>
+          </div>
         ) : (
-          groups.map((g, i) => {
-            const upcoming = g.games.filter((gm) => gm.date > NOW).sort((a, b) => a.date - b.date);
+          displayGroups.map((g, i) => {
+            const upcoming = g.games.filter((gm) => gm.date > NOW && gm.status !== "archived").sort((a, b) => a.date - b.date);
             const nextGame = upcoming[0] || null;
             const isHost = g.members.some((m) => m.id === undefined ? false : m.host);
+            const isArchived = g.status === "archived";
             return (
-              <div key={g.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer", marginBottom: 14 }}
+              <div key={g.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer", marginBottom: 14, opacity: isArchived ? 0.75 : 1 }}
                 onClick={() => go("group", g.id)}>
                 <div style={{
                   background: "linear-gradient(135deg,var(--bg-card-base) 0%,var(--bg-card-alt) 100%)",
@@ -3091,7 +3122,7 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
                   borderRadius: 20, padding: "17px 16px",
                   boxShadow: `0 4px 22px rgba(var(--shadow-rgb),0.09), inset 0 1px 0 var(--shadow-inset)`,
                   border: "1px solid var(--border-card)",
-                  borderLeft: `4px solid ${g.color}`,
+                  borderLeft: `4px solid ${isArchived ? "#9ca3af" : g.color}`,
                 }}>
                   {/* Row 1: emoji + name + badge + chevron */}
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -3108,7 +3139,13 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
                         {g.members.length} {g.members.length === 1 ? "member" : "members"}
                       </div>
                     </div>
-                    {upcoming.length > 0 && (
+                    {isArchived ? (
+                      <div style={{
+                        background: "rgba(156,163,175,0.15)", color: "#6b7280",
+                        borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 700,
+                        fontFamily: "'Inter',sans-serif", flexShrink: 0,
+                      }}>📦 Archived</div>
+                    ) : upcoming.length > 0 && (
                       <div style={{
                         background: `linear-gradient(135deg,${g.color},${g.color}cc)`,
                         color: "#fff", borderRadius: 999, minWidth: 26, height: 26,
@@ -3145,8 +3182,18 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
                     )}
                   </div>
 
-                  {/* Row 3: next game preview */}
-                  {nextGame ? (
+                  {/* Row 3: next game preview or archived notice */}
+                  {isArchived ? (
+                    <div style={{
+                      marginTop: 12, padding: "10px 13px",
+                      background: "rgba(156,163,175,0.07)", borderRadius: 12,
+                      border: "1px dashed rgba(156,163,175,0.25)",
+                    }}>
+                      <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif" }}>
+                        Archived · auto-deletes after 60 days
+                      </span>
+                    </div>
+                  ) : nextGame ? (
                     <div style={{
                       marginTop: 12, padding: "10px 13px",
                       background: `${g.color}0e`, borderRadius: 12,
@@ -3216,12 +3263,12 @@ function NewGroup({ onBack, onSave }) {
 }
 
 /* EDIT GROUP */
-function EditGroup({ group, onBack, onSave, onDelete }) {
+function EditGroup({ group, onBack, onSave, onArchive }) {
   const [name, setName] = useState(group.name);
   const [emoji, setEmoji] = useState(group.emoji);
   const [color, setColor] = useState(group.color);
   const [openInvites, setOpenInvites] = useState(group.openInvites ?? false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
   return (
     <Shell title="Edit Group" onBack={onBack} color={group.color}>
       <Lbl>Group Name</Lbl>
@@ -3243,15 +3290,15 @@ function EditGroup({ group, onBack, onSave, onDelete }) {
         <Btn full disabled={!name.trim()} onClick={() =>
           onSave({ name: name.trim(), emoji, color, openInvites })
         }>Save Changes</Btn>
-        <Btn full outline danger onClick={() => setConfirmDelete(true)}>🗑 Delete Group</Btn>
+        <Btn full outline danger onClick={() => setConfirmArchive(true)}>📦 Archive Group</Btn>
       </div>
-      {confirmDelete && (
+      {confirmArchive && (
         <ConfirmDialog
-          title="Delete Group?"
-          message={`This will permanently delete "${group.name}", all its games, and remove all members. This cannot be undone.`}
-          confirmLabel="Delete Group"
-          onConfirm={() => { setConfirmDelete(false); onDelete(); }}
-          onCancel={() => setConfirmDelete(false)}
+          title="Archive Group?"
+          message={`"${group.name}" will be moved to your archive. It won't count toward your plan limits and will be automatically removed after 60 days. You can still view it in the Archived tab.`}
+          confirmLabel="Archive Group"
+          onConfirm={() => { setConfirmArchive(false); onArchive(); }}
+          onCancel={() => setConfirmArchive(false)}
         />
       )}
     </Shell>
@@ -3447,9 +3494,10 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [transferMode, setTransferMode] = useState(null); // null | "leave" | "standalone"
   const [selectedNewHost, setSelectedNewHost] = useState(null);
-  const upcoming = group.games.filter((g) => g.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
-  const past = group.games.filter((g) => g.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
-  const gamesList = gamesTab === "upcoming" ? upcoming : past;
+  const upcoming = group.games.filter((g) => g.status !== "archived" && g.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
+  const completed = group.games.filter((g) => g.status !== "archived" && g.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
+  const archivedGames = group.games.filter((g) => g.status === "archived").sort((a, b) => b.date - a.date);
+  const gamesList = gamesTab === "upcoming" ? upcoming : gamesTab === "completed" ? completed : archivedGames;
   const isCreator = group.members.some((m) => m.id === uid && m.host);
   const canInvite = isCreator || (group.openInvites ?? false);
   const otherMembers = group.members.filter((m) => m.id !== uid);
@@ -3502,9 +3550,9 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
           <>
             <Btn full onClick={() => { const check = canHostGame(user, groups, planCfg); if (!check.ok) { flash("Hosted game limit reached — upgrade for unlimited games", "🔒"); go("account"); return; } go("newGame", group.id); }} style={{ marginBottom: 14 }}>🀄 Schedule a Game</Btn>
 
-            {/* Upcoming / History tab pills */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-              {[["upcoming","📅 Upcoming"],["history","📖 History"]].map(([t, label]) => (
+            {/* Upcoming / Completed / Archived tab pills */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+              {[["upcoming","📅 Upcoming"],["completed","✅ Completed"],["archived","📦 Archived"]].map(([t, label]) => (
                 <button key={t} onClick={() => setGamesTab(t)} style={{
                   padding: "6px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700,
                   fontFamily: "'Inter',sans-serif", cursor: "pointer", transition: "all .18s",
@@ -3512,22 +3560,22 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
                   color: gamesTab === t ? "#fff" : "#b08090",
                   border: gamesTab === t ? "none" : "1px solid rgba(var(--primary-rgb),0.2)",
                   boxShadow: gamesTab === t ? `0 3px 12px ${group.color}55` : "none",
-                }}>{label}</button>
+                }}>{label}{t === "archived" && archivedGames.length > 0 ? ` (${archivedGames.length})` : ""}</button>
               ))}
             </div>
 
             {gamesList.length === 0 ? (
               <div style={{ textAlign: "center", color: "var(--primary-subtle)", padding: "36px 0" }}>
-                <div style={{ fontSize: 41 }}>{gamesTab === "upcoming" ? "📅" : "📖"}</div>
+                <div style={{ fontSize: 41 }}>{gamesTab === "upcoming" ? "📅" : gamesTab === "completed" ? "✅" : "📦"}</div>
                 <p style={{ fontWeight: 700, marginTop: 8, fontFamily: "'Inter',sans-serif", color: "var(--primary-muted)" }}>
-                  {gamesTab === "upcoming" ? "No upcoming games yet!" : "No past games yet."}
+                  {gamesTab === "upcoming" ? "No upcoming games yet!" : gamesTab === "completed" ? "No completed games yet." : "No archived games."}
                 </p>
                 {gamesTab === "upcoming" && <p style={{ fontSize: 14, marginTop: 4 }}>Be the first to schedule one.</p>}
               </div>
             ) : gamesList.map((gm, i) => (
               <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer" }}
                 onClick={() => go("game", group.id, gm.id)}>
-                <GCard game={gm} groupName={group.name} color={gamesTab === "upcoming" ? group.color : "#c0a8b8"} faded={gamesTab === "history"} />
+                <GCard game={gm} groupName={group.name} color={gamesTab === "upcoming" ? group.color : "#c0a8b8"} faded={gamesTab !== "upcoming"} />
               </div>
             ))}
           </>
@@ -4712,7 +4760,7 @@ function GuestGameView({ uid, groupId, gameId, go, flash }) {
           flash(action === "join" ? "Added to waitlist!" : "Removed from waitlist", action === "join" ? "⏳" : "👋");
         } catch { flash("Error updating waitlist", "❌"); }
       }}
-      onDelete={null}
+      onArchive={null}
     />
   );
 }
@@ -4752,10 +4800,10 @@ function generateSeating(playerIds, skillMap, tableSize = 4) {
 }
 
 /* GAME DETAIL */
-function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGuestView = false }) {
+function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, isGuestView = false }) {
   const [showAttendees, setShowAttendees] = useState(false);
   const [rsvpTab, setRsvpTab] = useState("going");
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
   const [seatingOpen, setSeatingOpen] = useState(false);
   // Firestore forbids nested arrays, so each table is stored as { players: [...] }.
   // Internally we keep seating as [[uid,...], ...] for simplicity.
@@ -5132,16 +5180,16 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onDelete, isGues
         {/* Add to Calendar */}
         <AddToCalendar game={game} groupName={group.name} />
 
-        {game.hostId === uid && <Btn full outline danger onClick={() => setConfirmDelete(true)}>🗑 Delete Game</Btn>}
+        {game.hostId === uid && <Btn full outline danger onClick={() => setConfirmArchive(true)}>📦 Archive Game</Btn>}
       </div>
     </div>
-    {confirmDelete && (
+    {confirmArchive && (
       <ConfirmDialog
-        title="Delete Game?"
-        message={`"${game.title}" will be permanently deleted and cannot be recovered.`}
-        confirmLabel="Delete Game"
-        onConfirm={() => { setConfirmDelete(false); onDelete(); }}
-        onCancel={() => setConfirmDelete(false)}
+        title="Archive Game?"
+        message={`"${game.title}" will be moved to your archive. It won't count toward your plan limits and will be automatically removed after 60 days. You can still view it in the Archived tab.`}
+        confirmLabel="Archive Game"
+        onConfirm={() => { setConfirmArchive(false); onArchive(); }}
+        onCancel={() => setConfirmArchive(false)}
       />
     )}
     {confirmReRandomize && (
