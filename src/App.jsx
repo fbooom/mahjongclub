@@ -2888,8 +2888,8 @@ function GamesPage({ groups, guestGames = [], go }) {
 
         <div style={{ position: "relative" }}>
           <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.60)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Your Games</div>
-          <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 34, color: "#fff", textShadow: "0 2px 16px rgba(0,0,0,0.22)", lineHeight: 1, letterSpacing: 0.5 }}>
-            {allGames.length} {allGames.length === 1 ? "Game" : "Games"}
+          <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,0.25)", lineHeight: 1.1, letterSpacing: 2 }}>
+            Your Games
           </h1>
           <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
             {upcoming.length > 0 && (
@@ -3019,8 +3019,8 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
         <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.60)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Your Groups</div>
-            <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 34, color: "#fff", textShadow: "0 2px 16px rgba(0,0,0,0.22)", lineHeight: 1, letterSpacing: 0.5 }}>
-              {activeGroups.length} {activeGroups.length === 1 ? "Group" : "Groups"}
+            <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,0.25)", lineHeight: 1.1, letterSpacing: 2 }}>
+              Your Groups
             </h1>
             {totalUpcoming > 0 && (
               <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 12 }}>
