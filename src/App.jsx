@@ -2309,10 +2309,10 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           const plan = getPlan(user);
           const lim = getPlanLimits(planCfg);
           const hostCheck = canHostGame(user, groups, planCfg);
-          const groupsUsed = groups.length;
+          const groupsUsed = groups.filter(g => g.status !== "archived").length;
           const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
           const futureHostedCount = groups.reduce((n, g) =>
-            n + (g.games || []).filter(gm => gm.hostId === user?.uid && gm.date >= todayStart.getTime()).length, 0);
+            n + (g.games || []).filter(gm => gm.hostId === user?.uid && gm.date >= todayStart.getTime() && gm.status !== "archived").length, 0);
 
           const Bar = ({ used, max, color }) => (
             <div style={{ height: 6, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
