@@ -56,18 +56,16 @@ function canAddGroup(groupCount, user, cfg) {
   return groupCount >= maxGroups ? { ok: false } : { ok: true };
 }
 
-// Returns { ok: true } or { ok: false, daysLeft: number }
-function canHostGame(user, cfg) {
+// Returns { ok: true } or { ok: false }
+// Counts active future hosted games (today or later) — deleted or past games never block the slot.
+function canHostGame(user, groups, cfg) {
   if (getPlan(user) !== "free") return { ok: true };
-  const { cycleDays } = getPlanLimits(cfg);
-  const last = user?.lastHostedAt;
-  if (!last) return { ok: true };
-  const cycleMs = cycleDays * 24 * 60 * 60 * 1000;
-  const elapsed = Date.now() - last;
-  if (elapsed < cycleMs) {
-    return { ok: false, daysLeft: Math.ceil((cycleMs - elapsed) / 86400000) };
-  }
-  return { ok: true };
+  const { gamesPerCycle } = getPlanLimits(cfg);
+  const uid = user?.uid;
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const futureHosted = (groups || []).reduce((n, g) =>
+    n + (g.games || []).filter(gm => gm.hostId === uid && gm.date >= todayStart.getTime()).length, 0);
+  return futureHosted >= gamesPerCycle ? { ok: false } : { ok: true };
 }
 
 const showBrowserNotif = (title, body, tag) => {
@@ -914,7 +912,7 @@ export default function App() {
             }} />
         )}
         {page === "group" && group && (
-          <Group uid={uid} group={group} go={go} flash={flash} user={displayUser} planCfg={userPlanCfg}
+          <Group uid={uid} group={group} go={go} flash={flash} user={displayUser} planCfg={userPlanCfg} groups={groups}
             onLeave={async () => {
               try {
                 await runTransaction(db, async (tx) => {
@@ -968,9 +966,9 @@ export default function App() {
               const arr = Array.isArray(games) ? games : [games];
               const isHosting = arr[0].hostId === uid;
               if (isHosting) {
-                const hostCheck = canHostGame(user, userPlanCfg);
+                const hostCheck = canHostGame(user, groups, userPlanCfg);
                 if (!hostCheck.ok) {
-                  flash(`Free plan: next hosted game available in ${hostCheck.daysLeft} day${hostCheck.daysLeft === 1 ? "" : "s"}`, "🔒");
+                  flash("Hosted game limit reached — upgrade for unlimited games", "🔒");
                   return;
                 }
               }
@@ -983,9 +981,6 @@ export default function App() {
                   }
                 });
                 await batch.commit();
-                if (isHosting) {
-                  await updateDoc(doc(db, "users", uid), { lastHostedAt: Date.now() });
-                }
                 // Optimistically add game(s) to state so they appear immediately
                 setGroups((prev) => prev.map((g) => {
                   if (g.id !== group.id) return g;
@@ -1102,7 +1097,7 @@ export default function App() {
  * ─────────────────────────────────────────────────────────────────────────── */
 function NewActionSheet({ uid, groups, user, planCfg, go, flash, onClose }) {
   const groupCheck  = canAddGroup(groups.length, user, planCfg);
-  const gameCheck   = canHostGame(user, planCfg);
+  const gameCheck   = canHostGame(user, groups, planCfg);
   const hostedGroups = groups.filter(g => g.members?.some(m => m.id === uid && m.host));
   const isHost       = hostedGroups.length > 0;
   const lim          = getPlanLimits(planCfg);
@@ -1208,7 +1203,7 @@ function NewActionSheet({ uid, groups, user, planCfg, go, flash, onClose }) {
         )}
         {!gameCheck.ok && canGroup && (
           <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", marginBottom: 10, padding: "8px 12px", background: "rgba(var(--primary-rgb),0.06)", borderRadius: 10 }}>
-            🀄 Game slot resets in {gameCheck.daysLeft} day{gameCheck.daysLeft === 1 ? "" : "s"} — upgrade for unlimited hosted games
+            🀄 Hosted game limit reached — upgrade for unlimited games
           </div>
         )}
 
@@ -2310,14 +2305,11 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
         {(() => {
           const plan = getPlan(user);
           const lim = getPlanLimits(planCfg);
-          const hostCheck = canHostGame(user, planCfg);
+          const hostCheck = canHostGame(user, groups, planCfg);
           const groupsUsed = groups.length;
-          const cycleResetDate = user.lastHostedAt
-            ? new Date(user.lastHostedAt + lim.cycleDays * 24 * 60 * 60 * 1000)
-            : null;
-          const hostedThisCycle = user.lastHostedAt
-            ? (Date.now() - user.lastHostedAt) < lim.cycleDays * 24 * 60 * 60 * 1000
-            : false;
+          const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+          const futureHostedCount = groups.reduce((n, g) =>
+            n + (g.games || []).filter(gm => gm.hostId === user?.uid && gm.date >= todayStart.getTime()).length, 0);
 
           const Bar = ({ used, max, color }) => (
             <div style={{ height: 6, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
@@ -2387,16 +2379,16 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                 {/* Hosted games */}
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>🀄 Hosted games / {lim.cycleDays}d</div>
-                    <div style={{ fontSize: 13, color: hostedThisCycle ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>
-                      {hostedThisCycle ? 1 : 0} / {lim.gamesPerCycle}
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>🀄 Upcoming hosted games</div>
+                    <div style={{ fontSize: 13, color: futureHostedCount >= lim.gamesPerCycle ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>
+                      {futureHostedCount} / {lim.gamesPerCycle}
                     </div>
                   </div>
-                  <Bar used={hostedThisCycle ? 1 : 0} max={lim.gamesPerCycle} />
+                  <Bar used={futureHostedCount} max={lim.gamesPerCycle} />
                   <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 5, fontFamily: "'Inter',sans-serif" }}>
-                    {hostedThisCycle
-                      ? `Next slot available ${cycleResetDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} (${hostCheck.daysLeft}d)`
-                      : "Slot available now"}
+                    {futureHostedCount >= lim.gamesPerCycle
+                      ? "Limit reached — delete or wait for a game to pass to free up a slot"
+                      : "Slot available — schedule a game"}
                   </div>
                 </div>
 
@@ -3448,7 +3440,7 @@ function JoinGroup({ uid, groups, onBack, onJoin, onJoinGame }) {
 }
 
 /* GROUP DETAIL */
-function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferHost, user, planCfg }) {
+function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferHost, user, planCfg, groups }) {
   const [tab, setTab] = useState("games");
   const [gamesTab, setGamesTab] = useState("upcoming");
   const [chatOpen, setChatOpen] = useState(false);
@@ -3508,7 +3500,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
       <div style={{ padding: "18px 16px 100px" }}>
         {tab === "games" && (
           <>
-            <Btn full onClick={() => { const check = canHostGame(user, planCfg); if (!check.ok) { flash(`Game limit reached — next slot available in ${check.daysLeft} day${check.daysLeft === 1 ? "" : "s"}. Upgrade for unlimited games`, "🔒"); go("account"); return; } go("newGame", group.id); }} style={{ marginBottom: 14 }}>🀄 Schedule a Game</Btn>
+            <Btn full onClick={() => { const check = canHostGame(user, groups, planCfg); if (!check.ok) { flash("Hosted game limit reached — upgrade for unlimited games", "🔒"); go("account"); return; } go("newGame", group.id); }} style={{ marginBottom: 14 }}>🀄 Schedule a Game</Btn>
 
             {/* Upcoming / History tab pills */}
             <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
