@@ -40,29 +40,37 @@ function getPlan(user) {
   return user?.subscription?.plan || "free";
 }
 
-// cfg = live plan config from Firestore (or null to use fallback)
+// cfg = live plan config from Firestore (or null → apply free-plan defaults).
+// If cfg is present but a limit field is absent/null, that limit is unlimited (Infinity).
 function getPlanLimits(cfg) {
+  if (!cfg) {
+    return {
+      maxGroups:     FREE_PLAN.maxGroups,
+      gamesPerCycle: FREE_PLAN.gamesPerCycle,
+      cycleDays:     FREE_PLAN.cycleDays,
+    };
+  }
   return {
-    maxGroups:     cfg?.limits?.maxGroups     ?? FREE_PLAN.maxGroups,
-    gamesPerCycle: cfg?.limits?.gamesPerCycle ?? FREE_PLAN.gamesPerCycle,
-    cycleDays:     cfg?.limits?.cycleDays     ?? FREE_PLAN.cycleDays,
+    maxGroups:     cfg.limits?.maxGroups     ?? Infinity,
+    gamesPerCycle: cfg.limits?.gamesPerCycle ?? Infinity,
+    cycleDays:     cfg.limits?.cycleDays     ?? FREE_PLAN.cycleDays,
   };
 }
 
 // Returns { ok: true } or { ok: false }
-// Only active (non-archived) groups count toward the limit.
+// Enforces the plan's maxGroups limit for every plan. Unlimited = Infinity in cfg.
 function canAddGroup(groups, user, cfg) {
-  if (getPlan(user) !== "free") return { ok: true };
   const { maxGroups } = getPlanLimits(cfg);
+  if (!isFinite(maxGroups)) return { ok: true };
   const activeCount = (Array.isArray(groups) ? groups : []).filter(g => g.status !== "archived").length;
   return activeCount >= maxGroups ? { ok: false } : { ok: true };
 }
 
 // Returns { ok: true } or { ok: false }
-// Counts active future hosted games (today or later) — deleted or past games never block the slot.
+// Enforces the plan's gamesPerCycle limit for every plan. Unlimited = Infinity in cfg.
 function canHostGame(user, groups, cfg) {
-  if (getPlan(user) !== "free") return { ok: true };
   const { gamesPerCycle } = getPlanLimits(cfg);
+  if (!isFinite(gamesPerCycle)) return { ok: true };
   const uid = user?.uid;
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const futureHosted = (groups || []).reduce((n, g) =>
@@ -848,7 +856,7 @@ export default function App() {
             onSave={async (g) => {
               if (!canAddGroup(groups, user, userPlanCfg).ok) {
                 const lim = getPlanLimits(userPlanCfg);
-                flash(`Free plan allows up to ${lim.maxGroups} groups`, "🔒"); go("groups"); return;
+                flash(`Your plan allows up to ${isFinite(lim.maxGroups) ? lim.maxGroups : "∞"} groups`, "🔒"); go("groups"); return;
               }
               try {
                 const groupData = { ...g, members: [{ id: uid, name: user.name, avatar: user.avatar, host: true }], memberIds: [uid] };
@@ -1153,7 +1161,7 @@ function NewActionSheet({ uid, groups, user, planCfg, go, flash, onClose }) {
             <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
             <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: "var(--section-title)", marginBottom: 8 }}>You've reached your plan limits</div>
             <div style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6 }}>
-              Your plan allows {lim.maxGroups} group{lim.maxGroups !== 1 ? "s" : ""} and {lim.gamesPerCycle} hosted game every {lim.cycleDays} days — both are currently at capacity. Upgrade to unlock unlimited groups and games.
+              Your plan allows {isFinite(lim.maxGroups) ? lim.maxGroups : "∞"} group{lim.maxGroups !== 1 ? "s" : ""} and {isFinite(lim.gamesPerCycle) ? lim.gamesPerCycle : "∞"} hosted game{lim.gamesPerCycle !== 1 ? "s" : ""} every {lim.cycleDays} days — both are currently at capacity.
             </div>
           </div>
           <Btn full onClick={handleUpgrade} style={{ marginBottom: 8 }}>Upgrade my plan</Btn>
@@ -2367,12 +2375,12 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>👥 Groups</div>
-                    <div style={{ fontSize: 13, color: groupsUsed >= lim.maxGroups ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>
-                      {groupsUsed} / {lim.maxGroups}
+                    <div style={{ fontSize: 13, color: isFinite(lim.maxGroups) && groupsUsed >= lim.maxGroups ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>
+                      {groupsUsed} / {isFinite(lim.maxGroups) ? lim.maxGroups : "∞"}
                     </div>
                   </div>
-                  <Bar used={groupsUsed} max={lim.maxGroups} />
-                  {groupsUsed >= lim.maxGroups && (
+                  <Bar used={groupsUsed} max={isFinite(lim.maxGroups) ? lim.maxGroups : groupsUsed + 1} />
+                  {isFinite(lim.maxGroups) && groupsUsed >= lim.maxGroups && (
                     <div style={{ fontSize: 12, color: "var(--primary)", marginTop: 5, fontFamily: "'Inter',sans-serif" }}>
                       Group limit reached
                     </div>
@@ -2383,13 +2391,13 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>🀄 Upcoming hosted games</div>
-                    <div style={{ fontSize: 13, color: futureHostedCount >= lim.gamesPerCycle ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>
-                      {futureHostedCount} / {lim.gamesPerCycle}
+                    <div style={{ fontSize: 13, color: isFinite(lim.gamesPerCycle) && futureHostedCount >= lim.gamesPerCycle ? "var(--primary)" : "var(--text-muted)", fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>
+                      {futureHostedCount} / {isFinite(lim.gamesPerCycle) ? lim.gamesPerCycle : "∞"}
                     </div>
                   </div>
-                  <Bar used={futureHostedCount} max={lim.gamesPerCycle} />
+                  <Bar used={futureHostedCount} max={isFinite(lim.gamesPerCycle) ? lim.gamesPerCycle : futureHostedCount + 1} />
                   <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 5, fontFamily: "'Inter',sans-serif" }}>
-                    {futureHostedCount >= lim.gamesPerCycle
+                    {isFinite(lim.gamesPerCycle) && futureHostedCount >= lim.gamesPerCycle
                       ? "Limit reached — archive or wait for a game to pass to free up a slot"
                       : "Slot available — schedule a game"}
                   </div>
