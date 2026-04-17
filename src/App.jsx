@@ -2909,24 +2909,21 @@ function GamesPage({ groups, guestGames = [], go }) {
       </div>
 
       {/* ── Tab pills ── */}
-      <div style={{ padding: "18px 16px 0" }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 16, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
-          {[["upcoming","📅 Upcoming"],["completed","✅ Completed"],["archived","📦 Archived"]].map(([t, label]) => (
-            <button key={t} onClick={() => setTab(t)} style={{
-              padding: "8px 20px", borderRadius: 999, fontSize: 13, fontWeight: 700,
-              fontFamily: "'Inter',sans-serif", cursor: "pointer", transition: "all .18s",
-              background: tab === t ? "var(--active-tab-gradient)" : "var(--bg-surface)",
-              color: tab === t ? "#fff" : "#b08090",
-              border: tab === t ? "none" : "1px solid rgba(var(--primary-rgb),0.2)",
-              boxShadow: tab === t ? "0 3px 12px rgba(var(--shadow-rgb),0.3)" : "none",
-              flexShrink: 0, whiteSpace: "nowrap",
-            }}>{label}{t === "archived" && archived.length > 0 ? ` (${archived.length})` : ""}</button>
-          ))}
-        </div>
+      <div style={{ display: "flex", gap: 8, padding: "18px 16px 0", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", marginBottom: 0 }}>
+        {[["upcoming","📅 Upcoming"],["completed","✅ Completed"],["archived","📦 Archived"]].map(([t, label]) => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            padding: "7px 18px", borderRadius: 999, fontSize: 13, fontWeight: 700,
+            fontFamily: "'Inter',sans-serif", cursor: "pointer", border: "none",
+            background: tab === t ? "var(--active-tab-gradient)" : "var(--bg-surface)",
+            color: tab === t ? "#fff" : "var(--text-muted)",
+            boxShadow: tab === t ? "0 2px 10px var(--shadow-btn)" : "none",
+            transition: "all .15s", flexShrink: 0, whiteSpace: "nowrap",
+          }}>{label}{t === "archived" && archived.length > 0 ? ` (${archived.length})` : ""}</button>
+        ))}
       </div>
 
       {/* ── Game list ── */}
-      <div style={{ padding: "0 16px 24px" }}>
+      <div style={{ padding: "16px 16px 24px" }}>
         {list.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "52px 24px", textAlign: "center" }}>
             <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>{tab === "upcoming" ? "📅" : tab === "completed" ? "✅" : "📦"}</div>
