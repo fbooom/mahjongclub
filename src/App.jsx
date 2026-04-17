@@ -6078,7 +6078,7 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
 
   const EMPTY_FORM = {
     planKey: "", name: "", price: "0", interval: "month", description: "", features: "",
-    limitMaxGroups: "2", limitGamesPerCycle: "1", limitCycleDays: "30", limitAllowRecurring: false,
+    limitMaxGroups: "", limitGamesPerCycle: "", limitCycleDays: "30", limitAllowRecurring: false,
     paymentLink: "",
   };
 
@@ -6104,9 +6104,9 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
     interval: pkg.interval || "month",
     description: pkg.description || "",
     features: (pkg.features || []).join("\n"),
-    limitMaxGroups:     String(pkg.limits?.maxGroups     ?? "2"),
-    limitGamesPerCycle: String(pkg.limits?.gamesPerCycle ?? "1"),
-    limitCycleDays:     String(pkg.limits?.cycleDays     ?? "30"),
+    limitMaxGroups:     pkg.limits?.maxGroups     != null ? String(pkg.limits.maxGroups)     : "",
+    limitGamesPerCycle: pkg.limits?.gamesPerCycle != null ? String(pkg.limits.gamesPerCycle) : "",
+    limitCycleDays:     String(pkg.limits?.cycleDays ?? "30"),
     limitAllowRecurring: pkg.limits?.allowRecurring ?? false,
     paymentLink: pkg.paymentLink || "",
   });
@@ -6119,9 +6119,9 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
     description: f.description.trim(),
     features: f.features.split("\n").map((s) => s.trim()).filter(Boolean),
     limits: {
-      maxGroups:     parseInt(f.limitMaxGroups, 10)     || 2,
-      gamesPerCycle: parseInt(f.limitGamesPerCycle, 10) || 1,
-      cycleDays:     parseInt(f.limitCycleDays, 10)     || 30,
+      maxGroups:     f.limitMaxGroups.trim()     !== "" ? parseInt(f.limitMaxGroups, 10)     : null,
+      gamesPerCycle: f.limitGamesPerCycle.trim() !== "" ? parseInt(f.limitGamesPerCycle, 10) : null,
+      cycleDays:     parseInt(f.limitCycleDays, 10) || 30,
       allowRecurring: !!f.limitAllowRecurring,
     },
     paymentLink: f.paymentLink?.trim() || "",
@@ -6200,10 +6200,10 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
 
   const inp = { width: "100%", padding: "10px 14px", borderRadius: 10, fontSize: 14, border: "1.5px solid rgba(155,110,168,0.3)", background: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: "'Inter',sans-serif", outline: "none", boxSizing: "border-box", marginBottom: 10 };
   const Lbl2 = ({ children }) => <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(232,160,208,0.7)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 5, fontFamily: "'Inter',sans-serif" }}>{children}</div>;
-  const numInp = (field, label, min = 1) => (
+  const numInp = (field, label, min = 1, placeholder = "") => (
     <div style={{ flex: 1 }}>
       <Lbl2>{label}</Lbl2>
-      <input type="number" min={min} value={form[field] ?? ""} onChange={(e) => setForm({ ...form, [field]: e.target.value })} style={{ ...inp, marginBottom: 0 }} />
+      <input type="number" min={min} value={form[field] ?? ""} placeholder={placeholder} onChange={(e) => setForm({ ...form, [field]: e.target.value })} style={{ ...inp, marginBottom: 0 }} />
     </div>
   );
 
@@ -6255,8 +6255,8 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
         <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 14, padding: "16px", marginBottom: 10, border: "1px solid rgba(155,110,168,0.25)" }}>
           <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, color: "#e8a0d0", marginBottom: 14 }}>Plan Limits</div>
           <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-            {numInp("limitMaxGroups", "Max Groups")}
-            {numInp("limitGamesPerCycle", "Hosted Games / Cycle")}
+            {numInp("limitMaxGroups", "Max Groups", 1, "Unlimited")}
+            {numInp("limitGamesPerCycle", "Hosted Games / Cycle", 1, "Unlimited")}
             {numInp("limitCycleDays", "Cycle Days")}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
