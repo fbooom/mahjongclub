@@ -2663,11 +2663,13 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
           ))}
           {fullList.length > 3 && (
             <button onClick={() => go("games")} style={{
-              width: "100%", padding: "10px 0", background: "none", border: "1px dashed rgba(var(--primary-rgb),0.3)",
-              borderRadius: 12, color: "var(--primary)", fontSize: 14, fontWeight: 700,
-              fontFamily: "'Inter',sans-serif", cursor: "pointer", marginTop: 2,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+              width: "100%", padding: "8px 0", background: "none", border: "none",
+              color: "var(--primary)", fontSize: 13, fontWeight: 600,
+              fontFamily: "'Inter',sans-serif", cursor: "pointer", marginTop: 4, opacity: 0.75,
             }}>
-              See {fullList.length - 3} more ↓
+              {fullList.length - 3} more · View all
+              <span style={{ fontSize: 16, lineHeight: 1 }}>›</span>
             </button>
           )}
         </>
@@ -2839,11 +2841,13 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash, onNew
             ))}
             {groups.filter(g => g.status !== "archived").length > 3 && (
               <button onClick={() => go("groups")} style={{
-                width: "100%", padding: "10px 0", background: "none", border: "1px dashed rgba(var(--primary-rgb),0.3)",
-                borderRadius: 12, color: "var(--primary)", fontSize: 14, fontWeight: 700,
-                fontFamily: "'Inter',sans-serif", cursor: "pointer", marginBottom: 16,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+                width: "100%", padding: "8px 0", background: "none", border: "none",
+                color: "var(--primary)", fontSize: 13, fontWeight: 600,
+                fontFamily: "'Inter',sans-serif", cursor: "pointer", marginBottom: 16, opacity: 0.75,
               }}>
-                See {groups.filter(g => g.status !== "archived").length - 3} more ↓
+                {groups.filter(g => g.status !== "archived").length - 3} more · View all
+                <span style={{ fontSize: 16, lineHeight: 1 }}>›</span>
               </button>
             )}
 
