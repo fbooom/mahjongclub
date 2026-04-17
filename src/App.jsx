@@ -2866,7 +2866,8 @@ function GamesPage({ groups, guestGames = [], go }) {
   const allGames = [...memberGames, ...guestGames];
   const upcoming = allGames.filter((gm) => gm.status !== "archived" && gm.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
   const completed = allGames.filter((gm) => gm.status !== "archived" && gm.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
-  const list = tab === "upcoming" ? upcoming : completed;
+  const archived = allGames.filter((gm) => gm.status === "archived").sort((a, b) => b.date - a.date);
+  const list = tab === "upcoming" ? upcoming : tab === "completed" ? completed : archived;
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)" }}>
@@ -2909,8 +2910,8 @@ function GamesPage({ groups, guestGames = [], go }) {
 
       {/* ── Tab pills ── */}
       <div style={{ padding: "18px 16px 0" }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          {[["upcoming","📅 Upcoming"],["completed","✅ Completed"]].map(([t, label]) => (
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+          {[["upcoming","📅 Upcoming"],["completed","✅ Completed"],["archived","📦 Archived"]].map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)} style={{
               padding: "8px 20px", borderRadius: 999, fontSize: 13, fontWeight: 700,
               fontFamily: "'Inter',sans-serif", cursor: "pointer", transition: "all .18s",
@@ -2918,7 +2919,8 @@ function GamesPage({ groups, guestGames = [], go }) {
               color: tab === t ? "#fff" : "#b08090",
               border: tab === t ? "none" : "1px solid rgba(var(--primary-rgb),0.2)",
               boxShadow: tab === t ? "0 3px 12px rgba(var(--shadow-rgb),0.3)" : "none",
-            }}>{label}</button>
+              flexShrink: 0, whiteSpace: "nowrap",
+            }}>{label}{t === "archived" && archived.length > 0 ? ` (${archived.length})` : ""}</button>
           ))}
         </div>
       </div>
@@ -2927,12 +2929,12 @@ function GamesPage({ groups, guestGames = [], go }) {
       <div style={{ padding: "0 16px 24px" }}>
         {list.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "52px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>{tab === "upcoming" ? "📅" : "✅"}</div>
+            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>{tab === "upcoming" ? "📅" : tab === "completed" ? "✅" : "📦"}</div>
             <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 20, color: "var(--primary-muted)", marginBottom: 8 }}>
-              {tab === "upcoming" ? "No upcoming games" : "No completed games yet"}
+              {tab === "upcoming" ? "No upcoming games" : tab === "completed" ? "No completed games yet" : "No archived games"}
             </h2>
             <p style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 260 }}>
-              {tab === "upcoming" ? "Head to a group and schedule your next session." : "Completed games will appear here."}
+              {tab === "upcoming" ? "Head to a group and schedule your next session." : tab === "completed" ? "Completed games will appear here." : "Archived games will appear here."}
             </p>
           </div>
         ) : (
@@ -2950,10 +2952,10 @@ function GamesPage({ groups, guestGames = [], go }) {
                     : "rgba(245,235,242,0.55)",
                   backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
                   borderRadius: 18, padding: "14px 15px", marginBottom: 10,
-                  opacity: tab === "completed" ? 0.78 : 1,
+                  opacity: tab !== "upcoming" ? 0.78 : 1,
                   boxShadow: tab === "upcoming" ? "0 4px 18px rgba(var(--shadow-rgb),0.09), inset 0 1px 0 var(--shadow-inset)" : "none",
                   border: "1px solid var(--border-card)",
-                  borderLeft: `4px solid ${gm.groupColor}`,
+                  borderLeft: `4px solid ${tab === "archived" ? "#9ca3af" : gm.groupColor}`,
                 }}>
                   <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", marginBottom: 4 }}>{gm.title}</div>
                   {!gm.isGuestGame ? (
@@ -3550,32 +3552,16 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
           <>
             <Btn full onClick={() => { const check = canHostGame(user, groups, planCfg); if (!check.ok) { flash("Hosted game limit reached — upgrade for unlimited games", "🔒"); go("account"); return; } go("newGame", group.id); }} style={{ marginBottom: 14 }}>🀄 Schedule a Game</Btn>
 
-            {/* Upcoming / Completed / Archived tab pills */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-              {[["upcoming","📅 Upcoming"],["completed","✅ Completed"],["archived","📦 Archived"]].map(([t, label]) => (
-                <button key={t} onClick={() => setGamesTab(t)} style={{
-                  padding: "6px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700,
-                  fontFamily: "'Inter',sans-serif", cursor: "pointer", transition: "all .18s",
-                  background: gamesTab === t ? `linear-gradient(135deg,${group.color},${group.color}cc)` : "var(--bg-surface)",
-                  color: gamesTab === t ? "#fff" : "#b08090",
-                  border: gamesTab === t ? "none" : "1px solid rgba(var(--primary-rgb),0.2)",
-                  boxShadow: gamesTab === t ? `0 3px 12px ${group.color}55` : "none",
-                }}>{label}{t === "archived" && archivedGames.length > 0 ? ` (${archivedGames.length})` : ""}</button>
-              ))}
-            </div>
-
-            {gamesList.length === 0 ? (
+            {upcoming.length === 0 ? (
               <div style={{ textAlign: "center", color: "var(--primary-subtle)", padding: "36px 0" }}>
-                <div style={{ fontSize: 41 }}>{gamesTab === "upcoming" ? "📅" : gamesTab === "completed" ? "✅" : "📦"}</div>
-                <p style={{ fontWeight: 700, marginTop: 8, fontFamily: "'Inter',sans-serif", color: "var(--primary-muted)" }}>
-                  {gamesTab === "upcoming" ? "No upcoming games yet!" : gamesTab === "completed" ? "No completed games yet." : "No archived games."}
-                </p>
-                {gamesTab === "upcoming" && <p style={{ fontSize: 14, marginTop: 4 }}>Be the first to schedule one.</p>}
+                <div style={{ fontSize: 41 }}>📅</div>
+                <p style={{ fontWeight: 700, marginTop: 8, fontFamily: "'Inter',sans-serif", color: "var(--primary-muted)" }}>No upcoming games yet!</p>
+                <p style={{ fontSize: 14, marginTop: 4 }}>Be the first to schedule one.</p>
               </div>
-            ) : gamesList.map((gm, i) => (
+            ) : upcoming.map((gm, i) => (
               <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer" }}
                 onClick={() => go("game", group.id, gm.id)}>
-                <GCard game={gm} groupName={group.name} color={gamesTab === "upcoming" ? group.color : "#c0a8b8"} faded={gamesTab !== "upcoming"} />
+                <GCard game={gm} groupName={group.name} color={group.color} faded={false} />
               </div>
             ))}
           </>
