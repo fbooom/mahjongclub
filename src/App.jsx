@@ -2892,7 +2892,7 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
     <div style={{ minHeight: "100vh", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)" }}>
 
       {/* ── Header ── */}
-      <div style={{ background: "var(--header-gradient2)", padding: "54px 22px 30px", position: "relative", overflow: "hidden" }}>
+      <div style={{ background: "var(--header-gradient2)", position: "relative", overflow: "hidden" }}>
         {/* Decorative tile glyphs */}
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
           {["🀄","🀇","🀙","🀅","🀃"].map((t, i) => (
@@ -2905,23 +2905,29 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.10) 0%,transparent 60%)", pointerEvents: "none" }} />
         </div>
 
-        <div style={{ position: "relative", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
-          <div>
-            <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,0.25)", lineHeight: 1.1, letterSpacing: 2 }}>
-              Your Games
-            </h1>
-          </div>
-          <div style={{ display: "flex", gap: 8, flexShrink: 0, paddingBottom: 4 }}>
+        <div style={{
+          position: "relative",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "54px 20px 20px", gap: 12,
+        }}>
+          <h1 style={{
+            fontFamily: "'Inter',sans-serif", fontSize: 20, fontWeight: 500,
+            color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,0.20)",
+            margin: 0, lineHeight: 1,
+          }}>Your Games</h1>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             <button onClick={() => go("joinGroup")} style={{
-              background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.30)",
-              borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
-              color: "#fff", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
+              background: "transparent", border: "1.5px solid rgba(255,255,255,0.55)",
+              borderRadius: 20, padding: "6px 14px", fontSize: 13, fontWeight: 500,
+              color: "#fff", fontFamily: "'Inter',sans-serif", cursor: "pointer", lineHeight: 1,
             }}>Join</button>
             <button onClick={() => go("newChoice")} style={{
-              background: "rgba(255,255,255,0.25)", border: "1px solid rgba(255,255,255,0.40)",
-              borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
-              color: "#fff", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
-            }}>＋ New</button>
+              background: "#fff", border: "1.5px solid #fff",
+              borderRadius: 20, padding: "6px 14px", fontSize: 13, fontWeight: 500,
+              color: "var(--primary-dark)", fontFamily: "'Inter',sans-serif", cursor: "pointer", lineHeight: 1,
+              display: "flex", alignItems: "center", gap: 4,
+            }}><span>＋</span><span>New</span></button>
           </div>
         </div>
       </div>
