@@ -2911,9 +2911,9 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
           padding: "54px 20px 20px", gap: 12,
         }}>
           <h1 style={{
-            fontFamily: "'Inter',sans-serif", fontSize: 20, fontWeight: 500,
-            color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,0.20)",
-            margin: 0, lineHeight: 1,
+            fontFamily: "'Shippori Mincho',serif", fontSize: 31, fontWeight: 700,
+            color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,0.25)",
+            margin: 0, lineHeight: 1.1, letterSpacing: 2,
           }}>Your Games</h1>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
