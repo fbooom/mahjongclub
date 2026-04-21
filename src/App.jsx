@@ -2905,24 +2905,38 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.10) 0%,transparent 60%)", pointerEvents: "none" }} />
         </div>
 
-        <div style={{ position: "relative" }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.60)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Your Games</div>
-          <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,0.25)", lineHeight: 1.1, letterSpacing: 2 }}>
-            Your Games
-          </h1>
-          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
-            {upcoming.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.15)", borderRadius: 999, padding: "4px 11px", backdropFilter: "blur(8px)" }}>
-                <span style={{ fontSize: 13 }}>📅</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>{upcoming.length} upcoming</span>
-              </div>
-            )}
-            {completed.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.12)", borderRadius: 999, padding: "4px 11px", backdropFilter: "blur(8px)" }}>
-                <span style={{ fontSize: 13 }}>✅</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.75)" }}>{completed.length} completed</span>
-              </div>
-            )}
+        <div style={{ position: "relative", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.60)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Your Games</div>
+            <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,0.25)", lineHeight: 1.1, letterSpacing: 2 }}>
+              Your Games
+            </h1>
+            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
+              {upcoming.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.15)", borderRadius: 999, padding: "4px 11px", backdropFilter: "blur(8px)" }}>
+                  <span style={{ fontSize: 13 }}>📅</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>{upcoming.length} upcoming</span>
+                </div>
+              )}
+              {completed.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.12)", borderRadius: 999, padding: "4px 11px", backdropFilter: "blur(8px)" }}>
+                  <span style={{ fontSize: 13 }}>✅</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.75)" }}>{completed.length} completed</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0, paddingBottom: 4 }}>
+            <button onClick={() => go("joinGroup")} style={{
+              background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.30)",
+              borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
+              color: "#fff", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
+            }}>Join</button>
+            <button onClick={() => go("newChoice")} style={{
+              background: "rgba(255,255,255,0.25)", border: "1px solid rgba(255,255,255,0.40)",
+              borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
+              color: "#fff", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
+            }}>＋ New</button>
           </div>
         </div>
       </div>
