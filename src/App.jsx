@@ -61,14 +61,17 @@ function canAddGroup(groups, user, cfg) {
 
 // Returns { ok: true } or { ok: false }
 // Enforces the plan's gamesPerCycle limit for every plan. Unlimited = Infinity in cfg.
-function canHostGame(user, groups, cfg) {
+// standaloneGames: optional array of standalone (non-group) hosted games to include in the count.
+function canHostGame(user, groups, cfg, standaloneGames = []) {
   const { gamesPerCycle } = getPlanLimits(cfg);
   if (!isFinite(gamesPerCycle)) return { ok: true };
   const uid = user?.uid;
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const futureHosted = (groups || []).reduce((n, g) =>
+  const futureGroupHosted = (groups || []).reduce((n, g) =>
     n + (g.games || []).filter(gm => gm.hostId === uid && gm.date >= todayStart.getTime() && gm.status !== "archived").length, 0);
-  return futureHosted >= gamesPerCycle ? { ok: false } : { ok: true };
+  const futureStandaloneHosted = (standaloneGames || [])
+    .filter(gm => gm.date >= todayStart.getTime() && gm.status !== "archived").length;
+  return (futureGroupHosted + futureStandaloneHosted) >= gamesPerCycle ? { ok: false } : { ok: true };
 }
 
 const showBrowserNotif = (title, body, tag) => {
@@ -343,6 +346,7 @@ export default function App() {
 
   const [groups, setGroups] = useState([]);
   const [guestGames, setGuestGames] = useState([]);
+  const [standaloneGames, setStandaloneGames] = useState([]);
   // planConfigs: { [planKey]: planDocument } — real-time from subscriptionPackages
   const [planConfigs, setPlanConfigs] = useState({});
   const [page, setPage] = useState("home");
@@ -383,7 +387,6 @@ export default function App() {
   const [authUser, setAuthUser] = useState(undefined); // undefined = checking, null = logged out
   const [user, setUser] = useState(null);
   const [showWelcome, setShowWelcome] = useState(false);
-  const [showNewSheet, setShowNewSheet] = useState(false);
   const [impersonating, setImpersonating] = useState(null); // { uid, name, avatar, email }
   const gamesUnsubs = useRef({});
   const groupMeta = useRef({});
@@ -515,11 +518,20 @@ export default function App() {
       });
     });
 
+    // Listener for standalone games where this user is the host
+    const standaloneUnsub = onSnapshot(
+      query(collection(db, "games"), where("hostId", "==", uid)),
+      (snap) => {
+        setStandaloneGames(snap.docs.map((d) => ({ ...d.data(), id: d.id, isStandalone: true, groupColor: "#7c3aed", groupName: "Open Game" })));
+      }
+    );
+
     // Listener for guest games: watch the user doc's guestGameRefs array,
     // then set up individual game listeners for each ref.
     const userDocUnsub = onSnapshot(doc(db, "users", uid), (userSnap) => {
       const refs = userSnap.data()?.guestGameRefs || [];
-      const refKeys = new Set(refs.map((r) => `${r.groupId}:${r.gameId}`));
+      // Normalise key: standalone refs have groupId=null, keyed as "standalone:{gameId}"
+      const refKeys = new Set(refs.map((r) => r.groupId ? `${r.groupId}:${r.gameId}` : `standalone:${r.gameId}`));
 
       // Clean up listeners for refs that were removed
       Object.keys(guestGameUnsubs.current).forEach((key) => {
@@ -527,6 +539,10 @@ export default function App() {
           guestGameUnsubs.current[key]();
           delete guestGameUnsubs.current[key];
           setGuestGames((prev) => {
+            if (key.startsWith("standalone:")) {
+              const gmId = key.slice("standalone:".length);
+              return prev.filter((g) => !(g.id === gmId && g.isStandalone));
+            }
             const [gId, gmId] = key.split(":");
             return prev.filter((g) => !(g.id === gmId && g.groupId === gId));
           });
@@ -536,6 +552,22 @@ export default function App() {
       if (refs.length === 0) { setGuestGames([]); return; }
 
       refs.forEach(({ groupId, gameId }) => {
+        // ── Standalone guest game (no groupId) ──
+        if (!groupId) {
+          const key = `standalone:${gameId}`;
+          if (guestGameUnsubs.current[key]) return;
+          guestGameUnsubs.current[key] = onSnapshot(
+            doc(db, "games", gameId),
+            (gameSnap) => {
+              if (!gameSnap.exists()) return;
+              const updated = { ...gameSnap.data(), id: gameId, isStandalone: true, isGuestGame: true, groupColor: "#7c3aed", groupName: "Open Game" };
+              setGuestGames((prev) => [...prev.filter((g) => !(g.id === gameId && g.isStandalone)), updated]);
+            }
+          );
+          return;
+        }
+
+        // ── Group guest game ──
         const key = `${groupId}:${gameId}`;
         if (guestGameUnsubs.current[key]) return;
 
@@ -563,6 +595,7 @@ export default function App() {
 
     return () => {
       groupsUnsub();
+      standaloneUnsub();
       userDocUnsub();
       Object.values(gamesUnsubs.current).forEach((u) => u());
       Object.values(guestGameUnsubs.current).forEach((u) => u());
@@ -646,11 +679,18 @@ export default function App() {
           }
           const { groupId, gameId: gId } = snap.data();
           try {
-            await updateDoc(doc(db, "groups", groupId, "games", gId), {
-              guestIds: arrayUnion(authUser.uid), [`rsvps.${authUser.uid}`]: "yes",
-            });
-            await updateDoc(doc(db, "users", authUser.uid), { guestGameRefs: arrayUnion({ groupId, gameId: gId }) });
-            go_("guestGame", groupId, gId);
+            if (!groupId) {
+              // Standalone game join
+              await updateDoc(doc(db, "games", gId), { guestIds: arrayUnion(authUser.uid), [`rsvps.${authUser.uid}`]: "yes" });
+              await updateDoc(doc(db, "users", authUser.uid), { guestGameRefs: arrayUnion({ groupId: null, gameId: gId }) });
+              go_("standaloneGame", null, gId);
+            } else {
+              await updateDoc(doc(db, "groups", groupId, "games", gId), {
+                guestIds: arrayUnion(authUser.uid), [`rsvps.${authUser.uid}`]: "yes",
+              });
+              await updateDoc(doc(db, "users", authUser.uid), { guestGameRefs: arrayUnion({ groupId, gameId: gId }) });
+              go_("guestGame", groupId, gId);
+            }
             setToast({ msg: "You're in! See you at the table 🀄", icon: "🎉" }); setTimeout(() => setToast(null), 3000);
           } catch {
             setToast({ msg: "Could not join game.", icon: "❌" }); setTimeout(() => setToast(null), 2600);
@@ -748,8 +788,8 @@ export default function App() {
     { id: "groups",  icon: "👥", label: "Groups"  },
     { id: "account", icon: "👤", label: "Account" },
   ];
-  const GROUP_PAGES = ["groups","group","newGroup","joinGroup","editGroup","newGame","game","editGame","invite"];
-  const GAMES_PAGES = ["games","guestGame"];
+  const GROUP_PAGES = ["groups","group","newGroup","joinGroup","editGroup","newGame","game","editGame","invite","newChoice"];
+  const GAMES_PAGES = ["games","guestGame","standaloneGame"];
 
   // Admin hub renders outside the app shell (full viewport)
   if (page === "adminHub" && user?.isAdmin) {
@@ -824,7 +864,6 @@ export default function App() {
       )}
 
       {showWelcome && <WelcomeModal onClose={() => { setShowWelcome(false); go("account"); }} />}
-      {showNewSheet && <NewActionSheet uid={uid} groups={groups} user={displayUser} planCfg={userPlanCfg} go={go} flash={flash} onClose={() => setShowNewSheet(false)} />}
 
       {/* Page content + toast — wrapped so toast floats just above the nav */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
@@ -840,9 +879,10 @@ export default function App() {
           </div>
         )}
       <div ref={scrollRef} data-scroll-container style={{ height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 16, paddingTop: impersonating ? 52 : 0 }}>
-        {page === "home" && <Home groups={groups} guestGames={guestGames} go={go} user={displayUser} activeTheme={activeTheme} planCfg={userPlanCfg} flash={flash} onNew={() => setShowNewSheet(true)} />}
-        {page === "games" && <GamesPage groups={groups} guestGames={guestGames} go={go} />}
-        {page === "groups" && <GroupsPage groups={groups} go={go} user={displayUser} planCfg={userPlanCfg} flash={flash} onNew={() => setShowNewSheet(true)} />}
+        {page === "home" && <Home groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} user={displayUser} activeTheme={activeTheme} planCfg={userPlanCfg} flash={flash} onNew={() => go("newChoice")} />}
+        {page === "games" && <GamesPage groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} />}
+        {page === "groups" && <GroupsPage groups={groups} go={go} user={displayUser} planCfg={userPlanCfg} flash={flash} onNew={() => go("newChoice")} />}
+        {page === "newChoice" && <NewChoice uid={uid} groups={groups} user={displayUser} planCfg={userPlanCfg} standaloneGames={standaloneGames} go={go} flash={flash} onBack={() => go("home")} />}
         {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} activeThemeId={activeTheme.id} onThemeChange={handleThemeChange} planCfg={userPlanCfg} />}
         {page === "newGroup" && (
           <NewGroup onBack={() => go("groups")}
@@ -862,7 +902,7 @@ export default function App() {
             }} />
         )}
         {page === "joinGroup" && (
-          <JoinGroup uid={uid} groups={groups} onBack={() => go("home")}
+          <JoinGroup uid={uid} groups={groups} user={user} planCfg={userPlanCfg} onBack={() => go("home")}
             onJoin={async (id) => {
               if (!canAddGroup(groups, user, userPlanCfg).ok) {
                 flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return;
@@ -881,15 +921,25 @@ export default function App() {
                 go("group", id); flash("Joined!", "🎊");
               } catch { flash("Error joining group", "❌"); }
             }}
-            onJoinGame={async (groupId, gameId) => {
+            onJoinGame={async (groupId, gameId, isStandalone) => {
               try {
-                await updateDoc(doc(db, "groups", groupId, "games", gameId), {
-                  guestIds: arrayUnion(uid), [`rsvps.${uid}`]: "yes",
-                });
-                await updateDoc(doc(db, "users", uid), {
-                  guestGameRefs: arrayUnion({ groupId, gameId }),
-                });
-                go("guestGame", groupId, gameId);
+                if (isStandalone) {
+                  await updateDoc(doc(db, "games", gameId), {
+                    guestIds: arrayUnion(uid), [`rsvps.${uid}`]: "yes",
+                  });
+                  await updateDoc(doc(db, "users", uid), {
+                    guestGameRefs: arrayUnion({ groupId: null, gameId }),
+                  });
+                  go("standaloneGame", null, gameId);
+                } else {
+                  await updateDoc(doc(db, "groups", groupId, "games", gameId), {
+                    guestIds: arrayUnion(uid), [`rsvps.${uid}`]: "yes",
+                  });
+                  await updateDoc(doc(db, "users", uid), {
+                    guestGameRefs: arrayUnion({ groupId, gameId }),
+                  });
+                  go("guestGame", groupId, gameId);
+                }
                 flash("You're in! See you at the table 🀄", "🎉");
               } catch { flash("Could not join game", "❌"); }
             }} />
@@ -1061,6 +1111,28 @@ export default function App() {
         {page === "guestGame" && gid && gmid && (
           <GuestGameView uid={uid} groupId={gid} gameId={gmid} go={go} flash={flash} />
         )}
+        {page === "newStandaloneGame" && (
+          <NewGame uid={uid} user={user} group={null} planCfg={userPlanCfg} onBack={() => go("home")}
+            onSave={async (games) => {
+              const arr = Array.isArray(games) ? games : [games];
+              const hostCheck = canHostGame(user, groups, userPlanCfg, standaloneGames);
+              if (!hostCheck.ok) { flash("Hosted game limit reached — upgrade for unlimited games", "🔒"); return; }
+              try {
+                const batch = writeBatch(db);
+                arr.forEach((gm) => {
+                  batch.set(doc(db, "games", gm.id), { ...gm, isStandalone: true });
+                  if (gm.joinCode) {
+                    batch.set(doc(db, "gameCodes", gm.joinCode), { groupId: null, gameId: gm.id, date: gm.date });
+                  }
+                });
+                await batch.commit();
+                go("home"); flash("Game scheduled!", "🀄");
+              } catch { flash("Error creating game", "❌"); }
+            }} />
+        )}
+        {page === "standaloneGame" && gmid && (
+          <StandaloneGameView uid={uid} gameId={gmid} go={go} flash={flash} user={displayUser} />
+        )}
         {page === "managePlan" && (
           <ManagePlan uid={uid} user={displayUser} setUser={setUser} planConfigs={planConfigs} go={go} flash={flash} />
         )}
@@ -1094,149 +1166,101 @@ export default function App() {
   );
 }
 
-/* ── NEW ACTION SHEET ─────────────────────────────────────────────────────────
- * Shown when the user taps + New. Determines which options are actually
- * available based on plan limits and group-host status, and presents only
- * those options — or an upgrade message when nothing is available.
+/* ── NEW CHOICE PAGE ──────────────────────────────────────────────────────────
+ * Full-screen page (matching the Join screen style) shown when the user taps
+ * + New. Presents "Schedule a Game" and "Create a Group" options, respecting
+ * plan limits. Dimmed options indicate the limit is reached.
  * ─────────────────────────────────────────────────────────────────────────── */
-function NewActionSheet({ uid, groups, user, planCfg, go, flash, onClose }) {
-  const groupCheck  = canAddGroup(groups, user, planCfg);
-  const gameCheck   = canHostGame(user, groups, planCfg);
+function NewChoice({ uid, groups, user, planCfg, standaloneGames, go, flash, onBack }) {
+  const groupCheck   = canAddGroup(groups, user, planCfg);
+  const gameCheck    = canHostGame(user, groups, planCfg, standaloneGames);
   const hostedGroups = groups.filter(g => g.members?.some(m => m.id === uid && m.host));
   const isHost       = hostedGroups.length > 0;
+  const canGroup     = groupCheck.ok;
+  const canGame      = gameCheck.ok;
   const lim          = getPlanLimits(planCfg);
 
-  // What can the user actually do right now?
-  const canGroup = groupCheck.ok;
-  const canGame  = gameCheck.ok && isHost;   // needs both: plan slot + host of ≥1 group
-
   const handleGame = () => {
-    onClose();
-    if (hostedGroups.length === 1) {
+    if (!isHost) {
+      go("newStandaloneGame");
+    } else if (hostedGroups.length === 1) {
       go("newGame", hostedGroups[0].id);
     } else {
-      go("groups"); // user picks which group to schedule in
+      go("groups");
     }
   };
 
-  const handleGroup = () => { onClose(); go("newGroup"); };
-  const handleUpgrade = () => { onClose(); go("account"); };
+  const gameSub = isHost
+    ? hostedGroups.length === 1
+      ? `In ${hostedGroups[0].name}`
+      : `${hostedGroups.length} groups available`
+    : "Open game — invite anyone with a link";
 
-  const overlay = {
-    position: "fixed", inset: 0, zIndex: 10000,
-    background: "rgba(0,0,0,0.5)",
-    backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
-    display: "flex", alignItems: "flex-end", justifyContent: "center",
-  };
-  const sheet = {
-    background: "linear-gradient(160deg,var(--bg-card-base) 0%,var(--bg-card-alt) 100%)",
-    borderRadius: "24px 24px 0 0",
-    padding: "28px 20px 36px",
-    width: "100%", maxWidth: 480,
-    boxShadow: "0 -8px 40px rgba(var(--shadow-rgb),0.28)",
-    border: "1px solid var(--border-card)",
-  };
-  const optionBtn = (disabled) => ({
-    width: "100%", padding: "16px 18px", borderRadius: 16, cursor: disabled ? "default" : "pointer",
-    display: "flex", alignItems: "center", gap: 14, textAlign: "left",
-    background: disabled ? "rgba(var(--primary-rgb),0.04)" : "var(--bg-surface)",
-    border: `1px solid ${disabled ? "rgba(var(--primary-rgb),0.1)" : "var(--border-card)"}`,
-    marginBottom: 10, opacity: disabled ? 0.5 : 1,
-    boxShadow: disabled ? "none" : "0 2px 8px rgba(var(--shadow-rgb),0.07)",
-  });
+  const options = [
+    {
+      id: "game",
+      icon: "🀄",
+      label: "Schedule a Game",
+      sub: canGame ? gameSub : `Hosted game limit reached — upgrade for more`,
+      disabled: !canGame,
+      onClick: handleGame,
+    },
+    {
+      id: "group",
+      icon: "👥",
+      label: "Create a Group",
+      sub: canGroup ? "Invite friends and start scheduling" : `Group limit reached — upgrade to add more`,
+      disabled: !canGroup,
+      onClick: () => go("newGroup"),
+    },
+  ];
 
-  // ── Scenario: both plan limits reached ──────────────────────────────────────
-  if (!groupCheck.ok && !gameCheck.ok) {
-    return (
-      <div style={overlay} onClick={onClose}>
-        <div className="bIn" style={sheet} onClick={e => e.stopPropagation()}>
-          <div style={{ textAlign: "center", marginBottom: 20 }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: "var(--section-title)", marginBottom: 8 }}>You've reached your plan limits</div>
-            <div style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6 }}>
-              Your plan allows {isFinite(lim.maxGroups) ? lim.maxGroups : "∞"} group{lim.maxGroups !== 1 ? "s" : ""} and {isFinite(lim.gamesPerCycle) ? lim.gamesPerCycle : "∞"} hosted game{lim.gamesPerCycle !== 1 ? "s" : ""} every {lim.cycleDays} days — both are currently at capacity.
-            </div>
-          </div>
-          <Btn full onClick={handleUpgrade} style={{ marginBottom: 8 }}>Upgrade my plan</Btn>
-          <Btn full outline onClick={onClose}>Not now</Btn>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Scenario: group limit reached + not a host of any group ────────────────
-  if (!canGroup && gameCheck.ok && !isHost) {
-    return (
-      <div style={overlay} onClick={onClose}>
-        <div className="bIn" style={sheet} onClick={e => e.stopPropagation()}>
-          <div style={{ textAlign: "center", marginBottom: 20 }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: "var(--section-title)", marginBottom: 8 }}>No actions available</div>
-            <div style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6 }}>
-              You've reached your group limit, and scheduling a game requires you to host at least one group. Upgrade to add more groups and get back to the table.
-            </div>
-          </div>
-          <Btn full onClick={handleUpgrade} style={{ marginBottom: 8 }}>Upgrade my plan</Btn>
-          <Btn full outline onClick={onClose}>Not now</Btn>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Standard sheet: show whichever options are available ───────────────────
   return (
-    <div style={overlay} onClick={onClose}>
-      <div className="bIn" style={sheet} onClick={e => e.stopPropagation()}>
-        <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: "var(--section-title)", marginBottom: 18 }}>What would you like to create?</div>
-
-        {/* Schedule a Game */}
-        {gameCheck.ok && (
-          <button style={optionBtn(!isHost)} onClick={isHost ? handleGame : undefined}>
-            <div style={{ fontSize: 32, flexShrink: 0 }}>🀄</div>
-            <div>
-              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, fontWeight: 700, color: isHost ? "var(--text-heading)" : "var(--text-muted)" }}>Schedule a Game</div>
-              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, fontFamily: "'Inter',sans-serif" }}>
-                {isHost
-                  ? hostedGroups.length === 1
-                    ? `In ${hostedGroups[0].name}`
-                    : `${hostedGroups.length} groups available`
-                  : "You need to host a group to schedule games"}
-              </div>
+    <Shell title="New" onBack={onBack} color="var(--primary)">
+      <div style={{ textAlign: "center", fontSize: 49, margin: "12px 0 20px" }}>✨</div>
+      <p style={{ textAlign: "center", fontWeight: 700, fontSize: 16, color: "var(--text-body)", marginBottom: 24, fontFamily: "'Inter',sans-serif" }}>
+        What would you like to create?
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+        {options.map(({ id, icon, label, sub, disabled, onClick }) => (
+          <button key={id} onClick={() => !disabled && onClick()} style={{
+            display: "flex", alignItems: "center", gap: 16,
+            padding: "18px 20px", borderRadius: 18, cursor: disabled ? "default" : "pointer", textAlign: "left",
+            background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))",
+            border: "1.5px solid var(--border-card)",
+            boxShadow: "0 4px 18px rgba(var(--shadow-rgb),0.09), inset 0 1px 0 var(--shadow-inset)",
+            backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+            transition: "transform .14s",
+            opacity: disabled ? 0.45 : 1,
+          }}
+            onMouseDown={(e) => { if (!disabled) e.currentTarget.style.transform = "scale(.97)"; }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+            onTouchStart={(e) => { if (!disabled) e.currentTarget.style.transform = "scale(.97)"; }}
+            onTouchEnd={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+          >
+            <div style={{
+              width: 52, height: 52, borderRadius: 15, flexShrink: 0,
+              background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.14),rgba(var(--primary-rgb),0.07))",
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26,
+              border: "1.5px solid rgba(var(--primary-rgb),0.15)",
+            }}>{icon}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{label}</div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 3, fontFamily: "'Inter',sans-serif" }}>{sub}</div>
             </div>
+            {!disabled && <span style={{ color: "var(--primary-faint)", fontSize: 22 }}>›</span>}
           </button>
-        )}
-        {!gameCheck.ok && canGroup && (
-          <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", marginBottom: 10, padding: "8px 12px", background: "rgba(var(--primary-rgb),0.06)", borderRadius: 10 }}>
-            🀄 Hosted game limit reached — upgrade for unlimited games
-          </div>
-        )}
-
-        {/* Create a Group */}
-        {canGroup && (
-          <button style={optionBtn(false)} onClick={handleGroup}>
-            <div style={{ fontSize: 32, flexShrink: 0 }}>👥</div>
-            <div>
-              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, fontWeight: 700, color: "var(--text-heading)" }}>Create a Group</div>
-              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, fontFamily: "'Inter',sans-serif" }}>Invite friends and start scheduling</div>
-            </div>
-          </button>
-        )}
-        {!canGroup && gameCheck.ok && isHost && (
-          <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", marginBottom: 10, padding: "8px 12px", background: "rgba(var(--primary-rgb),0.06)", borderRadius: 10 }}>
-            👥 Group limit reached — <span style={{ color: "var(--primary)", cursor: "pointer", fontWeight: 700 }} onClick={handleUpgrade}>upgrade</span> to add more
-          </div>
-        )}
-
-        {/* Not a host note when within game limit */}
-        {gameCheck.ok && !isHost && canGroup && (
-          <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", marginBottom: 10, padding: "8px 12px", background: "rgba(var(--primary-rgb),0.06)", borderRadius: 10 }}>
-            💡 To schedule games, create a group and become its host first
-          </div>
-        )}
-
-        <Btn full outline onClick={onClose} style={{ marginTop: 4 }}>Cancel</Btn>
+        ))}
       </div>
-    </div>
+      {!canGame && !canGroup && (
+        <div style={{ marginTop: 24 }}>
+          <p style={{ textAlign: "center", fontSize: 13, color: "var(--text-muted)", marginBottom: 14, fontFamily: "'Inter',sans-serif", lineHeight: 1.6 }}>
+            Your plan allows {isFinite(lim.maxGroups) ? lim.maxGroups : "∞"} group{lim.maxGroups !== 1 ? "s" : ""} and {isFinite(lim.gamesPerCycle) ? lim.gamesPerCycle : "∞"} hosted game{lim.gamesPerCycle !== 1 ? "s" : ""} every {lim.cycleDays} days.
+          </p>
+          <Btn full onClick={() => go("account")}>Upgrade my plan</Btn>
+        </div>
+      )}
+    </Shell>
   );
 }
 
@@ -2575,11 +2599,11 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
 }
 
 /* ── ALL GAMES PANEL (shared by Home + Account) ── */
-function AllGamesPanel({ groups, guestGames = [], go }) {
+function AllGamesPanel({ groups, guestGames = [], standaloneGames = [], go }) {
   const memberGames = groups.flatMap((g) =>
     g.games.map((gm) => ({ ...gm, groupName: g.name, groupColor: g.color, groupId: g.id, groupEmoji: g.emoji }))
   );
-  const allGames = [...memberGames, ...guestGames];
+  const allGames = [...memberGames, ...guestGames, ...standaloneGames];
   const upcoming = allGames.filter((gm) => gm.status !== "archived" && gm.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
   const list = upcoming.slice(0, 3);
 
@@ -2598,7 +2622,7 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
         <>
           {list.map((gm, i) => (
             <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.05}s`, cursor: "pointer" }}
-              onClick={() => go(gm.isGuestGame ? "guestGame" : "game", gm.groupId, gm.id)}>
+              onClick={() => go(gm.isStandalone ? "standaloneGame" : gm.isGuestGame ? "guestGame" : "game", gm.groupId, gm.id)}>
               <div style={{
                 background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))",
                 backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
@@ -2614,9 +2638,14 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
                     <span style={{ fontSize: 12, fontWeight: 700, color: gm.groupColor, fontFamily: "'Inter',sans-serif" }}>{gm.groupName}</span>
                   </div>
                 )}
-                {gm.isGuestGame && (
+                {gm.isGuestGame && !gm.isStandalone && (
                   <div style={{ marginBottom: 4 }}>
                     <span style={{ fontSize: 11, fontWeight: 800, color: "var(--secondary-accent)", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "1px 7px" }}>Guest</span>
+                  </div>
+                )}
+                {gm.isStandalone && (
+                  <div style={{ marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", background: "rgba(124,58,237,0.1)", borderRadius: 999, padding: "1px 7px" }}>Open Game</span>
                   </div>
                 )}
                 <div style={{ fontSize: 13, color: "#b08090", marginTop: 3 }}>📅 {fmt(gm.date)}</div>
@@ -2662,7 +2691,7 @@ function AllGamesPanel({ groups, guestGames = [], go }) {
 }
 
 /* HOME */
-function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash, onNew }) {
+function Home({ groups, guestGames, standaloneGames, go, user, activeTheme, planCfg, flash, onNew }) {
 
   // Background pattern — roses for Flowers, birds for Bam Bird, dragons for Dragons, tiles for all others
   const color = activeTheme?.primary || "#a0456e";
@@ -2787,7 +2816,7 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash, onNew
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h2 style={{ fontFamily: "'Inter',sans-serif", fontSize: 23, color: "var(--section-title)", letterSpacing: 0.5 }}>Your Groups</h2>
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn sm outline onClick={() => { if (!canAddGroup(groups, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("joinGroup"); }}>Join</Btn>
+            <Btn sm outline onClick={() => go("joinGroup")}>Join</Btn>
             <Btn sm onClick={onNew}>+ New</Btn>
           </div>
         </div>
@@ -2838,7 +2867,7 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash, onNew
             )}
 
             {/* All-groups games tabs */}
-            <AllGamesPanel groups={groups} guestGames={guestGames} go={go} />
+            <AllGamesPanel groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} />
           </>
         )}
       </div>
@@ -2847,13 +2876,13 @@ function Home({ groups, guestGames, go, user, activeTheme, planCfg, flash, onNew
 }
 
 /* GAMES PAGE */
-function GamesPage({ groups, guestGames = [], go }) {
+function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
   const [tab, setTab] = useState("upcoming");
 
   const memberGames = groups.flatMap((g) =>
     g.games.map((gm) => ({ ...gm, groupName: g.name, groupColor: g.color, groupId: g.id, groupEmoji: g.emoji }))
   );
-  const allGames = [...memberGames, ...guestGames];
+  const allGames = [...memberGames, ...guestGames, ...standaloneGames];
   const upcoming = allGames.filter((gm) => gm.status !== "archived" && gm.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
   const completed = allGames.filter((gm) => gm.status !== "archived" && gm.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
   const archived = allGames.filter((gm) => gm.status === "archived").sort((a, b) => b.date - a.date);
@@ -2932,7 +2961,7 @@ function GamesPage({ groups, guestGames = [], go }) {
             const filled = yesCount + confirmedG;
             return (
               <div key={`${gm.groupId}-${gm.id}`} className="sUp" style={{ animationDelay: `${i * 0.04}s`, cursor: "pointer" }}
-                onClick={() => go(gm.isGuestGame ? "guestGame" : "game", gm.groupId, gm.id)}>
+                onClick={() => go(gm.isStandalone ? "standaloneGame" : gm.isGuestGame ? "guestGame" : "game", gm.groupId, gm.id)}>
                 <div style={{
                   background: tab === "upcoming"
                     ? "linear-gradient(135deg,var(--bg-card-base),var(--bg-card-alt))"
@@ -3030,7 +3059,7 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
               color: "#fff", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
               display: "flex", alignItems: "center", gap: 5,
             }}>＋ New</button>
-            <button onClick={() => { if (!canAddGroup(groups, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("joinGroup"); }} style={{
+            <button onClick={() => go("joinGroup")} style={{
               background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.25)",
               borderRadius: 999, padding: "8px 16px", fontSize: 13, fontWeight: 700,
               color: "rgba(255,255,255,0.85)", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(8px)", cursor: "pointer",
@@ -3079,7 +3108,7 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
                 background: "var(--active-tab-gradient)", color: "#fff",
                 border: "none", boxShadow: "0 4px 16px var(--shadow-btn)",
               }}>＋ Create</button>
-              <button onClick={() => { if (!canAddGroup(groups, user, planCfg).ok) { flash("Group limit reached — upgrade your plan to add more", "🔒"); go("account"); return; } go("joinGroup"); }} style={{
+              <button onClick={() => go("joinGroup")} style={{
                 flex: 1, padding: "14px 0", borderRadius: 999, fontSize: 15, fontWeight: 700,
                 fontFamily: "'Inter',sans-serif", cursor: "pointer",
                 background: "var(--bg-surface)", color: "var(--primary)",
@@ -3329,7 +3358,7 @@ function OpenInvitesToggle({ value, onChange }) {
 }
 
 /* JOIN GROUP */
-function JoinGroup({ uid, groups, onBack, onJoin, onJoinGame }) {
+function JoinGroup({ uid, groups, user, planCfg, onBack, onJoin, onJoinGame }) {
   const [mode, setMode] = useState(null); // null | "group" | "game"
   const [code, setCode] = useState("");
   const [groupMatch, setGroupMatch] = useState(null);
@@ -3365,9 +3394,12 @@ function JoinGroup({ uid, groups, onBack, onJoin, onJoinGame }) {
           setGameMatch(null); setSearching(false); return;
         }
         const { groupId, gameId } = codeSnap.data();
-        const gameSnap = await getDoc(doc(db, "groups", groupId, "games", gameId));
+        const gameRef = groupId
+          ? doc(db, "groups", groupId, "games", gameId)
+          : doc(db, "games", gameId);
+        const gameSnap = await getDoc(gameRef);
         if (!gameSnap.exists()) { setGameMatch(null); setSearching(false); return; }
-        setGameMatch({ ...gameSnap.data(), id: gameId, groupId });
+        setGameMatch({ ...gameSnap.data(), id: gameId, groupId: groupId || null, isStandalone: !groupId });
         setSearching(false);
       })
       .catch(() => { setGameMatch(null); setSearching(false); });
@@ -3379,9 +3411,14 @@ function JoinGroup({ uid, groups, onBack, onJoin, onJoinGame }) {
   );
 
   const handleBack = mode !== null ? () => setMode(null) : onBack;
+  const groupAtLimit = !canAddGroup(groups, user, planCfg).ok;
 
   // ── Choice screen ─────────────────────────────────────────────────────────
   if (!mode) {
+    const options = [
+      { id: "group", icon: "👥", label: "Join a Group", sub: groupAtLimit ? "Group limit reached — upgrade to join more" : "Enter a group code to become a member", disabled: groupAtLimit },
+      { id: "game",  icon: "🀄", label: "Join a Game",  sub: "Enter a game code to RSVP as a guest", disabled: false },
+    ];
     return (
       <Shell title="Join" onBack={handleBack} color="var(--secondary-accent)">
         <div style={{ textAlign: "center", fontSize: 49, margin: "12px 0 20px" }}>🔑</div>
@@ -3389,22 +3426,20 @@ function JoinGroup({ uid, groups, onBack, onJoin, onJoinGame }) {
           What would you like to join?
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-          {[
-            { id: "group", icon: "👥", label: "Join a Group", sub: "Enter a group code to become a member" },
-            { id: "game",  icon: "🀄", label: "Join a Game",  sub: "Enter a game code to RSVP as a guest" },
-          ].map(({ id, icon, label, sub }) => (
-            <button key={id} onClick={() => setMode(id)} style={{
+          {options.map(({ id, icon, label, sub, disabled }) => (
+            <button key={id} onClick={() => !disabled && setMode(id)} style={{
               display: "flex", alignItems: "center", gap: 16,
-              padding: "18px 20px", borderRadius: 18, cursor: "pointer", textAlign: "left",
+              padding: "18px 20px", borderRadius: 18, cursor: disabled ? "default" : "pointer", textAlign: "left",
               background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))",
               border: "1.5px solid var(--border-card)",
               boxShadow: "0 4px 18px rgba(var(--shadow-rgb),0.09), inset 0 1px 0 var(--shadow-inset)",
               backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
               transition: "transform .14s",
+              opacity: disabled ? 0.45 : 1,
             }}
-              onMouseDown={(e) => { e.currentTarget.style.transform = "scale(.97)"; }}
+              onMouseDown={(e) => { if (!disabled) e.currentTarget.style.transform = "scale(.97)"; }}
               onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
-              onTouchStart={(e) => { e.currentTarget.style.transform = "scale(.97)"; }}
+              onTouchStart={(e) => { if (!disabled) e.currentTarget.style.transform = "scale(.97)"; }}
               onTouchEnd={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
             >
               <div style={{
@@ -3417,7 +3452,7 @@ function JoinGroup({ uid, groups, onBack, onJoin, onJoinGame }) {
                 <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{label}</div>
                 <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 3, fontFamily: "'Inter',sans-serif" }}>{sub}</div>
               </div>
-              <span style={{ color: "var(--primary-faint)", fontSize: 22 }}>›</span>
+              {!disabled && <span style={{ color: "var(--primary-faint)", fontSize: 22 }}>›</span>}
             </button>
           ))}
         </div>
@@ -3470,7 +3505,7 @@ function JoinGroup({ uid, groups, onBack, onJoin, onJoinGame }) {
         </div>
       )}
       {alreadyInGame && <p style={{ color: "var(--secondary-accent)", fontWeight: 800, fontSize: 15, marginBottom: 14, textAlign: "center" }}>You're already in this game!</p>}
-      <Btn full disabled={!gameMatch || !!alreadyInGame} onClick={() => onJoinGame(gameMatch.groupId, gameMatch.id)}>Join Game</Btn>
+      <Btn full disabled={!gameMatch || !!alreadyInGame} onClick={() => onJoinGame(gameMatch.groupId, gameMatch.id, gameMatch.isStandalone)}>Join Game</Btn>
     </Shell>
   );
 }
@@ -4390,7 +4425,7 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
 
   useEffect(() => { checkCode(joinCode); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const otherMembers = group.members.filter((m) => m.id !== myUid);
+  const otherMembers = group ? group.members.filter((m) => m.id !== myUid) : [];
   const allSelected = otherMembers.length > 0 && otherMembers.every((m) => selectedIds.has(m.id));
   const toggleMember = (id) => setSelectedIds((prev) => {
     const s = new Set(prev);
@@ -4451,7 +4486,7 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
   };
 
   return (
-    <Shell title="Schedule a Game" onBack={onBack} color={group.color}>
+    <Shell title="Schedule a Game" onBack={onBack} color={group?.color || "#7c3aed"}>
       <Lbl>Game Title</Lbl>
       <Fld value={title} set={setTitle} placeholder="e.g. Weekly Game Night" />
       <Lbl mt>Date</Lbl>
@@ -4476,7 +4511,7 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={() => setTables((t) => Math.max(1, t - 1))} style={{ width: 32, height: 32, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>−</button>
-          <span style={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: 16, color: group.color, fontFamily: "'Inter',sans-serif" }}>{tables}</span>
+          <span style={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: 16, color: group?.color || "#7c3aed", fontFamily: "'Inter',sans-serif" }}>{tables}</span>
           <button onClick={() => setTables((t) => t + 1)} style={{ width: 32, height: 32, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>+</button>
         </div>
       </div>
@@ -4692,6 +4727,55 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
 }
 
 /* GUEST GAME VIEW — fetches game + group directly, no listener dependency */
+/* ── STANDALONE GAME VIEW (host or invited guest — no group context) ── */
+function StandaloneGameView({ uid, gameId, go, flash, user }) {
+  const [game, setGame] = useState(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "games", gameId), (snap) => {
+      if (!snap.exists()) return;
+      setGame({ ...snap.data(), id: snap.id });
+    });
+    return unsub;
+  }, [gameId]);
+
+  if (!game) return (
+    <div style={{ minHeight: "100vh", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+      <div style={{ fontSize: 41 }}>🀄</div>
+      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 17, color: "var(--primary-muted)" }}>Loading game…</div>
+    </div>
+  );
+
+  const isHost = game.hostId === uid;
+  // Stub group so the Game component works — host is always in members with host: true
+  const stubGroup = { id: null, name: "Open Game", color: "#7c3aed", emoji: "🀄", members: isHost ? [{ id: uid, name: user?.name || "Host", avatar: user?.avatar || "🀄", host: true }] : [], openInvites: true, games: [game] };
+
+  return (
+    <Game uid={uid} game={game} group={stubGroup} go={go} isGuestView={!isHost}
+      onRsvp={async (ans) => {
+        try {
+          await updateDoc(doc(db, "games", gameId), { [`rsvps.${uid}`]: ans });
+          flash(ans === "yes" ? "You're in!" : "Got it", ans === "yes" ? "🎉" : "👍");
+        } catch { flash("Error updating RSVP", "❌"); }
+      }}
+      onWaitlist={async (action) => {
+        try {
+          await updateDoc(doc(db, "games", gameId), {
+            waitlist: action === "join" ? arrayUnion(uid) : arrayRemove(uid),
+          });
+          flash(action === "join" ? "Added to waitlist!" : "Removed from waitlist", action === "join" ? "⏳" : "👋");
+        } catch { flash("Error updating waitlist", "❌"); }
+      }}
+      onArchive={isHost ? async () => {
+        try {
+          await updateDoc(doc(db, "games", gameId), { status: "archived" });
+          go("home"); flash("Game cancelled", "📦");
+        } catch { flash("Error cancelling game", "❌"); }
+      } : null}
+    />
+  );
+}
+
 function GuestGameView({ uid, groupId, gameId, go, flash }) {
   const [game, setGame] = useState(null);
   const [groupMeta, setGroupMeta] = useState(null);
@@ -5357,7 +5441,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <button onClick={() => setTables((t) => Math.max(1, t - 1))} style={{ width: 32, height: 32, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>−</button>
-              <span style={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: 16, color: group.color, fontFamily: "'Inter',sans-serif" }}>{tables}</span>
+              <span style={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: 16, color: group?.color || "#7c3aed", fontFamily: "'Inter',sans-serif" }}>{tables}</span>
               <button onClick={() => setTables((t) => t + 1)} style={{ width: 32, height: 32, borderRadius: 999, border: `1.5px solid rgba(var(--primary-rgb),0.25)`, background: "var(--bg-card)", fontSize: 18, color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>+</button>
             </div>
           </div>
@@ -5635,15 +5719,15 @@ function Shell({ title, onBack, color, children }) {
   return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
       <div style={{
-        background: `linear-gradient(135deg,${color}ee,${color}bb)`,
+        background: `linear-gradient(135deg,${color}ff,${color}cc)`,
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
         padding: "50px 22px 22px",
         display: "flex", alignItems: "center", gap: 12,
-        boxShadow: `0 8px 32px ${color}44`,
+        boxShadow: `0 8px 32px ${color}55`,
         position: "relative", overflow: "hidden",
       }}>
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.15) 0%,transparent 60%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.07) 0%,transparent 60%)", pointerEvents: "none" }} />
         <button onClick={onBack} style={{ background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", flexShrink: 0, backdropFilter: "blur(8px)" }}>‹</button>
         <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 24, color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,.2)", position: "relative" }}>{title}</h1>
       </div>

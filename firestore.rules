@@ -117,6 +117,30 @@ service cloud.firestore {
       }
     }
 
+    // ── Standalone games (group-less) ────────────────────────────────────────
+    match /games/{gameId} {
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        request.auth.uid == resource.data.hostId ||
+        request.auth.uid in resource.data.get('guestIds', [])
+      );
+
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.hostId;
+
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        request.auth.uid == resource.data.hostId ||
+        // Guests joining via invite: may only write guestIds and their own rsvp entry
+        (
+          request.auth.uid in request.resource.data.get('guestIds', []) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestIds', 'rsvps', 'waitlist'])
+        )
+      );
+
+      allow delete: if isAdmin() ||
+        (isSignedIn() && request.auth.uid == resource.data.hostId);
+    }
+
     // ── Admin-only collections ────────────────────────────────────────────────
     match /adminLogs/{logId} {
       allow read: if isAdmin();
