@@ -5716,15 +5716,22 @@ function Invite({ group, game, flash, onBack }) {
 
 /* SHARED COMPONENTS */
 function Shell({ title, onBack, color, children }) {
+  const isCssVar = typeof color === "string" && color.startsWith("var(");
+  const headerBg = isCssVar
+    ? "var(--header-gradient)"
+    : `linear-gradient(135deg,${color}ff,${color}cc)`;
+  const headerShadow = isCssVar
+    ? "0 8px 32px rgba(var(--shadow-rgb),0.40)"
+    : `0 8px 32px ${color}55`;
   return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
       <div style={{
-        background: `linear-gradient(135deg,${color}ff,${color}cc)`,
+        background: headerBg,
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
         padding: "50px 22px 22px",
         display: "flex", alignItems: "center", gap: 12,
-        boxShadow: `0 8px 32px ${color}55`,
+        boxShadow: headerShadow,
         position: "relative", overflow: "hidden",
       }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.07) 0%,transparent 60%)", pointerEvents: "none" }} />
