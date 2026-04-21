@@ -5740,7 +5740,7 @@ function Shell({ title, onBack, color, children }) {
       </div>
       <div style={{
         padding: "20px 16px",
-        background: "rgba(255,240,248,0.65)",
+        background: "var(--bg-surface)",
         backdropFilter: "blur(16px)",
         WebkitBackdropFilter: "blur(16px)",
         minHeight: "calc(100vh - 100px)",
