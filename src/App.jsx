@@ -2911,20 +2911,6 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
             <h1 style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 31, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,0.25)", lineHeight: 1.1, letterSpacing: 2 }}>
               Your Games
             </h1>
-            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
-              {upcoming.length > 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.15)", borderRadius: 999, padding: "4px 11px", backdropFilter: "blur(8px)" }}>
-                  <span style={{ fontSize: 13 }}>📅</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>{upcoming.length} upcoming</span>
-                </div>
-              )}
-              {completed.length > 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.12)", borderRadius: 999, padding: "4px 11px", backdropFilter: "blur(8px)" }}>
-                  <span style={{ fontSize: 13 }}>✅</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.75)" }}>{completed.length} completed</span>
-                </div>
-              )}
-            </div>
           </div>
           <div style={{ display: "flex", gap: 8, flexShrink: 0, paddingBottom: 4 }}>
             <button onClick={() => go("joinGroup")} style={{
@@ -2951,7 +2937,12 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
             color: tab === t ? "#fff" : "var(--text-muted)",
             boxShadow: tab === t ? "0 2px 10px var(--shadow-btn)" : "none",
             transition: "all .15s", flexShrink: 0, whiteSpace: "nowrap",
-          }}>{label}{t === "archived" && archived.length > 0 ? ` (${archived.length})` : ""}</button>
+          }}>
+            {label}
+            {t === "upcoming" && upcoming.length > 0 ? ` (${upcoming.length})` : ""}
+            {t === "completed" && completed.length > 0 ? ` (${completed.length})` : ""}
+            {t === "archived" && archived.length > 0 ? ` (${archived.length})` : ""}
+          </button>
         ))}
       </div>
 
