@@ -7,7 +7,7 @@
         "dev": "vite",
         "build": "vite build",
         "preview": "vite preview",
-        "deploy": "vite build && firebase deploy --only hosting --project mahjong-club-da606"
+        "deploy": "unset FIREBASE_TOKEN && vite build && firebase deploy --only hosting --project mahjong-club-da606"
     },
     "dependencies": {
         "firebase": "^12.11.0",

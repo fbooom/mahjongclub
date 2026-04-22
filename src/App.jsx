@@ -327,7 +327,99 @@ function buildGlobalCSS(theme) {
 `;
 }
 
+// ── PWA Install Banner ────────────────────────────────────────────────────────
+function useInstallBanner() {
+  const [showBanner, setShowBanner] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const deferredPrompt = useRef(null);
+
+  useEffect(() => {
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      ("standalone" in window.navigator && window.navigator.standalone);
+    if (isStandalone) return;
+    if (localStorage.getItem("mjc_install_dismissed")) return;
+
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    setIsIOS(ios);
+
+    const visits = parseInt(localStorage.getItem("mjc_install_visits") || "0") + 1;
+    localStorage.setItem("mjc_install_visits", String(visits));
+    if (visits < 3) return;
+
+    if (ios) {
+      setShowBanner(true);
+    } else {
+      const handler = (e) => { e.preventDefault(); deferredPrompt.current = e; setShowBanner(true); };
+      window.addEventListener("beforeinstallprompt", handler);
+      return () => window.removeEventListener("beforeinstallprompt", handler);
+    }
+  }, []);
+
+  const dismiss = () => { localStorage.setItem("mjc_install_dismissed", "1"); setShowBanner(false); };
+  const install = async () => {
+    if (deferredPrompt.current) {
+      deferredPrompt.current.prompt();
+      const { outcome } = await deferredPrompt.current.userChoice;
+      deferredPrompt.current = null;
+      if (outcome === "accepted") localStorage.setItem("mjc_install_dismissed", "1");
+    }
+    setShowBanner(false);
+  };
+
+  return { showBanner, isIOS, dismiss, install };
+}
+
+function InstallBanner({ showBanner, isIOS, onDismiss, onInstall }) {
+  if (!showBanner) return null;
+  return (
+    <div style={{
+      position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9998,
+      background: "rgba(255,255,255,0.96)",
+      backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+      borderTop: "1px solid rgba(201,96,122,0.18)",
+      padding: "14px 20px 34px",
+      boxShadow: "0 -4px 32px rgba(168,66,107,0.14)",
+      animation: "pwa-slide-up 0.3s cubic-bezier(0.4,0,0.2,1)",
+      fontFamily: "'Inter', sans-serif",
+    }}>
+      <style>{`@keyframes pwa-slide-up{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, maxWidth: 480, margin: "0 auto" }}>
+        <div style={{ fontSize: 38, lineHeight: 1, flexShrink: 0 }}>🀄</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#3a1a2a", marginBottom: 4 }}>
+            Add Mahjong Club to your home screen
+          </div>
+          {isIOS ? (
+            <div style={{ fontSize: 13, color: "#7a4a58", lineHeight: 1.6 }}>
+              Tap{" "}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "rgba(201,96,122,0.1)", borderRadius: 6, padding: "1px 6px", fontWeight: 700, color: "#c9607a" }}>
+                ⎙ Share
+              </span>
+              {" "}then tap <strong>"Add to Home Screen"</strong>
+            </div>
+          ) : (
+            <button onClick={onInstall} style={{
+              marginTop: 6, background: "linear-gradient(135deg,#c9607a,#9b6ea8)",
+              color: "#fff", border: "none", borderRadius: 999, padding: "7px 18px",
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+            }}>
+              Add to Home Screen
+            </button>
+          )}
+        </div>
+        <button onClick={onDismiss} style={{
+          background: "rgba(201,96,122,0.1)", border: "none", borderRadius: "50%",
+          width: 28, height: 28, fontSize: 18, cursor: "pointer", color: "#c9607a",
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, lineHeight: 1,
+        }}>×</button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
+  const installBanner = useInstallBanner();
   const [activeTheme, setActiveTheme] = useState(defaultTheme);
   const cssElRef = useRef(null);
 
@@ -1162,6 +1254,12 @@ export default function App() {
         })}
       </div>
     </div>
+    <InstallBanner
+      showBanner={installBanner.showBanner}
+      isIOS={installBanner.isIOS}
+      onDismiss={installBanner.dismiss}
+      onInstall={installBanner.install}
+    />
     </>
   );
 }
@@ -2217,8 +2315,7 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
     }
   };
 
-  const totalGames = groups.reduce((n, g) => n + g.games.length, 0);
-  const upcoming = groups.reduce((n, g) => n + g.games.filter((gm) => gm.date > NOW).length, 0);
+  const activeGroups = groups.filter((g) => g.status !== "archived" && g.status !== "deleted");
 
   return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
@@ -2246,15 +2343,6 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
         <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 23, color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,.2)", letterSpacing: 0.5 }}>{user.name}</h1>
         <p style={{ color: "rgba(255,255,255,.7)", fontSize: 14, marginTop: 4, fontFamily: "'Inter',sans-serif" }}>{user.email}</p>
 
-        {/* Stats row */}
-        <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 18 }}>
-          {[[groups.length, "Groups"],[totalGames, "Games"],[upcoming, "Upcoming"]].map(([n, lbl]) => (
-            <div key={lbl} style={{ textAlign: "center", background: "rgba(255,255,255,.18)", backdropFilter: "blur(8px)", borderRadius: 14, padding: "8px 16px", border: "1px solid rgba(255,255,255,.3)" }}>
-              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 21, color: "#fff", fontWeight: 700 }}>{n}</div>
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,.72)", fontFamily: "'Inter',sans-serif", marginTop: 1 }}>{lbl}</div>
-            </div>
-          ))}
-        </div>
       </div>
 
       <div style={{ padding: "22px 16px" }}>
@@ -2335,10 +2423,10 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           const plan = getPlan(user);
           const lim = getPlanLimits(planCfg);
           const hostCheck = canHostGame(user, groups, planCfg);
-          const groupsUsed = groups.filter(g => g.status !== "archived").length;
+          const groupsUsed = activeGroups.length;
           const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-          const futureHostedCount = groups.reduce((n, g) =>
-            n + (g.games || []).filter(gm => gm.hostId === user?.uid && gm.date >= todayStart.getTime() && gm.status !== "archived").length, 0);
+          const futureHostedCount = activeGroups.reduce((n, g) =>
+            n + (g.games || []).filter(gm => gm.hostId === user?.uid && gm.date >= todayStart.getTime() && gm.status !== "archived" && gm.status !== "deleted").length, 0);
 
           const Bar = ({ used, max, color }) => (
             <div style={{ height: 6, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
@@ -2878,6 +2966,8 @@ function Home({ groups, guestGames, standaloneGames, go, user, activeTheme, plan
 /* GAMES PAGE */
 function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
   const [tab, setTab] = useState("upcoming");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const memberGames = groups.flatMap((g) =>
     g.games.map((gm) => ({ ...gm, groupName: g.name, groupColor: g.color, groupId: g.id, groupEmoji: g.emoji }))
@@ -2916,18 +3006,74 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
             margin: 0, lineHeight: 1.1, letterSpacing: 2,
           }}>Your Games</h1>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <button onClick={() => go("joinGroup")} style={{
-              background: "transparent", border: "1.5px solid rgba(255,255,255,0.55)",
-              borderRadius: 20, padding: "6px 14px", fontSize: 13, fontWeight: 500,
-              color: "#fff", fontFamily: "'Inter',sans-serif", cursor: "pointer", lineHeight: 1,
-            }}>Join</button>
-            <button onClick={() => go("newChoice")} style={{
-              background: "#fff", border: "1.5px solid #fff",
-              borderRadius: 20, padding: "6px 14px", fontSize: 13, fontWeight: 500,
-              color: "var(--primary-dark)", fontFamily: "'Inter',sans-serif", cursor: "pointer", lineHeight: 1,
-              display: "flex", alignItems: "center", gap: 4,
-            }}><span>＋</span><span>New</span></button>
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <button onClick={() => { setMenuOpen(o => !o); setInviteOpen(false); }} style={{
+              background: "rgba(255,255,255,0.2)", border: "1.5px solid rgba(255,255,255,0.55)",
+              borderRadius: 999, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", fontSize: 20, color: "#fff", lineHeight: 1,
+            }}>⋮</button>
+            {menuOpen && (
+              <>
+                <div onClick={() => { setMenuOpen(false); setInviteOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
+                <div style={{
+                  position: "absolute", top: 44, right: 0, zIndex: 100,
+                  background: "var(--bg-card-base)", borderRadius: 16,
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.18)", border: "1px solid var(--border-card)",
+                  minWidth: 220, overflow: "hidden",
+                }}>
+                  {[
+                    { icon: "📅", label: "Schedule new game", action: () => { setMenuOpen(false); go("newChoice"); } },
+                    { icon: "🔑", label: "Join with code",     action: () => { setMenuOpen(false); go("joinGroup"); } },
+                  ].map(({ icon, label, action }) => (
+                    <button key={label} onClick={action} style={{
+                      display: "flex", alignItems: "center", gap: 12, width: "100%",
+                      padding: "14px 16px", background: "none", border: "none",
+                      borderBottom: "1px solid var(--border-card)", cursor: "pointer",
+                      fontFamily: "'Inter',sans-serif", fontSize: 14, fontWeight: 600,
+                      color: "var(--text-body)", textAlign: "left",
+                    }}>
+                      <span style={{ fontSize: 18 }}>{icon}</span>{label}
+                    </button>
+                  ))}
+                  <button onClick={() => setInviteOpen(o => !o)} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
+                    padding: "14px 16px", background: "none", border: "none", cursor: "pointer",
+                    fontFamily: "'Inter',sans-serif", fontSize: 14, fontWeight: 600,
+                    color: "var(--text-body)", textAlign: "left",
+                    borderBottom: inviteOpen ? "1px solid var(--border-card)" : "none",
+                  }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ fontSize: 18 }}>✉️</span>Invite a friend</span>
+                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{inviteOpen ? "▲" : "▼"}</span>
+                  </button>
+                  {inviteOpen && (() => {
+                    const appUrl = `${window.location.origin}${window.location.pathname}`;
+                    const txt = `Join me on Mahjong Club!\n\n${appUrl}`;
+                    const share = (method) => {
+                      if (method === "sms") window.open(`sms:?body=${encodeURIComponent(txt)}`);
+                      else if (method === "email") window.open(`mailto:?subject=${encodeURIComponent("Join me on Mahjong Club!")}&body=${encodeURIComponent(txt)}`);
+                      else if (method === "copy") navigator.clipboard.writeText(appUrl).catch(() => {});
+                      else if (method === "share") { if (navigator.share) navigator.share({ title: "Mahjong Club", url: appUrl }).catch(() => {}); else navigator.clipboard.writeText(appUrl).catch(() => {}); }
+                    };
+                    return [
+                      { icon: "💬", label: "Text Message", method: "sms" },
+                      { icon: "📧", label: "Email",        method: "email" },
+                      { icon: "🔗", label: "Copy link",    method: "copy" },
+                      { icon: "📤", label: "Share…",       method: "share" },
+                    ].map(({ icon, label, method }) => (
+                      <button key={method} onClick={() => { share(method); setMenuOpen(false); setInviteOpen(false); }} style={{
+                        display: "flex", alignItems: "center", gap: 12, width: "100%",
+                        padding: "12px 16px 12px 44px", background: "rgba(var(--primary-rgb),0.04)",
+                        border: "none", borderBottom: "1px solid var(--border-card)", cursor: "pointer",
+                        fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 500,
+                        color: "var(--text-body)", textAlign: "left",
+                      }}>
+                        <span style={{ fontSize: 16 }}>{icon}</span>{label}
+                      </button>
+                    ));
+                  })()}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -3018,6 +3164,8 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
 /* GROUPS PAGE */
 function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
   const [groupFilter, setGroupFilter] = useState("active");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const activeGroups = groups.filter(g => g.status !== "archived");
   const archivedGroups = groups.filter(g => g.status === "archived");
   const displayGroups = groupFilter === "active" ? activeGroups : archivedGroups;
@@ -3052,18 +3200,74 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
             margin: 0, lineHeight: 1.1, letterSpacing: 2,
           }}>Your Groups</h1>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <button onClick={() => go("joinGroup")} style={{
-              background: "transparent", border: "1.5px solid rgba(255,255,255,0.55)",
-              borderRadius: 20, padding: "6px 14px", fontSize: 13, fontWeight: 500,
-              color: "#fff", fontFamily: "'Inter',sans-serif", cursor: "pointer", lineHeight: 1,
-            }}>Join</button>
-            <button onClick={onNew} style={{
-              background: "#fff", border: "1.5px solid #fff",
-              borderRadius: 20, padding: "6px 14px", fontSize: 13, fontWeight: 500,
-              color: "var(--primary-dark)", fontFamily: "'Inter',sans-serif", cursor: "pointer", lineHeight: 1,
-              display: "flex", alignItems: "center", gap: 4,
-            }}><span>＋</span><span>New</span></button>
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <button onClick={() => { setMenuOpen(o => !o); setInviteOpen(false); }} style={{
+              background: "rgba(255,255,255,0.2)", border: "1.5px solid rgba(255,255,255,0.55)",
+              borderRadius: 999, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", fontSize: 20, color: "#fff", lineHeight: 1,
+            }}>⋮</button>
+            {menuOpen && (
+              <>
+                <div onClick={() => { setMenuOpen(false); setInviteOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
+                <div style={{
+                  position: "absolute", top: 44, right: 0, zIndex: 100,
+                  background: "var(--bg-card-base)", borderRadius: 16,
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.18)", border: "1px solid var(--border-card)",
+                  minWidth: 220, overflow: "hidden",
+                }}>
+                  {[
+                    { icon: "👥", label: "Create new group", action: () => { setMenuOpen(false); onNew(); } },
+                    { icon: "🔑", label: "Join with code",   action: () => { setMenuOpen(false); go("joinGroup"); } },
+                  ].map(({ icon, label, action }) => (
+                    <button key={label} onClick={action} style={{
+                      display: "flex", alignItems: "center", gap: 12, width: "100%",
+                      padding: "14px 16px", background: "none", border: "none",
+                      borderBottom: "1px solid var(--border-card)", cursor: "pointer",
+                      fontFamily: "'Inter',sans-serif", fontSize: 14, fontWeight: 600,
+                      color: "var(--text-body)", textAlign: "left",
+                    }}>
+                      <span style={{ fontSize: 18 }}>{icon}</span>{label}
+                    </button>
+                  ))}
+                  <button onClick={() => setInviteOpen(o => !o)} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
+                    padding: "14px 16px", background: "none", border: "none", cursor: "pointer",
+                    fontFamily: "'Inter',sans-serif", fontSize: 14, fontWeight: 600,
+                    color: "var(--text-body)", textAlign: "left",
+                    borderBottom: inviteOpen ? "1px solid var(--border-card)" : "none",
+                  }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ fontSize: 18 }}>✉️</span>Invite a friend</span>
+                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{inviteOpen ? "▲" : "▼"}</span>
+                  </button>
+                  {inviteOpen && (() => {
+                    const appUrl = `${window.location.origin}${window.location.pathname}`;
+                    const txt = `Join me on Mahjong Club!\n\n${appUrl}`;
+                    const share = (method) => {
+                      if (method === "sms") window.open(`sms:?body=${encodeURIComponent(txt)}`);
+                      else if (method === "email") window.open(`mailto:?subject=${encodeURIComponent("Join me on Mahjong Club!")}&body=${encodeURIComponent(txt)}`);
+                      else if (method === "copy") navigator.clipboard.writeText(appUrl).catch(() => {});
+                      else if (method === "share") { if (navigator.share) navigator.share({ title: "Mahjong Club", url: appUrl }).catch(() => {}); else navigator.clipboard.writeText(appUrl).catch(() => {}); }
+                    };
+                    return [
+                      { icon: "💬", label: "Text Message", method: "sms" },
+                      { icon: "📧", label: "Email",        method: "email" },
+                      { icon: "🔗", label: "Copy link",    method: "copy" },
+                      { icon: "📤", label: "Share…",       method: "share" },
+                    ].map(({ icon, label, method }) => (
+                      <button key={method} onClick={() => { share(method); setMenuOpen(false); setInviteOpen(false); }} style={{
+                        display: "flex", alignItems: "center", gap: 12, width: "100%",
+                        padding: "12px 16px 12px 44px", background: "rgba(var(--primary-rgb),0.04)",
+                        border: "none", borderBottom: "1px solid var(--border-card)", cursor: "pointer",
+                        fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 500,
+                        color: "var(--text-body)", textAlign: "left",
+                      }}>
+                        <span style={{ fontSize: 16 }}>{icon}</span>{label}
+                      </button>
+                    ));
+                  })()}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

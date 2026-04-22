@@ -1,0 +1,23 @@
+{
+  "name": "Mahjong Club",
+  "short_name": "MahjongClub",
+  "description": "Schedule and track your mahjong games with your group.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ead0e8",
+  "theme_color": "#c9607a",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

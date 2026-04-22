@@ -1,12 +1,64 @@
-// Firebase Cloud Messaging Service Worker
-// This file must live at the root of your domain (handled by Vite's public/ folder).
-//
-// SETUP REQUIRED:
-//   1. Go to Firebase Console → Project Settings → Cloud Messaging
-//   2. Generate a Web Push certificate (VAPID key)
-//   3. Replace the placeholder below with your actual config values
-//   4. Add your VAPID key to the getToken() call in App.jsx
+// Combined service worker: Firebase Cloud Messaging + PWA offline caching.
+// Registered explicitly from main.jsx so caching is active even without FCM.
 
+// ── PWA Caching ──────────────────────────────────────────────────────────────
+const CACHE = 'mahjong-club-v1';
+
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.add('/')));
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', (e) => {
+  const url = e.request.url;
+  // Pass through Firebase, Google API, and function calls — never cache these.
+  if (
+    url.includes('googleapis.com') ||
+    url.includes('firebaseio.com') ||
+    url.includes('firebaseapp.com') ||
+    url.includes('cloudfunctions.net') ||
+    url.includes('/api/')
+  ) return;
+
+  if (e.request.mode === 'navigate') {
+    // Network-first for navigations; fall back to cached shell when offline.
+    e.respondWith(
+      fetch(e.request)
+        .then((res) => {
+          const clone = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, clone));
+          return res;
+        })
+        .catch(() => caches.match('/'))
+    );
+    return;
+  }
+
+  // Cache-first for static assets (JS, CSS, images, fonts).
+  e.respondWith(
+    caches.match(e.request).then((cached) => {
+      if (cached) return cached;
+      return fetch(e.request).then((res) => {
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, clone));
+        }
+        return res;
+      });
+    })
+  );
+});
+
+// ── Firebase Cloud Messaging ──────────────────────────────────────────────────
 importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js");
 

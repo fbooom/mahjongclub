@@ -10,20 +10,9 @@
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "headers": [
       {
-        "source": "/index.html",
-        "headers": [
-          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-        ]
-      },
-      {
-        "source": "/assets/**",
-        "headers": [
-          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
-        ]
-      },
-      {
         "source": "**",
         "headers": [
+          { "key": "Cache-Control",             "value": "no-cache, no-store, must-revalidate" },
           { "key": "X-Content-Type-Options",    "value": "nosniff" },
           { "key": "X-Frame-Options",           "value": "DENY" },
           { "key": "Referrer-Policy",           "value": "strict-origin-when-cross-origin" },
@@ -32,6 +21,12 @@
             "key": "Content-Security-Policy",
             "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net wss://*.firebaseio.com https://mahjong-club-da606.web.app https://ourmahjong.club; frame-src https://mahjong-club-da606.firebaseapp.com https://ourmahjong.club; object-src 'none'; base-uri 'self';"
           }
+        ]
+      },
+      {
+        "source": "/assets/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
         ]
       }
     ],
