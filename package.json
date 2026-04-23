@@ -7,16 +7,23 @@
         "dev": "vite",
         "build": "vite build",
         "preview": "vite preview",
-        "deploy": "unset FIREBASE_TOKEN && vite build && firebase deploy --only hosting --project mahjong-club-da606"
+        "deploy": "unset FIREBASE_TOKEN && vite build && firebase deploy --only hosting --project mahjong-club-da606",
+        "sync": "vite build && npx cap sync"
     },
     "dependencies": {
+        "@capacitor/android": "^8.3.1",
+        "@capacitor/core": "^8.3.1",
+        "@capacitor/ios": "^8.3.1",
+        "@capacitor/push-notifications": "^8.0.3",
         "firebase": "^12.11.0",
         "qrcode.react": "^4.2.0",
         "react": "^18.3.1",
         "react-dom": "^18.3.1"
     },
     "devDependencies": {
+        "@capacitor/cli": "^8.3.1",
         "@vitejs/plugin-react": "^4.4.1",
+        "typescript": "^6.0.3",
         "vite": "^6.0.5"
     }
 }

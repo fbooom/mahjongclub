@@ -1,8 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { Capacitor } from "@capacitor/core";
 import App from "./App.jsx";
 
-if ("serviceWorker" in navigator) {
+// Service worker is web-only — Capacitor native handles push natively
+if ("serviceWorker" in navigator && !Capacitor.isNativePlatform()) {
   navigator.serviceWorker.register("/firebase-messaging-sw.js").catch(() => {});
 }
 

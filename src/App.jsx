@@ -11,6 +11,8 @@ import {
 import { auth, db, googleProvider, messagingReady } from "./firebase";
 import { getToken, onMessage } from "firebase/messaging";
 import { getFunctions, httpsCallable, httpsCallableFromURL } from "firebase/functions";
+import { Capacitor } from "@capacitor/core";
+import { PushNotifications } from "@capacitor/push-notifications";
 
 // Route all Cloud Function calls through Firebase Hosting (/api/*) so they
 // work even when the GCP org policy blocks allUsers IAM bindings on Cloud Run.
@@ -80,53 +82,68 @@ const showBrowserNotif = (title, body, tag) => {
 };
 
 // Silent token refresh — called on every sign-in.
-// Only runs if the user has already granted notification permission.
-// Never shows a browser dialog. Does NOT set notificationsEnabled.
-// This keeps the stored token fresh (tokens rotate periodically).
+// ── Push notification helpers (web + native) ─────────────────────────────────
+
+// Silent refresh: re-registers and saves FCM token without showing any dialog.
+// Called on sign-in when the user has already opted in.
 async function silentlyRefreshFcmToken(uid) {
+  if (Capacitor.isNativePlatform()) {
+    // On native, register only if permission is already granted
+    try {
+      const { receive } = await PushNotifications.checkPermissions();
+      if (receive !== "granted") return;
+      await PushNotifications.register();
+      PushNotifications.addListener("registration", async ({ value: token }) => {
+        if (token) await updateDoc(doc(db, "users", uid), { fcmTokens: arrayUnion(token) });
+      });
+    } catch (e) { console.error("[FCM native] silent refresh failed:", e); }
+    return;
+  }
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   const messaging = await messagingReady;
   if (!messaging) return;
   try {
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
-    if (token) {
-      await updateDoc(doc(db, "users", uid), { fcmTokens: arrayUnion(token) });
-      console.log("[FCM] token refreshed:", token.slice(0, 20) + "…");
-    }
-  } catch (e) {
-    console.error("[FCM] silent refresh failed:", e);
-  }
+    if (token) await updateDoc(doc(db, "users", uid), { fcmTokens: arrayUnion(token) });
+  } catch (e) { console.error("[FCM] silent refresh failed:", e); }
 }
 
-// Explicit enable — called only when the user clicks "Enable notifications".
-// Prompts for permission if not yet decided. Gets token and sets notificationsEnabled: true.
-// Returns a status string for the UI to act on.
+// Explicit enable: prompts for permission, registers token, flips notificationsEnabled.
+// Returns a status string the UI acts on.
 async function enablePushNotifications(uid) {
+  if (Capacitor.isNativePlatform()) {
+    let { receive } = await PushNotifications.checkPermissions();
+    if (receive === "denied") return "denied";
+    if (receive !== "granted") {
+      const result = await PushNotifications.requestPermissions();
+      if (result.receive !== "granted") return "no-permission";
+    }
+    return new Promise((resolve) => {
+      PushNotifications.addListener("registration", async ({ value: token }) => {
+        if (token) {
+          await updateDoc(doc(db, "users", uid), { notificationsEnabled: true, fcmTokens: arrayUnion(token) });
+          resolve("ok");
+        } else { resolve("empty-token"); }
+      });
+      PushNotifications.addListener("registrationError", () => resolve("error:registration-failed"));
+      PushNotifications.register().catch(() => resolve("error:register-threw"));
+    });
+  }
+  // Web path
   if (typeof Notification === "undefined") return "unsupported";
   if (Notification.permission === "denied") return "denied";
   if (Notification.permission === "default") {
     const result = await Notification.requestPermission();
-    if (result !== "granted") {
-      console.warn("[FCM] permission not granted:", result);
-      return "no-permission";
-    }
+    if (result !== "granted") return "no-permission";
   }
   const messaging = await messagingReady;
-  if (!messaging) {
-    console.warn("[FCM] isSupported() returned false — browser does not support FCM");
-    return "unsupported";
-  }
+  if (!messaging) return "unsupported";
   try {
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
     if (token) {
-      await updateDoc(doc(db, "users", uid), {
-        notificationsEnabled: true,
-        fcmTokens: arrayUnion(token),
-      });
-      console.log("[FCM] token registered:", token.slice(0, 20) + "…");
+      await updateDoc(doc(db, "users", uid), { notificationsEnabled: true, fcmTokens: arrayUnion(token) });
       return "ok";
     }
-    console.warn("[FCM] getToken returned empty — service worker may not be registered yet");
     return "empty-token";
   } catch (e) {
     console.error("[FCM] getToken failed:", e.code || e.name, e.message);
@@ -138,6 +155,39 @@ async function enablePushNotifications(uid) {
 // so the result can be displayed in the UI without needing dev tools.
 async function enablePushNotificationsWithLog(uid, log) {
   log.push(`UID: ${uid || "MISSING"}`);
+  log.push(`Platform: ${Capacitor.isNativePlatform() ? Capacitor.getPlatform() : "web"}`);
+
+  if (Capacitor.isNativePlatform()) {
+    log.push("Checking native permissions…");
+    let { receive } = await PushNotifications.checkPermissions();
+    log.push(`Permission: ${receive}`);
+    if (receive === "denied") { log.push("FAIL: permission=denied"); return "denied"; }
+    if (receive !== "granted") {
+      log.push("Requesting permission…");
+      const res = await PushNotifications.requestPermissions();
+      log.push(`Result: ${res.receive}`);
+      if (res.receive !== "granted") return "no-permission";
+    }
+    log.push("Registering for push…");
+    return new Promise((resolve) => {
+      PushNotifications.addListener("registration", async ({ value: token }) => {
+        log.push(`Token: ${token ? token.slice(0, 30) + "…" : "(empty)"}`);
+        if (token) {
+          await updateDoc(doc(db, "users", uid), { notificationsEnabled: true, fcmTokens: arrayUnion(token) });
+          const snap = await getDoc(doc(db, "users", uid));
+          log.push(`Firestore confirmed: fcmTokens.length=${snap.data()?.fcmTokens?.length}`);
+          resolve("ok");
+        } else { resolve("empty-token"); }
+      });
+      PushNotifications.addListener("registrationError", (err) => {
+        log.push(`FAIL: ${JSON.stringify(err)}`);
+        resolve("error:registration-failed");
+      });
+      PushNotifications.register().catch((e) => { log.push(`FAIL: register threw — ${e.message}`); resolve("error:register-threw"); });
+    });
+  }
+
+  // Web path
   if (typeof Notification === "undefined") { log.push("FAIL: Notification API undefined"); return "unsupported"; }
   log.push(`Notification API: present`);
   if (Notification.permission === "denied") { log.push("FAIL: permission=denied"); return "denied"; }
@@ -160,7 +210,6 @@ async function enablePushNotificationsWithLog(uid, log) {
     if (token) {
       log.push(`Writing to users/${uid}…`);
       await updateDoc(doc(db, "users", uid), { notificationsEnabled: true, fcmTokens: arrayUnion(token) });
-      // Read back the doc to confirm the token actually landed
       const snap = await getDoc(doc(db, "users", uid));
       const saved = snap.data()?.fcmTokens || [];
       log.push(`Firestore confirmed: fcmTokens.length=${saved.length}`);
@@ -539,6 +588,15 @@ export default function App() {
       }
     });
     return unsub;
+  }, []);
+
+  // ── Native foreground push listener ──────────────────────────────────────
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const sub = PushNotifications.addListener("pushNotificationReceived", (notification) => {
+      showBrowserNotif(notification.title, notification.body);
+    });
+    return () => { sub.then((h) => h.remove()); };
   }, []);
 
   // ── Firestore real-time listeners for groups + games ──
@@ -2268,9 +2326,12 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
     } catch { flash("Error saving profile", "❌"); }
   };
 
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const notifUnsupported = typeof Notification === "undefined";
+  const isNative = Capacitor.isNativePlatform();
+  const isIOS = isNative
+    ? Capacitor.getPlatform() === "ios"
+    : /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  // Native always supports push; web falls back to Notification API check
+  const notifUnsupported = !isNative && typeof Notification === "undefined";
 
   const toggleNotifications = async () => {
     if (!notifEnabled) {
@@ -2285,10 +2346,11 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
         return;
       }
 
-      // Collect a step-by-step log for in-UI debugging (no dev tools needed)
       const log = [];
-      log.push(`UA: ${navigator.userAgent.slice(0, 80)}`);
-      log.push(`Permission before: ${Notification.permission}`);
+      if (!isNative) {
+        log.push(`UA: ${navigator.userAgent.slice(0, 80)}`);
+        log.push(`Permission before: ${Notification.permission}`);
+      }
 
       const result = await enablePushNotificationsWithLog(uid, log);
       setNotifDebug(log);
