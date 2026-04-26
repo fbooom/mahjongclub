@@ -1340,7 +1340,7 @@ export default function App() {
           <Invite group={group} game={game} flash={flash} onBack={() => go(game ? "game" : "group", group.id, gmid)} />
         )}
         {page === "guestGame" && gid && gmid && (
-          <GuestGameView uid={uid} groupId={gid} gameId={gmid} go={go} flash={flash} />
+          <GuestGameView uid={uid} user={displayUser} groupId={gid} gameId={gmid} go={go} flash={flash} />
         )}
         {page === "newStandaloneGame" && (
           <NewGame uid={uid} user={user} group={null} planCfg={userPlanCfg} onBack={() => go("home")}
@@ -5174,7 +5174,7 @@ function StandaloneGameView({ uid, gameId, go, flash, user }) {
   );
 }
 
-function GuestGameView({ uid, groupId, gameId, go, flash }) {
+function GuestGameView({ uid, user, groupId, gameId, go, flash }) {
   const [game, setGame] = useState(null);
   const [groupMeta, setGroupMeta] = useState(null);
 
@@ -5200,7 +5200,7 @@ function GuestGameView({ uid, groupId, gameId, go, flash }) {
   );
 
   return (
-    <Game uid={uid} game={game} group={groupMeta} go={go} isGuestView
+    <Game uid={uid} user={user} game={game} group={groupMeta} go={go} isGuestView
       onRsvp={async (ans) => {
         try {
           await updateDoc(doc(db, "groups", groupId, "games", gameId), { [`rsvps.${uid}`]: ans });
@@ -5390,7 +5390,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
           {isHost && (
             <button onClick={() => go("editGame", group.id, game.id)} title="Edit game" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>✏️</button>
           )}
-          {!isGuestView && (
+          {group.id && (
             <button onClick={() => setGameChatOpen(true)} title="Game chat" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>💬</button>
           )}
           {canInvite && (
@@ -5689,7 +5689,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
         onCancel={() => setConfirmReRandomize(false)}
       />
     )}
-    {gameChatOpen && (
+    {gameChatOpen && group.id && (
       <GameChat game={game} group={group} uid={uid} user={user} onClose={() => setGameChatOpen(false)} />
     )}
     </>

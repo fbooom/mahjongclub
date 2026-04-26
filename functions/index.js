@@ -105,6 +105,37 @@ exports.onNewChatMessage = onDocumentCreated(
   }
 );
 
+// ── 1b. New game chat message — notify all game participants ─────────────────
+// Participants = everyone in game.rsvps (group members) + game.guestIds (QR joiners).
+// Token routing: getTokensForUsers prefers nativePushTokens (mobile app) and
+// falls back to fcmTokens (web) so each user gets one notification on the right channel.
+exports.onNewGameChatMessage = onDocumentCreated(
+  "groups/{groupId}/games/{gameId}/messages/{messageId}",
+  async (event) => {
+    const msg = event.data.data();
+    const { groupId, gameId } = event.params;
+
+    const gameSnap = await db.doc(`groups/${groupId}/games/${gameId}`).get();
+    if (!gameSnap.exists) return;
+    const game = gameSnap.data();
+
+    const rsvpUids  = Object.keys(game.rsvps  || {});
+    const guestUids = game.guestIds || [];
+    const recipients = [...new Set([...rsvpUids, ...guestUids])].filter((id) => id !== msg.uid);
+    if (!recipients.length) return;
+
+    const tokens = await getTokensForUsers(recipients);
+    await sendToTokens(
+      tokens,
+      {
+        title: `${msg.name} · ${game.title}`,
+        body: msg.text?.length > 100 ? msg.text.slice(0, 97) + "…" : msg.text,
+      },
+      { type: "gameChat", groupId, gameId, messageId: event.params.messageId }
+    );
+  }
+);
+
 // ── 2. New reply on a message ────────────────────────────────────────────────
 exports.onNewReply = onDocumentUpdated(
   "groups/{groupId}/messages/{messageId}",
