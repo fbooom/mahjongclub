@@ -7,7 +7,7 @@ import {
 import {
   collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
   onSnapshot, query, where, orderBy, addDoc, serverTimestamp,
-  arrayUnion, arrayRemove, runTransaction, writeBatch,
+  arrayUnion, arrayRemove, deleteField, runTransaction, writeBatch,
 } from "firebase/firestore";
 import { auth, db, googleProvider, messagingReady } from "./firebase";
 import { getToken, onMessage } from "firebase/messaging";
@@ -1289,6 +1289,19 @@ export default function App() {
                 }));
                 go("group", group.id); flash("Game archived", "📦");
               } catch { flash("Error archiving game", "❌"); }
+            }}
+            onLeave={async () => {
+              try {
+                const ref = doc(db, "groups", group.id, "games", game.id);
+                const isGuest = (game.guestIds || []).includes(uid);
+                await updateDoc(ref, {
+                  [`rsvps.${uid}`]: deleteField(),
+                  waitlist: arrayRemove(uid),
+                  ...(isGuest && { guestIds: arrayRemove(uid), registeredGuests: (game.registeredGuests || []).filter(g => g.id !== uid) }),
+                });
+                if (isGuest) await updateDoc(doc(db, "users", uid), { guestGameRefs: arrayRemove({ groupId: group.id, gameId: game.id }) });
+                go("group", group.id); flash("You've left the game", "👋");
+              } catch { flash("Error leaving game", "❌"); }
             }} />
         )}
         {page === "editGame" && game && group && (
@@ -5129,6 +5142,18 @@ function StandaloneGameView({ uid, gameId, go, flash, user }) {
           go("home"); flash("Game cancelled", "📦");
         } catch { flash("Error cancelling game", "❌"); }
       } : null}
+      onLeave={!isHost ? async () => {
+        try {
+          await updateDoc(doc(db, "games", gameId), {
+            [`rsvps.${uid}`]: deleteField(),
+            guestIds: arrayRemove(uid),
+            waitlist: arrayRemove(uid),
+            registeredGuests: (game.registeredGuests || []).filter(g => g.id !== uid),
+          });
+          await updateDoc(doc(db, "users", uid), { guestGameRefs: arrayRemove({ groupId: null, gameId }) });
+          go("home"); flash("You've left the game", "👋");
+        } catch { flash("Error leaving game", "❌"); }
+      } : null}
     />
   );
 }
@@ -5175,6 +5200,19 @@ function GuestGameView({ uid, groupId, gameId, go, flash }) {
         } catch { flash("Error updating waitlist", "❌"); }
       }}
       onArchive={null}
+      onLeave={async () => {
+        try {
+          const ref = doc(db, "groups", groupId, "games", gameId);
+          await updateDoc(ref, {
+            [`rsvps.${uid}`]: deleteField(),
+            guestIds: arrayRemove(uid),
+            waitlist: arrayRemove(uid),
+            registeredGuests: (game.registeredGuests || []).filter(g => g.id !== uid),
+          });
+          await updateDoc(doc(db, "users", uid), { guestGameRefs: arrayRemove({ groupId, gameId }) });
+          go("home"); flash("You've left the game", "👋");
+        } catch { flash("Error leaving game", "❌"); }
+      }}
     />
   );
 }
@@ -5214,10 +5252,11 @@ function generateSeating(playerIds, skillMap, tableSize = 4) {
 }
 
 /* GAME DETAIL */
-function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, isGuestView = false }) {
+function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLeave, isGuestView = false }) {
   const [showAttendees, setShowAttendees] = useState(false);
   const [rsvpTab, setRsvpTab] = useState("going");
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const [seatingOpen, setSeatingOpen] = useState(false);
   // Firestore forbids nested arrays, so each table is stored as { players: [...] }.
   // Internally we keep seating as [[uid,...], ...] for simplicity.
@@ -5599,6 +5638,11 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, isGue
         {/* Add to Calendar */}
         <AddToCalendar game={game} groupName={group.name} />
 
+        {/* Leave Game — only for non-hosts who have RSVP'd Can't */}
+        {onLeave && game.hostId !== uid && myRsvp === "no" && (
+          <Btn full outline danger onClick={() => setConfirmLeave(true)}>🚪 Leave Game</Btn>
+        )}
+
         {game.hostId === uid && <Btn full outline danger onClick={() => setConfirmArchive(true)}>📦 Archive Game</Btn>}
       </div>
     </div>
@@ -5609,6 +5653,15 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, isGue
         confirmLabel="Archive Game"
         onConfirm={() => { setConfirmArchive(false); onArchive(); }}
         onCancel={() => setConfirmArchive(false)}
+      />
+    )}
+    {confirmLeave && (
+      <ConfirmDialog
+        title="Leave Game?"
+        message={`You'll be removed from "${game.title}". You can rejoin later using the invite link or QR code if available.`}
+        confirmLabel="Leave Game"
+        onConfirm={() => { setConfirmLeave(false); onLeave(); }}
+        onCancel={() => setConfirmLeave(false)}
       />
     )}
     {confirmReRandomize && (
