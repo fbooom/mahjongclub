@@ -35,7 +35,16 @@ initializeApp();
 const db = getFirestore();
 const messaging = getMessaging();
 
-/** Fetch all FCM tokens for a list of user IDs (only users with notifications enabled) */
+/**
+ * Fetch the right push tokens for a list of user IDs.
+ *
+ * Token strategy (prevents duplicate notifications):
+ *   - nativePushTokens present → use those only (user has the native app)
+ *   - no native tokens         → fall back to web fcmTokens
+ *
+ * This ensures a user with both the web app and native app installed
+ * only receives one notification, delivered via the better channel.
+ */
 async function getTokensForUsers(userIds) {
   if (!userIds.length) return [];
   const chunks = [];
@@ -44,9 +53,11 @@ async function getTokensForUsers(userIds) {
   for (const chunk of chunks) {
     const snaps = await Promise.all(chunk.map((uid) => db.doc(`users/${uid}`).get()));
     snaps.forEach((snap) => {
-      const fcmTokens = snap.data()?.fcmTokens || [];
-      const enabled = snap.data()?.notificationsEnabled === true;
-      if (enabled) tokens.push(...fcmTokens);
+      const data = snap.data();
+      if (data?.notificationsEnabled !== true) return;
+      const native = data?.nativePushTokens || [];
+      const web    = data?.fcmTokens        || [];
+      tokens.push(...(native.length > 0 ? native : web));
     });
   }
   return [...new Set(tokens)];

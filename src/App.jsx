@@ -101,7 +101,7 @@ async function silentlyRefreshFcmToken(uid) {
       if (receive !== "granted") return;
       await PushNotifications.register();
       PushNotifications.addListener("registration", async ({ value: token }) => {
-        if (token) await updateDoc(doc(db, "users", uid), { fcmTokens: arrayUnion(token) });
+        if (token) await updateDoc(doc(db, "users", uid), { nativePushTokens: arrayUnion(token) });
       });
     } catch (e) { console.error("[FCM native] silent refresh failed:", e); }
     return;
@@ -128,7 +128,7 @@ async function enablePushNotifications(uid) {
     return new Promise((resolve) => {
       PushNotifications.addListener("registration", async ({ value: token }) => {
         if (token) {
-          await updateDoc(doc(db, "users", uid), { notificationsEnabled: true, fcmTokens: arrayUnion(token) });
+          await updateDoc(doc(db, "users", uid), { notificationsEnabled: true, nativePushTokens: arrayUnion(token) });
           resolve("ok");
         } else { resolve("empty-token"); }
       });
@@ -180,9 +180,9 @@ async function enablePushNotificationsWithLog(uid, log) {
       PushNotifications.addListener("registration", async ({ value: token }) => {
         log.push(`Token: ${token ? token.slice(0, 30) + "…" : "(empty)"}`);
         if (token) {
-          await updateDoc(doc(db, "users", uid), { notificationsEnabled: true, fcmTokens: arrayUnion(token) });
+          await updateDoc(doc(db, "users", uid), { notificationsEnabled: true, nativePushTokens: arrayUnion(token) });
           const snap = await getDoc(doc(db, "users", uid));
-          log.push(`Firestore confirmed: fcmTokens.length=${snap.data()?.fcmTokens?.length}`);
+          log.push(`Firestore confirmed: nativePushTokens.length=${snap.data()?.nativePushTokens?.length}`);
           resolve("ok");
         } else { resolve("empty-token"); }
       });
