@@ -356,6 +356,7 @@ function buildGlobalCSS(theme) {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    padding-top: env(safe-area-inset-top, 0px);
   }
 
   /* On larger screens: float as a card with subtle shadow */
@@ -1015,7 +1016,7 @@ export default function App() {
       {/* Impersonation banner */}
       {impersonating && (
         <div style={{
-          position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)",
+          position: "fixed", top: "env(safe-area-inset-top, 0px)", left: "50%", transform: "translateX(-50%)",
           width: "100%", maxWidth: 480, zIndex: 10000,
           background: "linear-gradient(135deg,#2d1b4e,#5a2d6b)",
           padding: "10px 16px", display: "flex", alignItems: "center", gap: 10,
