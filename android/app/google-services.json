@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "744873688381",
+    "project_id": "mahjong-club-da606",
+    "storage_bucket": "mahjong-club-da606.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:744873688381:android:8c2f25b36b8ed38ee95954",
+        "android_client_info": {
+          "package_name": "ourmahjong.club.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "744873688381-a12j7rdj7cpfjedddvfn2ejjobmt2p6t.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC0Gb5vtMRgdpcor05meC6cUKOIey-RJEc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "744873688381-a12j7rdj7cpfjedddvfn2ejjobmt2p6t.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

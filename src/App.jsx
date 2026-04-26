@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import {
   onAuthStateChanged, createUserWithEmailAndPassword,
-  signInWithEmailAndPassword, signInWithPopup, signOut,
+  signInWithEmailAndPassword, signInWithPopup, signInWithCredential,
+  GoogleAuthProvider, signOut,
 } from "firebase/auth";
 import {
   collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
@@ -13,6 +14,7 @@ import { getToken, onMessage } from "firebase/messaging";
 import { getFunctions, httpsCallable, httpsCallableFromURL } from "firebase/functions";
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
+import { GoogleAuth } from "@southdevs/capacitor-google-auth";
 
 // Route all Cloud Function calls through Firebase Hosting (/api/*) so they
 // work even when the GCP org policy blocks allUsers IAM bindings on Cloud Run.
@@ -23,6 +25,11 @@ import { QRCodeSVG } from "qrcode.react";
 
 // VAPID key — get from Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
 const VAPID_KEY = "BKkYCO7TpfkGKyFGFwxP9qv_SqUyey_tLi5yzk5bngZxZ6ZBd3S9IgYSsHwIlRMinuGxmiFK4bQDjwxIPj8M0Bg";
+
+// Google OAuth web client ID (public identifier — also stored in capacitor.config.ts).
+// Used as serverClientId in the native Google Sign-In flow so the plugin can return
+// a serverAuthCode. Not a secret: it is embedded in the app binary and web bundle.
+const GOOGLE_WEB_CLIENT_ID = "744873688381-a12j7rdj7cpfjedddvfn2ejjobmt2p6t.apps.googleusercontent.com";
 
 // ── Game join-code utilities ─────────────────────────────────────────────────
 // Unambiguous chars: no O/0, I/1/l confusion
@@ -536,19 +543,29 @@ export default function App() {
   const knownGameIds = useRef({}); // { [groupId]: Set<gameId> } — per-group tracking
 
   // ── Subscription plan configs (real-time) ──
-  // Build a map of planKey → document so helpers can read dynamic limits
+  // Gated on authUser so the listener never fires before auth is established.
+  // On mobile (indexedDBLocalPersistence) auth restoration is slower — starting
+  // this listener before auth causes a permission-denied that permanently
+  // cancels it, leaving planConfigs empty and all limits showing as unlimited.
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "subscriptionPackages"), (snap) => {
-      const map = {};
-      snap.docs.forEach((d) => {
-        const data = d.data();
-        const key = data.planKey || d.id;
-        map[key] = { id: d.id, ...data };
-      });
-      setPlanConfigs(map);
-    });
+    if (!authUser) return;
+    const unsub = onSnapshot(
+      collection(db, "subscriptionPackages"),
+      (snap) => {
+        const map = {};
+        snap.docs.forEach((d) => {
+          const data = d.data();
+          const key = data.planKey || d.id;
+          map[key] = { id: d.id, ...data };
+        });
+        setPlanConfigs(map);
+      },
+      (err) => {
+        if (err.code !== "permission-denied") console.error("[planConfigs]", err);
+      }
+    );
     return unsub;
-  }, []);
+  }, [authUser?.uid]);
 
   // ── Firebase auth state listener ──
   useEffect(() => {
@@ -1616,8 +1633,21 @@ function AuthScreen() {
     setError("");
     setLoading(true);
     try {
-      const { user: fbUser } = await signInWithPopup(auth, googleProvider);
-      silentlyRefreshFcmToken(fbUser.uid);
+      if (Capacitor.isNativePlatform()) {
+        await GoogleAuth.initialize({ scopes: ["profile", "email"], grantOfflineAccess: true });
+        const { authentication } = await GoogleAuth.signIn({
+          scopes: ["profile", "email"],
+          serverClientId: GOOGLE_WEB_CLIENT_ID,
+          grantOfflineAccess: true,
+        });
+        const { user: fbUser } = await signInWithCredential(
+          auth, GoogleAuthProvider.credential(authentication.idToken)
+        );
+        silentlyRefreshFcmToken(fbUser.uid);
+      } else {
+        const { user: fbUser } = await signInWithPopup(auth, googleProvider);
+        silentlyRefreshFcmToken(fbUser.uid);
+      }
     } catch (e) {
       setError(fmtFirebaseError(e.code));
     } finally {

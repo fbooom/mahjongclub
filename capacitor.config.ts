@@ -6,8 +6,14 @@ const config: CapacitorConfig = {
   webDir: "dist",
   plugins: {
     PushNotifications: {
-      // Show banners, badge count, and play sound when app is in foreground
       presentationOptions: ["badge", "sound", "alert"],
+    },
+    GoogleAuth: {
+      iosClientId: "744873688381-5bbp19nctmht9pn4mm1cek46hqsjnd8v.apps.googleusercontent.com",
+      androidClientId: "744873688381-a12j7rdj7cpfjedddvfn2ejjobmt2p6t.apps.googleusercontent.com",
+      scopes: ["profile", "email"],
+      serverClientId: "744873688381-a12j7rdj7cpfjedddvfn2ejjobmt2p6t.apps.googleusercontent.com",
+      forceCodeForRefreshToken: true,
     },
   },
 };

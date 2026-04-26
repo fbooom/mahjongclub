@@ -85,6 +85,11 @@ function generateIcon(size) {
   ]);
 }
 
+import { mkdirSync } from 'fs';
+mkdirSync('resources', { recursive: true });
+
 writeFileSync('public/icon-192.png', generateIcon(192));
 writeFileSync('public/icon-512.png', generateIcon(512));
-console.log('Icons written: public/icon-192.png, public/icon-512.png');
+writeFileSync('resources/icon.png', generateIcon(1024));  // source for @capacitor/assets
+writeFileSync('resources/splash.png', generateIcon(2732)); // splash screen source
+console.log('Icons written: public/icon-192.png, public/icon-512.png, resources/icon.png, resources/splash.png');
