@@ -21,6 +21,15 @@ This builds with Vite and pushes to Firebase Hosting. The deploy script explicit
 - Tell the user a fix is working before running `npm run deploy` and confirming it succeeds
 - Assume `GOOGLE_APPLICATION_CREDENTIALS` is sufficient — the stored OAuth credentials from `firebase login` are what Firebase CLI actually uses for this project
 
+## iOS deploy workflow
+After every commit that touches native or web code, run:
+```
+npm run deploy:ios
+```
+This builds Vite, syncs to Capacitor, builds the Xcode project, installs to the connected iPhone (UDID `00008120-001155543E98201E`), and launches the app — no manual Xcode interaction needed. The iPhone must be connected via USB and unlocked.
+
+For web-only changes, `npm run deploy` (Firebase Hosting) is sufficient — no iOS deploy needed.
+
 ## General rules
 - When adding, updating, or removing files, clean up after yourself — remove stale references, orphaned build inputs, duplicate files, and dead imports left behind by the change
 

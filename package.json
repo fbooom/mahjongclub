@@ -8,7 +8,8 @@
         "build": "vite build",
         "preview": "vite preview",
         "deploy": "unset FIREBASE_TOKEN && vite build && firebase deploy --only hosting --project mahjong-club-da606",
-        "sync": "vite build && npx cap sync"
+        "sync": "vite build && npx cap sync",
+        "deploy:ios": "npm run sync && bash scripts/deploy-ios.sh"
     },
     "dependencies": {
         "@capacitor/android": "^8.3.1",
