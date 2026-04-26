@@ -31,6 +31,11 @@ const VAPID_KEY = "BKkYCO7TpfkGKyFGFwxP9qv_SqUyey_tLi5yzk5bngZxZ6ZBd3S9IgYSsHwIl
 // a serverAuthCode. Not a secret: it is embedded in the app binary and web bundle.
 const GOOGLE_WEB_CLIENT_ID = "744873688381-a12j7rdj7cpfjedddvfn2ejjobmt2p6t.apps.googleusercontent.com";
 
+// Canonical public URL used for all shareable links and QR codes.
+// In the Capacitor native app window.location.origin is "capacitor://localhost"
+// which is unrecognisable to external QR scanners — always use the real domain.
+const APP_PUBLIC_URL = "https://ourmahjong.club";
+
 // ── Game join-code utilities ─────────────────────────────────────────────────
 // Unambiguous chars: no O/0, I/1/l confusion
 const GAME_CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -3149,7 +3154,7 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
                     <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{inviteOpen ? "▲" : "▼"}</span>
                   </button>
                   {inviteOpen && (() => {
-                    const appUrl = `${window.location.origin}${window.location.pathname}`;
+                    const appUrl = APP_PUBLIC_URL;
                     const txt = `Join me on Mahjong Club!\n\n${appUrl}`;
                     const share = (method) => {
                       if (method === "sms") window.open(`sms:?body=${encodeURIComponent(txt)}`);
@@ -3343,7 +3348,7 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
                     <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{inviteOpen ? "▲" : "▼"}</span>
                   </button>
                   {inviteOpen && (() => {
-                    const appUrl = `${window.location.origin}${window.location.pathname}`;
+                    const appUrl = APP_PUBLIC_URL;
                     const txt = `Join me on Mahjong Club!\n\n${appUrl}`;
                     const share = (method) => {
                       if (method === "sms") window.open(`sms:?body=${encodeURIComponent(txt)}`);
@@ -5928,12 +5933,11 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
 
 /* INVITE */
 function Invite({ group, game, flash, onBack }) {
-  const base = `${window.location.origin}${window.location.pathname}`;
   const joinUrl = game
     ? game.joinCode
-      ? `${base}?gameCode=${game.joinCode}`
-      : `${base}?joinGroup=${group.code}&game=${game.id}`
-    : `${base}?joinGroup=${group.code}`;
+      ? `${APP_PUBLIC_URL}/?gameCode=${game.joinCode}`
+      : `${APP_PUBLIC_URL}/?joinGroup=${group.code}&game=${game.id}`
+    : `${APP_PUBLIC_URL}/?joinGroup=${group.code}`;
 
   const txt = game
     ? `You're invited to a Mahjong game!\n\n📅 ${fmt(game.date)} at ${fmtT(game.time)}\n📍 ${game.location}\n🎯 Host: ${game.host}${game.note ? `\n📝 ${game.note}` : ""}${game.joinCode ? `\n\nGame Code: ${game.joinCode}` : ""}\n\nTap to join and RSVP:\n${joinUrl}`
