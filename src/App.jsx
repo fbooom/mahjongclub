@@ -861,8 +861,12 @@ export default function App() {
             }
             const gData = gameSnap.data();
 
-            // Already a participant — just navigate
+            // Already a participant — backfill registeredGuests if missing (legacy join), then navigate
             if ((gData.rsvps?.[authUser.uid] !== undefined) || (gData.guestIds || []).includes(authUser.uid)) {
+              const hasEntry = (gData.registeredGuests || []).some(g => g.id === authUser.uid);
+              if (!hasEntry) {
+                updateDoc(gameRef, { registeredGuests: arrayUnion({ id: authUser.uid, name: user.name, avatar: user.avatar }) }).catch(() => {});
+              }
               if (groupId) go_("guestGame", groupId, gId); else go_("standaloneGame", null, gId);
               return;
             }
@@ -5641,9 +5645,11 @@ function EditGame({ uid: myUid, game, group, onBack, onSave, onTransferHost }) {
   const [coHostIds, setCoHostIds] = useState(new Set(game.coHostIds || []));
   const joinCode = game.joinCode || null;
 
-  // Guests: people outside the group
+  // Manually-added anonymous guests (no app account)
   const [guests, setGuests] = useState(game.guests || []);
   const [guestName, setGuestName] = useState("");
+  // Registered app users who joined via QR / invite link
+  const [registeredGuests, setRegisteredGuests] = useState(game.registeredGuests || []);
   const [tab, setTab] = useState("details");
   const [transferring, setTransferring] = useState(false);
   const [selectedNewHost, setSelectedNewHost] = useState(null);
@@ -5673,6 +5679,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
   };
 
   const removeGuest = (id) => setGuests((prev) => prev.filter((g) => g.id !== id));
+  const removeRegisteredGuest = (id) => setRegisteredGuests((prev) => prev.filter((g) => g.id !== id));
 
   const handleSave = () => {
     const ts = new Date(`${date}T${time}`).getTime();
@@ -5693,11 +5700,19 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
       }
     });
 
-    // ── Step 3: Lock in confirmed guests (not currently waitlisted) ─────────
+    // ── Step 3: Lock in confirmed manual guests (not currently waitlisted) ────
     const newGuests = [];
     guests.forEach((g) => {
       const wasConfirmed = (game.guests || []).some((pg) => pg.id === g.id) && !prevWaitlist.includes(g.id);
       if (wasConfirmed) { newGuests.push(g); filled++; }
+    });
+
+    // ── Step 3b: Lock in confirmed registered guests (QR / link joiners) ──────
+    registeredGuests.forEach((rg) => {
+      if (!prevWaitlist.includes(rg.id) && game.rsvps?.[rg.id] === "yes") {
+        newRsvps[rg.id] = "yes";
+        filled++;
+      }
     });
 
     // ── Step 4: Process existing waitlist in strict join order ──────────────
@@ -5707,6 +5722,12 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
     for (const id of prevWaitlist) {
       const isMember = group.members.some((m) => m.id === id) && invitedIds.has(id);
       if (isMember) {
+        if (filled < totalSeats) { newRsvps[id] = "yes"; filled++; }
+        else { newRsvps[id] = "pending"; newWaitlist.push(id); }
+        continue;
+      }
+      const rgObj = registeredGuests.find((rg) => rg.id === id);
+      if (rgObj) {
         if (filled < totalSeats) { newRsvps[id] = "yes"; filled++; }
         else { newRsvps[id] = "pending"; newWaitlist.push(id); }
         continue;
@@ -5742,7 +5763,10 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
       else { newWaitlist.push(g.id); }
     });
 
-    onSave({ ...game, title: title.trim(), date: ts, time, endTime, location: loc.trim(), note, seats: totalSeats, rsvps: newRsvps, guests: newGuests, waitlist: newWaitlist, coHostIds: [...coHostIds], joinCode });
+    // Remove guestIds for any registered guests the host removed
+    const removedRgIds = new Set((game.registeredGuests || []).map(rg => rg.id).filter(id => !registeredGuests.some(rg => rg.id === id)));
+    const newGuestIds = (game.guestIds || []).filter(id => !removedRgIds.has(id));
+    onSave({ ...game, title: title.trim(), date: ts, time, endTime, location: loc.trim(), note, seats: totalSeats, rsvps: newRsvps, guests: newGuests, registeredGuests, guestIds: newGuestIds, waitlist: newWaitlist, coHostIds: [...coHostIds], joinCode });
   };
 
   const ok = title.trim() && date && time && loc.trim();
@@ -5904,6 +5928,24 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
               }}>+</button>
             </div>
           </div>
+
+          {/* Registered guests — joined via QR or invite link */}
+          {registeredGuests.length > 0 && (
+            <div style={glassCard}>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, color: "var(--section-title)", fontWeight: 700, marginBottom: 4 }}>Joined via QR / Link</div>
+              <div style={{ fontSize: 13, color: "#b08090", marginBottom: 12, fontFamily: "'Inter',sans-serif" }}>App users who scanned the QR code or used an invite link</div>
+              {registeredGuests.map((rg) => (
+                <div key={rg.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>{rg.avatar}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)" }}>{rg.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--secondary-accent)", fontWeight: 700, marginTop: 1 }}>Joined via link</div>
+                  </div>
+                  <div onClick={() => removeRegisteredGuest(rg.id)} style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, background: "rgba(var(--primary-rgb),0.12)", border: "1px solid rgba(var(--primary-rgb),0.2)" }}>✕</div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <Btn full onClick={handleSave}>Save Changes ✨</Btn>
 
