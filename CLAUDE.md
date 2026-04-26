@@ -21,6 +21,9 @@ This builds with Vite and pushes to Firebase Hosting. The deploy script explicit
 - Tell the user a fix is working before running `npm run deploy` and confirming it succeeds
 - Assume `GOOGLE_APPLICATION_CREDENTIALS` is sufficient — the stored OAuth credentials from `firebase login` are what Firebase CLI actually uses for this project
 
+## General rules
+- When adding, updating, or removing files, clean up after yourself — remove stale references, orphaned build inputs, duplicate files, and dead imports left behind by the change
+
 ## Code conventions
 - Single-file React app — all components and pages are functions defined in `src/App.jsx`
 - Navigation is page-based via `go(page, param1, param2)` — no React Router, no modal state for full-page views
