@@ -3134,6 +3134,8 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
   const [tab, setTab] = useState("upcoming");
   const [menuOpen, setMenuOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const gamesMenuBtnRef = useRef(null);
+  const [gamesMenuRect, setGamesMenuRect] = useState(null);
 
   const memberGames = groups.flatMap((g) =>
     g.games.map((gm) => ({ ...gm, groupName: g.name, groupColor: g.color, groupId: g.id, groupEmoji: g.emoji }))
@@ -3172,17 +3174,23 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
             margin: 0, lineHeight: 1.1, letterSpacing: 2,
           }}>Your Games</h1>
 
-          <div style={{ position: "relative", flexShrink: 0 }}>
-            <button onClick={() => { setMenuOpen(o => !o); setInviteOpen(false); }} style={{
+          <div ref={gamesMenuBtnRef} style={{ position: "relative", flexShrink: 0 }}>
+            <button onClick={() => {
+              if (gamesMenuBtnRef.current) setGamesMenuRect(gamesMenuBtnRef.current.getBoundingClientRect());
+              setMenuOpen(o => !o); setInviteOpen(false);
+            }} style={{
               background: "rgba(255,255,255,0.2)", border: "1.5px solid rgba(255,255,255,0.55)",
               borderRadius: 999, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer", fontSize: 20, color: "#fff", lineHeight: 1,
             }}>⋮</button>
-            {menuOpen && (
+            {menuOpen && gamesMenuRect && (
               <>
-                <div onClick={() => { setMenuOpen(false); setInviteOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
+                <div onClick={() => { setMenuOpen(false); setInviteOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 999 }} />
                 <div style={{
-                  position: "absolute", top: 44, right: 0, zIndex: 100,
+                  position: "fixed",
+                  top: gamesMenuRect.bottom + 6,
+                  right: window.innerWidth - gamesMenuRect.right,
+                  zIndex: 1000,
                   background: "var(--bg-card-base)", borderRadius: 16,
                   boxShadow: "0 8px 32px rgba(0,0,0,0.18)", border: "1px solid var(--border-card)",
                   minWidth: 220, overflow: "hidden",
@@ -3332,6 +3340,8 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
   const [groupFilter, setGroupFilter] = useState("active");
   const [menuOpen, setMenuOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const groupsMenuBtnRef = useRef(null);
+  const [groupsMenuRect, setGroupsMenuRect] = useState(null);
   const activeGroups = groups.filter(g => g.status !== "archived");
   const archivedGroups = groups.filter(g => g.status === "archived");
   const displayGroups = groupFilter === "active" ? activeGroups : archivedGroups;
@@ -3366,17 +3376,23 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
             margin: 0, lineHeight: 1.1, letterSpacing: 2,
           }}>Your Groups</h1>
 
-          <div style={{ position: "relative", flexShrink: 0 }}>
-            <button onClick={() => { setMenuOpen(o => !o); setInviteOpen(false); }} style={{
+          <div ref={groupsMenuBtnRef} style={{ position: "relative", flexShrink: 0 }}>
+            <button onClick={() => {
+              if (groupsMenuBtnRef.current) setGroupsMenuRect(groupsMenuBtnRef.current.getBoundingClientRect());
+              setMenuOpen(o => !o); setInviteOpen(false);
+            }} style={{
               background: "rgba(255,255,255,0.2)", border: "1.5px solid rgba(255,255,255,0.55)",
               borderRadius: 999, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer", fontSize: 20, color: "#fff", lineHeight: 1,
             }}>⋮</button>
-            {menuOpen && (
+            {menuOpen && groupsMenuRect && (
               <>
-                <div onClick={() => { setMenuOpen(false); setInviteOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
+                <div onClick={() => { setMenuOpen(false); setInviteOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 999 }} />
                 <div style={{
-                  position: "absolute", top: 44, right: 0, zIndex: 100,
+                  position: "fixed",
+                  top: groupsMenuRect.bottom + 6,
+                  right: window.innerWidth - groupsMenuRect.right,
+                  zIndex: 1000,
                   background: "var(--bg-card-base)", borderRadius: 16,
                   boxShadow: "0 8px 32px rgba(0,0,0,0.18)", border: "1px solid var(--border-card)",
                   minWidth: 220, overflow: "hidden",
