@@ -846,25 +846,54 @@ export default function App() {
     if (gameCode && !code) {
       localStorage.removeItem("pendingGameCode");
       getDoc(doc(db, "gameCodes", gameCode))
-        .then(async (snap) => {
-          if (!snap.exists() || snap.data().date < Date.now()) {
+        .then(async (codeSnap) => {
+          if (!codeSnap.exists() || codeSnap.data().date < Date.now()) {
             setToast({ msg: "Game code is invalid or expired.", icon: "❌" }); setTimeout(() => setToast(null), 2600); return;
           }
-          const { groupId, gameId: gId } = snap.data();
+          const { groupId, gameId: gId } = codeSnap.data();
           try {
-            if (!groupId) {
-              // Standalone game join
-              await updateDoc(doc(db, "games", gId), { guestIds: arrayUnion(authUser.uid), [`rsvps.${authUser.uid}`]: "yes" });
-              await updateDoc(doc(db, "users", authUser.uid), { guestGameRefs: arrayUnion({ groupId: null, gameId: gId }) });
-              go_("standaloneGame", null, gId);
-            } else {
-              await updateDoc(doc(db, "groups", groupId, "games", gId), {
-                guestIds: arrayUnion(authUser.uid), [`rsvps.${authUser.uid}`]: "yes",
-              });
-              await updateDoc(doc(db, "users", authUser.uid), { guestGameRefs: arrayUnion({ groupId, gameId: gId }) });
-              go_("guestGame", groupId, gId);
+            const gameRef = groupId
+              ? doc(db, "groups", groupId, "games", gId)
+              : doc(db, "games", gId);
+            const gameSnap = await getDoc(gameRef);
+            if (!gameSnap.exists()) {
+              setToast({ msg: "Game not found.", icon: "❌" }); setTimeout(() => setToast(null), 2600); return;
             }
-            setToast({ msg: "You're in! See you at the table 🀄", icon: "🎉" }); setTimeout(() => setToast(null), 3000);
+            const gData = gameSnap.data();
+
+            // Already a participant — just navigate
+            if ((gData.rsvps?.[authUser.uid] !== undefined) || (gData.guestIds || []).includes(authUser.uid)) {
+              if (groupId) go_("guestGame", groupId, gId); else go_("standaloneGame", null, gId);
+              return;
+            }
+
+            // Check seat capacity
+            const yesCount = Object.values(gData.rsvps || {}).filter(v => v === "yes").length;
+            const confirmedManualGuests = (gData.guests || []).filter(g => !(gData.waitlist || []).includes(g.id)).length;
+            const isFull = (yesCount + confirmedManualGuests) >= (gData.seats || 4);
+
+            // Profile info so name/avatar shows in RSVP list and seating
+            const userInfo = { id: authUser.uid, name: user.name, avatar: user.avatar };
+
+            if (isFull) {
+              await updateDoc(gameRef, {
+                guestIds: arrayUnion(authUser.uid),
+                waitlist: arrayUnion(authUser.uid),
+                registeredGuests: arrayUnion(userInfo),
+              });
+              await updateDoc(doc(db, "users", authUser.uid), { guestGameRefs: arrayUnion({ groupId: groupId || null, gameId: gId }) });
+              setToast({ msg: "Game is full — you're on the waitlist", icon: "⏳" });
+            } else {
+              await updateDoc(gameRef, {
+                guestIds: arrayUnion(authUser.uid),
+                [`rsvps.${authUser.uid}`]: "yes",
+                registeredGuests: arrayUnion(userInfo),
+              });
+              await updateDoc(doc(db, "users", authUser.uid), { guestGameRefs: arrayUnion({ groupId: groupId || null, gameId: gId }) });
+              setToast({ msg: "You're in! See you at the table 🀄", icon: "🎉" });
+            }
+            setTimeout(() => setToast(null), 3000);
+            if (groupId) go_("guestGame", groupId, gId); else go_("standaloneGame", null, gId);
           } catch {
             setToast({ msg: "Could not join game.", icon: "❌" }); setTimeout(() => setToast(null), 2600);
           }
@@ -887,16 +916,28 @@ export default function App() {
         if (gameId) {
           // Game-only invite: add user as a guest on the game, do NOT join the group
           try {
-            await updateDoc(doc(db, "groups", gid_, "games", gameId), {
-              guestIds: arrayUnion(authUser.uid),
-              [`rsvps.${authUser.uid}`]: "yes",
-            });
-            // Record the ref in the user doc so the games panel can load it
-            await updateDoc(doc(db, "users", authUser.uid), {
-              guestGameRefs: arrayUnion({ groupId: gid_, gameId }),
-            });
+            const gameRef = doc(db, "groups", gid_, "games", gameId);
+            const gameSnap = await getDoc(gameRef);
+            const gData = gameSnap.exists() ? gameSnap.data() : {};
+            const yesCount = Object.values(gData.rsvps || {}).filter(v => v === "yes").length;
+            const confirmedManualGuests = (gData.guests || []).filter(g => !(gData.waitlist || []).includes(g.id)).length;
+            const isFull = (yesCount + confirmedManualGuests) >= (gData.seats || 4);
+            const userInfo = { id: authUser.uid, name: user.name, avatar: user.avatar };
+
+            if ((gData.rsvps?.[authUser.uid] !== undefined) || (gData.guestIds || []).includes(authUser.uid)) {
+              go_("guestGame", gid_, gameId); return;
+            }
+
+            if (isFull) {
+              await updateDoc(gameRef, { guestIds: arrayUnion(authUser.uid), waitlist: arrayUnion(authUser.uid), registeredGuests: arrayUnion(userInfo) });
+              setToast({ msg: "Game is full — you're on the waitlist", icon: "⏳" });
+            } else {
+              await updateDoc(gameRef, { guestIds: arrayUnion(authUser.uid), [`rsvps.${authUser.uid}`]: "yes", registeredGuests: arrayUnion(userInfo) });
+              setToast({ msg: "You're in! See you at the table 🀄", icon: "🎉" });
+            }
+            await updateDoc(doc(db, "users", authUser.uid), { guestGameRefs: arrayUnion({ groupId: gid_, gameId }) });
             go_("guestGame", gid_, gameId);
-            setToast({ msg: "You're in! See you at the table 🀄", icon: "🎉" }); setTimeout(() => setToast(null), 3000);
+            setTimeout(() => setToast(null), 3000);
           } catch {
             setToast({ msg: "Could not join game.", icon: "❌" }); setTimeout(() => setToast(null), 2600);
           }
@@ -5223,6 +5264,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, isGue
   const playerLookup = {};
   group.members.forEach(m => { playerLookup[m.id] = { name: m.name, avatar: m.avatar }; });
   (game.guests || []).forEach(g => { playerLookup[g.id] = { name: g.name, avatar: g.avatar }; });
+  (game.registeredGuests || []).forEach(g => { playerLookup[g.id] = { name: g.name, avatar: g.avatar }; });
 
   // Fetch skill levels for all going members when host opens seating
   useEffect(() => {
@@ -5350,6 +5392,10 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, isGue
             if (m) return { name: m.name, avatar: m.avatar };
             const g = allGuests.find((g) => g.id === id);
             if (g) return { name: g.name, avatar: g.avatar, isGuest: true };
+            const rg = (game.registeredGuests || []).find(g => g.id === id);
+            if (rg) return { name: rg.name, avatar: rg.avatar, isGuest: true };
+            // Fallback for guestIds entries without a registeredGuests record (legacy joins)
+            if ((game.guestIds || []).includes(id)) return { name: "Guest", avatar: "👤", isGuest: true };
             return null;
           };
           const goingList = [
