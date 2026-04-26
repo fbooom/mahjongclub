@@ -1670,22 +1670,31 @@ function AuthScreen() {
 
   return (
     <div style={{
-      minHeight: "100vh",
+      height: "100%",
+      overflowY: "auto", WebkitOverflowScrolling: "touch",
       background: "var(--header-gradient2)",
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      padding: "24px 20px", position: "relative", overflow: "hidden",
+      position: "relative",
     }}>
-      {/* Shimmer overlay */}
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.12) 0%,transparent 60%)", pointerEvents: "none" }} />
+      {/* Shimmer overlay — fixed to the scroll container */}
+      <div style={{ position: "sticky", top: 0, height: 0, pointerEvents: "none" }}>
+        <div style={{ position: "absolute", inset: 0, height: "100vh", background: "linear-gradient(135deg,rgba(255,255,255,0.12) 0%,transparent 60%)" }} />
+      </div>
 
       {/* Animated tiles */}
       {TILE_POS.map((p, i) => (
         <div key={i} style={{
-          position: "absolute", fontSize: p.s, opacity: 0.18, pointerEvents: "none",
+          position: "fixed", fontSize: p.s, opacity: 0.18, pointerEvents: "none",
           top: p.top, bottom: p.bottom, left: p.left, right: p.right,
           animation: `${p.a} ${2.4 + i * 0.3}s ${p.d} ease-in-out infinite`, filter: "blur(0.5px)",
         }}>{TILES[i]}</div>
       ))}
+
+      {/* Inner centred layout — grows taller than 100% when content overflows */}
+      <div style={{
+        minHeight: "100%",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        padding: "24px 20px", position: "relative",
+      }}>
 
       {/* Logo */}
       <div style={{ textAlign: "center", marginBottom: 24, position: "relative" }}>
@@ -1765,6 +1774,7 @@ function AuthScreen() {
           </span>
         </p>
       </div>
+      </div>{/* end inner centred layout */}
     </div>
   );
 }
