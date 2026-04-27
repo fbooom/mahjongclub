@@ -361,7 +361,6 @@ function buildGlobalCSS(theme) {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    padding-top: env(safe-area-inset-top, 0px);
   }
 
   /* On larger screens: float as a card with subtle shadow */
@@ -1096,7 +1095,7 @@ export default function App() {
             }}>{toast.icon} {toast.msg}</div>
           </div>
         )}
-      <div ref={scrollRef} data-scroll-container style={{ height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 16, paddingTop: impersonating ? 52 : 0 }}>
+      <div ref={scrollRef} data-scroll-container style={{ height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 16, paddingTop: impersonating ? "calc(env(safe-area-inset-top, 0px) + 52px)" : 0 }}>
         {page === "home" && <Home groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} user={displayUser} activeTheme={activeTheme} planCfg={userPlanCfg} flash={flash} onNew={() => go("newChoice")} />}
         {page === "games" && <GamesPage groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} />}
         {page === "groups" && <GroupsPage groups={groups} go={go} user={displayUser} planCfg={userPlanCfg} flash={flash} onNew={() => go("newChoice")} />}
@@ -2484,12 +2483,12 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
   const activeGroups = groups.filter((g) => g.status !== "archived" && g.status !== "deleted");
 
   return (
-    <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
+    <div style={{ minHeight: "100%", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
       {/* Header */}
       <div style={{
         background: "var(--header-gradient)",
         backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
-        padding: "52px 22px 30px", textAlign: "center",
+        padding: "max(52px, calc(env(safe-area-inset-top, 0px) + 8px)) 22px 30px", textAlign: "center",
         boxShadow: "0 8px 32px rgba(var(--shadow-rgb),0.25)",
         position: "relative", overflow: "hidden",
       }}>
@@ -3035,13 +3034,13 @@ function Home({ groups, guestGames, standaloneGames, go, user, activeTheme, plan
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: bgSVG ? `${bgSVG}, linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` : `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)`, backgroundSize: bgSVG ? `${isFlowers ? "160px 160px" : isBamBird ? "180px 180px" : "120px 120px"}, cover` : "cover" }}>
+    <div style={{ minHeight: "100%", background: bgSVG ? `${bgSVG}, linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` : `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)`, backgroundSize: bgSVG ? `${isFlowers ? "160px 160px" : isBamBird ? "180px 180px" : "120px 120px"}, cover` : "cover" }}>
       {/* Hero header — glassy */}
       <div style={{
         background: "var(--header-gradient2)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
-        padding: "36px 24px 28px",
+        padding: "max(36px, calc(env(safe-area-inset-top, 0px) + 8px)) 24px 28px",
         position: "relative",
         overflow: "hidden",
         boxShadow: "0 8px 32px rgba(var(--shadow-rgb),0.25)",
@@ -3147,7 +3146,7 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
   const list = tab === "upcoming" ? upcoming : tab === "completed" ? completed : archived;
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)" }}>
+    <div style={{ minHeight: "100%", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)" }}>
 
       {/* ── Header ── */}
       <div style={{ background: "var(--header-gradient2)", position: "relative", overflow: "hidden" }}>
@@ -3166,7 +3165,7 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
         <div style={{
           position: "relative",
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "54px 20px 20px", gap: 12,
+          padding: "max(54px, calc(env(safe-area-inset-top, 0px) + 10px)) 20px 20px", gap: 12,
         }}>
           <h1 style={{
             fontFamily: "'Shippori Mincho',serif", fontSize: 31, fontWeight: 700,
@@ -3348,7 +3347,7 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
   const totalUpcoming = activeGroups.reduce((sum, g) => sum + g.games.filter((gm) => gm.date > NOW && gm.status !== "archived").length, 0);
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)" }}>
+    <div style={{ minHeight: "100%", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)" }}>
 
       {/* ── Header ── */}
       <div style={{ background: "var(--header-gradient2)", position: "relative", overflow: "hidden" }}>
@@ -3368,7 +3367,7 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
         <div style={{
           position: "relative",
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "54px 20px 20px", gap: 12,
+          padding: "max(54px, calc(env(safe-area-inset-top, 0px) + 10px)) 20px 20px", gap: 12,
         }}>
           <h1 style={{
             fontFamily: "'Shippori Mincho',serif", fontSize: 31, fontWeight: 700,
@@ -3921,11 +3920,11 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
     }
   };
   return (
-    <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
+    <div style={{ minHeight: "100%", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
       <div style={{
         background: `linear-gradient(135deg,${group.color}f0,${group.color}bb)`,
         backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
-        padding: "52px 22px 28px", position: "relative", overflow: "hidden",
+        padding: "max(52px, calc(env(safe-area-inset-top, 0px) + 8px)) 22px 28px", position: "relative", overflow: "hidden",
         boxShadow: `0 8px 32px ${group.color}44`,
       }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.18) 0%,transparent 55%)", pointerEvents: "none" }} />
@@ -5126,7 +5125,7 @@ function StandaloneGameView({ uid, gameId, go, flash, user }) {
   }, [gameId]);
 
   if (!game) return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+    <div style={{ minHeight: "100%", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
       <div style={{ fontSize: 41 }}>🀄</div>
       <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 17, color: "var(--primary-muted)" }}>Loading game…</div>
     </div>
@@ -5193,7 +5192,7 @@ function GuestGameView({ uid, user, groupId, gameId, go, flash }) {
   }, [groupId, gameId]);
 
   if (!game || !groupMeta) return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+    <div style={{ minHeight: "100%", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
       <div style={{ fontSize: 41 }}>🀄</div>
       <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 17, color: "var(--primary-muted)" }}>Loading game…</div>
     </div>
@@ -5380,8 +5379,8 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
 
   return (
     <>
-    <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
-      <div style={{ background: `linear-gradient(135deg,${group.color}f0,${group.color}bb)`, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", padding: "52px 22px 28px", position: "relative", overflow: "hidden", boxShadow: `0 8px 32px ${group.color}44` }}>
+    <div style={{ minHeight: "100%", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
+      <div style={{ background: `linear-gradient(135deg,${group.color}f0,${group.color}bb)`, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", padding: "max(52px, calc(env(safe-area-inset-top, 0px) + 8px)) 22px 28px", position: "relative", overflow: "hidden", boxShadow: `0 8px 32px ${group.color}44` }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.18) 0%,transparent 55%)", pointerEvents: "none" }} />
         {/* Back */}
         <button onClick={() => isGuestView ? go("home") : go("group", group.id)} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
@@ -6192,12 +6191,12 @@ function Shell({ title, onBack, color, children }) {
     ? "0 8px 32px rgba(var(--shadow-rgb),0.40)"
     : `0 8px 32px ${color}55`;
   return (
-    <div style={{ minHeight: "100vh", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
+    <div style={{ minHeight: "100%", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
       <div style={{
         background: headerBg,
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
-        padding: "50px 22px 22px",
+        padding: "max(50px, calc(env(safe-area-inset-top, 0px) + 6px)) 22px 22px",
         display: "flex", alignItems: "center", gap: 12,
         boxShadow: headerShadow,
         position: "relative", overflow: "hidden",
