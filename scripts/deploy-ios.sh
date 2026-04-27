@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds, installs, and launches the iOS app on the connected iPhone.
 # Run after `npm run sync` when you want to push to the device without opening Xcode.
-set -euo pipefail
+set -eo pipefail
 
 DEVICE_UDID="00008120-001155543E98201E"
 WORKSPACE="ios/App/App.xcworkspace"
@@ -26,6 +26,8 @@ echo "▶ Installing to device…"
 xcrun devicectl device install app --device "$DEVICE_UDID" "$APP_PATH"
 
 echo "▶ Launching…"
-xcrun devicectl device process launch --device "$DEVICE_UDID" ourmahjong.club.app
-
-echo "✅ Done — app is running on device"
+if xcrun devicectl device process launch --device "$DEVICE_UDID" ourmahjong.club.app 2>&1; then
+  echo "✅ Done — app is running on device"
+else
+  echo "⚠️  Installed but could not auto-launch (device may be locked) — open the app manually"
+fi

@@ -429,7 +429,7 @@ exports.stripeWebhook = onRequest(
       event = stripe.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK_SECRET.value());
     } catch (err) {
       console.error("Webhook signature verification failed:", err.message);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
+      return res.status(400).send("Webhook Error: invalid signature");
     }
 
     const obj = event.data.object;
