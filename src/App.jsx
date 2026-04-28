@@ -5250,10 +5250,11 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
   // Warning / emphasis (used for "out", host badge, open-seat count)
   const CL7 = "var(--primary)";
   const CL1 = "rgba(var(--primary-rgb),0.10)";
-  // Maybe / neutral secondary
-  const BM7 = "var(--primary-muted)";
-  const BM5 = "var(--primary-subtle)";
-  const BM1 = "rgba(var(--primary-rgb),0.06)";
+  // Maybe — semantic bamboo amber (fixed status-indicator colour like yellow in a traffic light;
+  // doesn't clash with any theme's palette and stays visually distinct from Going/Out)
+  const BM7 = "#8a6b3a";
+  const BM5 = "#d6a64a";
+  const BM1 = "#f5ecd8";
   // Surfaces
   const IV1 = "var(--bg-card-base)";              // card backgrounds only — not text
   const IV2 = "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)";
@@ -5452,12 +5453,15 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
           <div style={{ ...card, background: `linear-gradient(180deg,${IV1} 0%,var(--bg-card-alt) 100%)` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 32, height: 32, borderRadius: 10, background: "var(--active-tab-gradient)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, color: "#fff", flexShrink: 0 }}>★</div>
-              <div>
+              <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: FD, fontSize: 16, color: J9 }}>You're hosting</div>
                 <div style={{ fontFamily: FU, fontSize: 12, color: TXT2, marginTop: 2, lineHeight: 1.4 }}>
                   {isCoHost && game.hostId !== uid ? "Co-host — always going. Host manages players in Edit." : "Always going. Step down via Edit → Players."}
                 </div>
               </div>
+              <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: J5, background: J1, borderRadius: 999, padding: "4px 10px", flexShrink: 0, border: `1px solid rgba(var(--primary-rgb),0.15)` }}>
+                {isCoHost && game.hostId !== uid ? "Co-host" : "Hosting"}
+              </span>
             </div>
           </div>
         )}
@@ -5525,7 +5529,11 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
           </div>
           {/* Tally */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-            {[{label:"Going",count:yesCount+confirmedGuests.length,bg:J1,color:J5},{label:"Maybe",count:maybeCount,bg:BM1,color:BM7},{label:"Out",count:noCount,bg:CL1,color:CL7}].map(({label,count,bg,color}) => (
+            {[
+              {label:"Going", count:yesCount+confirmedGuests.length, bg:"rgba(var(--primary-rgb),0.12)", color:J5},
+              {label:"Maybe", count:maybeCount,                      bg:BM1,                            color:BM7},
+              {label:"Out",   count:noCount,                         bg:"rgba(var(--primary-rgb),0.10)", color:CL7},
+            ].map(({label,count,bg,color}) => (
               <div key={label} style={{ padding: "8px 10px", borderRadius: 10, background: bg, textAlign: "center" }}>
                 <div style={{ fontFamily: FD, fontSize: 20, color }}>{count}</div>
                 <div style={{ fontFamily: FU, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.8, color, opacity: 0.8, marginTop: 2 }}>{label}</div>
