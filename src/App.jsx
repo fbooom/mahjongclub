@@ -5240,15 +5240,25 @@ function generateSeating(playerIds, skillMap, tableSize = 4) {
   return tables;
 }
 
-/* GAME DETAIL */
+/* GAME DETAIL — redesigned per spec */
 function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLeave, onBack, isGuestView = false }) {
-  const [showAttendees, setShowAttendees] = useState(false);
-  const [rsvpTab, setRsvpTab] = useState("going");
+  // ── Design tokens ────────────────────────────────────────────────────────
+  const J9="#1a2e20",J8="#1f3a2a",J7="#2d4a36",J6="#3a5a44",J5="#2f5e3e",J1="#eaf3eb";
+  const CL7="#8a3a2a",CL5="#c96442",CL1="#f5e4df";
+  const BM7="#8a6b3a",BM5="#d6a64a",BM1="#f5ecd8";
+  const IV1="#fdfaf0",IV2="#faf6ea",IV3="#f3ede0";
+  const TXT2="#5b5448",TXT3="#7a7060";
+  const BDS="rgba(120,95,60,0.08)",BDD="rgba(120,95,60,0.15)";
+  const SHD="0 1px 2px rgba(60,50,30,0.06),0 8px 24px -12px rgba(60,50,30,0.12),inset 0 0 0 1px rgba(120,95,60,0.08)";
+  const FD="'DM Serif Display',Georgia,serif",FU="'Geist',system-ui,sans-serif";
+  const card={background:IV1,borderRadius:18,padding:"16px",boxShadow:SHD};
+  const iconBtn={width:38,height:38,borderRadius:12,background:"rgba(253,250,240,0.12)",border:"1px solid rgba(253,250,240,0.18)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:IV1,fontSize:16,flexShrink:0};
+
+  // ── State ────────────────────────────────────────────────────────────────
+  const [showAllRsvp, setShowAllRsvp] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [seatingOpen, setSeatingOpen] = useState(false);
-  // Firestore forbids nested arrays, so each table is stored as { players: [...] }.
-  // Internally we keep seating as [[uid,...], ...] for simplicity.
   const [seating, setSeating] = useState(() => {
     const raw = game.seating;
     if (!raw || !raw.length) return null;
@@ -5259,364 +5269,346 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
   const [seatingLoading, setSeatingLoading] = useState(false);
   const [confirmReRandomize, setConfirmReRandomize] = useState(false);
   const [gameChatOpen, setGameChatOpen] = useState(false);
-  const isCreator = !isGuestView && group.members.some((m) => m.id === uid && m.host);
+
+  // Load display fonts
+  useEffect(() => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Geist:wght@400;500;600;700&display=swap";
+    document.head.appendChild(link);
+    return () => { try { document.head.removeChild(link); } catch {} };
+  }, []);
+
+  // ── Computed ────────────────────────────────────────────────────────────
   const isCoHost = !isGuestView && (game.coHostIds || []).includes(uid);
+  const isHost = !isGuestView && (game.hostId === uid || isCoHost);
   const canInvite = !isGuestView && !!group.id;
   const myRsvp = game.rsvps[uid] || "pending";
-  const yes = Object.values(game.rsvps).filter((v) => v === "yes").length;
-  const maybe = Object.values(game.rsvps).filter((v) => v === "maybe").length;
-  const no = Object.values(game.rsvps).filter((v) => v === "no").length;
   const past = game.date < NOW;
-  const rawWaitlist = game.waitlist || [];   // array of IDs (member or guest)
-  const onWaitlistMe = rawWaitlist.includes(uid);
   const allGuests = game.guests || [];
-  const confirmedGuests = allGuests.filter((g) => !rawWaitlist.includes(g.id));
+  const registeredGuests = game.registeredGuests || [];
+  const rawWaitlist = game.waitlist || [];
+  const onWaitlistMe = rawWaitlist.includes(uid);
+  const confirmedGuests = allGuests.filter(g => !rawWaitlist.includes(g.id));
+  const yesCount = Object.values(game.rsvps).filter(v => v === "yes").length;
+  const maybeCount = Object.values(game.rsvps).filter(v => v === "maybe").length;
+  const noCount = Object.values(game.rsvps).filter(v => v === "no").length;
+  const filledSeats = yesCount + confirmedGuests.length;
   const totalSeats = game.seats || 4;
-  // filled = yes member RSVPs + confirmed (non-waitlisted) guests
-  const filledSeats = yes + confirmedGuests.length;
   const isFull = filledSeats >= totalSeats;
   const seatsLeft = Math.max(0, totalSeats - filledSeats);
 
-  // Build a single unified waitlist display list — drop anyone no longer in the game
-  const unifiedWaitlist = rawWaitlist
-    .map((id) => {
-      const guest = allGuests.find((g) => g.id === id);
-      if (guest) return { id, name: guest.name, avatar: guest.avatar, isGuest: true };
-      const member = group.members.find((m) => m.id === id);
-      if (member) return { id, name: member.name, avatar: member.avatar, isGuest: false };
-      return null; // removed from game/group — omit
-    })
-    .filter(Boolean);
-
-  // ── Seating helpers ──
-  const isHost = !isGuestView && (game.hostId === uid || isCoHost);
-  const goingUids = Object.entries(game.rsvps || {}).filter(([, v]) => v === "yes").map(([id]) => id);
-  const seatingPool = [...goingUids, ...confirmedGuests.map(g => g.id)];
-  // Lookup: id → {name, avatar}
   const playerLookup = {};
   group.members.forEach(m => { playerLookup[m.id] = { name: m.name, avatar: m.avatar }; });
-  (game.guests || []).forEach(g => { playerLookup[g.id] = { name: g.name, avatar: g.avatar }; });
-  (game.registeredGuests || []).forEach(g => { playerLookup[g.id] = { name: g.name, avatar: g.avatar }; });
+  allGuests.forEach(g => { playerLookup[g.id] = { name: g.name, avatar: g.avatar }; });
+  registeredGuests.forEach(g => { playerLookup[g.id] = { name: g.name, avatar: g.avatar }; });
 
-  // Fetch skill levels for all going members when host opens seating
+  const resolveName = (id) => {
+    const m = group.members.find(m => m.id === id);
+    if (m) return { name: m.name, avatar: m.avatar };
+    const g = allGuests.find(g => g.id === id);
+    if (g) return { name: g.name, avatar: g.avatar, isGuest: true };
+    const rg = registeredGuests.find(g => g.id === id);
+    if (rg) return { name: rg.name, avatar: rg.avatar, isGuest: true };
+    if ((game.guestIds || []).includes(id)) return { name: "Guest", avatar: "👤", isGuest: true };
+    return null;
+  };
+
+  const goingUids = Object.entries(game.rsvps || {}).filter(([,v]) => v === "yes").map(([id]) => id);
+  const seatingPool = [...goingUids, ...confirmedGuests.map(g => g.id)];
+  const SKILL_ICON = { Advanced: "🏆", Intermediate: "🀄", Beginner: "🌱" };
+
   useEffect(() => {
     if (!seatingOpen || !isHost) return;
     const missing = goingUids.filter(id => !(id in skillMap));
     if (!missing.length) return;
     setSeatingLoading(true);
     Promise.all(missing.map(id => getDoc(doc(db, "users", id))))
-      .then(snaps => {
-        const updates = {};
-        snaps.forEach((snap, i) => { updates[missing[i]] = snap.data()?.skillLevel ?? null; });
-        setSkillMap(prev => ({ ...prev, ...updates }));
-      })
+      .then(snaps => { const u = {}; snaps.forEach((s,i) => { u[missing[i]] = s.data()?.skillLevel ?? null; }); setSkillMap(p => ({...p,...u})); })
       .finally(() => setSeatingLoading(false));
   }, [seatingOpen]);
 
   const saveSeating = async (next) => {
     setSeating(next);
-    // Firestore doesn't support nested arrays — wrap each table in an object
     try { await updateDoc(doc(db, "groups", group.id, "games", game.id), { seating: next.map(t => ({ players: t })) }); } catch (e) { console.error("saveSeating:", e); }
   };
-
-  const doRandomize = () => {
-    const tables = generateSeating(seatingPool, skillMap);
-    saveSeating(tables);
-    setMovingUid(null);
-    setConfirmReRandomize(false);
-  };
-
-  const handleRandomize = () => {
-    if (seating) { setConfirmReRandomize(true); return; }
-    doRandomize();
-  };
-
+  const doRandomize = () => { saveSeating(generateSeating(seatingPool, skillMap)); setMovingUid(null); setConfirmReRandomize(false); };
+  const handleRandomize = () => { if (seating) { setConfirmReRandomize(true); return; } doRandomize(); };
   const handlePlayerTap = (pid) => {
     if (!movingUid) { setMovingUid(pid); return; }
     if (movingUid === pid) { setMovingUid(null); return; }
-    // Swap the two players across tables
     const next = seating.map(t => [...t]);
-    let [fi, fj, ti, tj] = [-1, -1, -1, -1];
+    let [fi,fj,ti,tj] = [-1,-1,-1,-1];
     for (let r = 0; r < next.length; r++) {
-      const mi = next[r].indexOf(movingUid); if (mi >= 0) { fi = r; fj = mi; }
-      const pi = next[r].indexOf(pid);       if (pi >= 0) { ti = r; tj = pi; }
+      const mi = next[r].indexOf(movingUid); if (mi >= 0) { fi=r; fj=mi; }
+      const pi = next[r].indexOf(pid); if (pi >= 0) { ti=r; tj=pi; }
     }
-    if (fi >= 0 && ti >= 0) {
-      next[fi][fj] = pid;
-      next[ti][tj] = movingUid;
-      saveSeating(next);
-    }
+    if (fi >= 0 && ti >= 0) { next[fi][fj]=pid; next[ti][tj]=movingUid; saveSeating(next); }
     setMovingUid(null);
   };
 
-  const SKILL_ICON = { Advanced: "🏆", Intermediate: "🀄", Beginner: "🌱" };
+  // Player lists for RSVP display
+  const goingList = [
+    ...goingUids.map(id => { const r = resolveName(id); return r ? { id, ...r } : null; }).filter(Boolean),
+    ...confirmedGuests.map(g => ({ ...g, isGuest: true })),
+  ];
+  const maybeList = Object.entries(game.rsvps).filter(([,v]) => v === "maybe").map(([id]) => { const r = resolveName(id); return r ? { id, ...r } : null; }).filter(Boolean);
+  const noList   = Object.entries(game.rsvps).filter(([,v]) => v === "no").map(([id])   => { const r = resolveName(id); return r ? { id, ...r } : null; }).filter(Boolean);
+  const waitlistList = rawWaitlist.map(id => {
+    const g = allGuests.find(g => g.id === id); if (g) return { id, name: g.name, avatar: g.avatar, isGuest: true };
+    const m = group.members.find(m => m.id === id); if (m) return { id, name: m.name, avatar: m.avatar };
+    return null;
+  }).filter(Boolean);
+
+  // Pip cluster — all rsvp'd participants
+  const allPips = [...new Map([
+    ...goingList.map(p => [p.id, { ...p, status: "yes" }]),
+    ...maybeList.map(p => [p.id, { ...p, status: "maybe" }]),
+    ...noList.map(p => [p.id, { ...p, status: "no" }]),
+  ]).values()];
+  const MAX_PIPS = 9;
+  const visiblePips = allPips.slice(0, MAX_PIPS);
+  const overflowPips = allPips.length - MAX_PIPS;
+
+  const Pip = ({ id, name, status }) => {
+    const init = (name || "?")[0].toUpperCase();
+    const s = status === "yes"   ? { bg: J5,  col: IV1,  border: "none",    glyph: init }
+             : status === "maybe"? { bg: BM5, col: "#4a3800", border: "none", glyph: init }
+             : status === "no"   ? { bg: "transparent", col: CL7, border: `1.5px dashed ${CL7}`, glyph: "×" }
+             :                     { bg: IV3, col: TXT3, border: `1.5px dashed ${BDD}`, glyph: "+" };
+    return (
+      <div title={name} style={{ width: 28, height: 28, borderRadius: "50%", background: s.bg, border: s.border || "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, fontFamily: FU, color: s.col, flexShrink: 0, boxShadow: id === uid ? `0 0 0 2px ${J5}` : "none", opacity: status === "empty" ? 0.45 : 1 }}>
+        {s.glyph}
+      </div>
+    );
+  };
+
+  const hostInitials = (game.host || "H").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const { googleUrl } = buildCalendarLinks(game, group.name);
 
   return (
     <>
-    <div style={{ minHeight: "100%", background: `linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)` }}>
-      <div style={{ background: `linear-gradient(135deg,${group.color}f0,${group.color}bb)`, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", padding: "max(52px, calc(env(safe-area-inset-top, 0px) + 8px)) 22px 28px", position: "relative", overflow: "hidden", boxShadow: `0 8px 32px ${group.color}44` }}>
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.18) 0%,transparent 55%)", pointerEvents: "none" }} />
-        {/* Back */}
-        <button onClick={() => onBack ? onBack() : (isGuestView ? go("home") : go("group", group.id))} style={{ position: "absolute", top: HEADER_BTN_TOP, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
-        {/* Action icons */}
-        <div style={{ position: "absolute", top: HEADER_BTN_TOP, right: 14, display: "flex", gap: 7 }}>
-          {isHost && (
-            <button onClick={() => go("editGame", group.id, game.id)} title="Edit game" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>✏️</button>
-          )}
-          {group.id && (
-            <button onClick={() => setGameChatOpen(true)} title="Game chat" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>💬</button>
-          )}
-          {canInvite && (
-            <button onClick={() => go("invite", group.id, game.id)} title="Invite" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>✉️</button>
-          )}
-        </div>
-        {/* Title + meta */}
-        <div style={{ textAlign: "center", position: "relative" }}>
-          <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 25, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.2)", marginBottom: 8 }}>{game.title}</h1>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-            <div style={{ fontSize: 15, color: "rgba(255,255,255,0.85)", fontFamily: "'Inter',sans-serif" }}>
-              📅 {fmt(game.date)}{game.time ? ` · ${fmtT(game.time)}` : ""}{game.endTime ? ` – ${fmtT(game.endTime)}` : ""}
-            </div>
-            {game.location && (
-              <button
-                onClick={() => {
-                  if (window.confirm(`Open "${game.location}" in Maps?`)) {
-                    window.location.href = `https://maps.apple.com/?q=${encodeURIComponent(game.location)}`;
-                  }
-                }}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 8px", borderRadius: 999, fontSize: 15, color: "rgba(255,255,255,0.72)", fontFamily: "'Inter',sans-serif", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}
-              >📍 {game.location}</button>
-            )}
+    <div style={{ minHeight: "100%", background: IV2, fontFamily: FU }}>
+
+      {/* ── HEADER ──────────────────────────────────────────────────────── */}
+      <div style={{ background: `linear-gradient(180deg,${J8} 0%,${J7} 60%,${J6} 100%)`, padding: "8px 16px 22px", position: "relative", overflow: "hidden" }}>
+        {/* Decorative tile */}
+        <div style={{ position: "absolute", top: -10, right: -22, fontSize: 130, opacity: 0.1, transform: "rotate(14deg)", pointerEvents: "none", userSelect: "none", lineHeight: 1 }}>🀄</div>
+
+        {/* Row 1 — actions */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative", zIndex: 1 }}>
+          <button onClick={() => onBack ? onBack() : (isGuestView ? go("home") : go("games"))} aria-label="Back" style={{ background: "none", border: "none", color: `rgba(253,250,240,0.85)`, display: "flex", alignItems: "center", gap: 2, padding: "8px 12px 8px 6px", marginLeft: -4, cursor: "pointer", fontFamily: FU, fontSize: 14, fontWeight: 500 }}>
+            ‹ Games
+          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            {isHost && <button onClick={() => go("editGame", group.id, game.id)} aria-label="Edit" style={iconBtn}>✏️</button>}
+            {group.id && <button onClick={() => setGameChatOpen(true)} aria-label="Group chat" style={iconBtn}>💬</button>}
+            {canInvite && <button onClick={() => go("invite", group.id, game.id)} aria-label="Invite" style={iconBtn}>📤</button>}
           </div>
+        </div>
+
+        {/* Row 2 — title */}
+        <h1 style={{ fontFamily: FD, fontSize: 32, lineHeight: 1.05, letterSpacing: -0.4, color: IV1, marginTop: 14, position: "relative", zIndex: 1 }}>
+          {game.title}
+        </h1>
+
+        {/* Row 3 — info strip */}
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 5, position: "relative", zIndex: 1 }}>
+          <div style={{ fontSize: 13, color: `rgba(253,250,240,0.85)`, fontFamily: FU }}>
+            📅 {fmt(game.date)}{game.time ? ` · ${fmtT(game.time)}` : ""}{game.endTime ? ` – ${fmtT(game.endTime)}` : ""}
+          </div>
+          {game.location && (
+            <div style={{ fontSize: 13, color: `rgba(253,250,240,0.70)`, fontFamily: FU, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {game.location}</span>
+              <button onClick={() => { window.location.href = Capacitor.getPlatform() === "ios" ? `maps://maps.apple.com/?q=${encodeURIComponent(game.location)}` : `https://maps.google.com/?q=${encodeURIComponent(game.location)}`; }} style={{ padding: "3px 9px", borderRadius: 999, background: "rgba(253,250,240,0.12)", border: "1px solid rgba(253,250,240,0.18)", color: `rgba(253,250,240,0.85)`, fontSize: 11, fontWeight: 600, fontFamily: FU, cursor: "pointer", flexShrink: 0 }}>
+                Directions
+              </button>
+            </div>
+          )}
         </div>
       </div>
-      <div style={{ padding: "18px 16px 100px" }}>
-        <IRow icon="🎯" label="Host" val={game.host} />
-        <IRow icon="👥" label="Seats" val={`${filledSeats} / ${totalSeats} filled${seatsLeft > 0 ? ` · ${seatsLeft} open` : " · Full"}`} />
-        {game.recurring && <IRow icon="🔁" label="Recurring" val={{ weekly: "Weekly", biweekly: "Every 2 Weeks", monthly: "Monthly" }[game.recurring] || game.recurring} />}
-        {game.note && <IRow icon="📝" label="Host Notes" val={game.note} />}
 
-        {/* Capacity bar */}
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ height: 8, background: "rgba(var(--primary-rgb),0.15)", borderRadius: 999, overflow: "hidden" }}>
-            <div style={{
-              height: "100%", borderRadius: 999,
-              width: `${Math.min(100, (filledSeats / totalSeats) * 100)}%`,
-              background: isFull
-                ? "linear-gradient(90deg,var(--primary),#a8426b)"
-                : "linear-gradient(90deg,var(--secondary-accent),var(--primary))",
-              transition: "width .4s ease",
-            }} />
+      {/* ── CARDS ───────────────────────────────────────────────────────── */}
+      <div style={{ padding: "14px 16px 130px", display: "flex", flexDirection: "column", gap: 12 }}>
+
+        {/* a. Hosting card */}
+        {isHost && (
+          <div style={{ ...card, background: `linear-gradient(180deg,${IV1} 0%,#f9f1da 100%)` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: `linear-gradient(135deg,${BM5},#c98a32)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, color: IV1, flexShrink: 0 }}>★</div>
+              <div>
+                <div style={{ fontFamily: FD, fontSize: 16, color: J9 }}>You're hosting</div>
+                <div style={{ fontFamily: FU, fontSize: 12, color: TXT2, marginTop: 2, lineHeight: 1.4 }}>
+                  {isCoHost && game.hostId !== uid ? "Co-host — always going. Host manages players in Edit." : "Always going. Step down via Edit → Players."}
+                </div>
+              </div>
+            </div>
           </div>
-          {isFull && (
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)", marginTop: 4, textAlign: "center", fontFamily: "'Inter',sans-serif" }}>
-              🀄 Game is full — {unifiedWaitlist.length} on waitlist
+        )}
+
+        {/* b. Host + Seats card */}
+        <div style={card}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ position: "relative", flexShrink: 0 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg,${J5},#3a7050)`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FD, fontSize: 18, color: IV1 }}>{hostInitials}</div>
+              <div style={{ position: "absolute", bottom: -2, right: -2, width: 18, height: 18, borderRadius: 9, background: CL5, border: `2px solid ${IV1}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: IV1, fontWeight: 700 }}>★</div>
+            </div>
+            <div>
+              <div style={{ fontFamily: FU, fontSize: 10, fontWeight: 600, color: CL7, textTransform: "uppercase", letterSpacing: 1.2 }}>Hosted by</div>
+              <div style={{ fontFamily: FD, fontSize: 18, color: J9, marginTop: 1 }}>{game.host}</div>
+            </div>
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+              <span style={{ fontFamily: FU, fontSize: 13, fontWeight: 500, color: TXT2 }}>Seats</span>
+              <span style={{ fontFamily: FU, fontSize: 12 }}>
+                <span style={{ fontWeight: 700, color: J5 }}>{filledSeats}</span>
+                <span style={{ color: TXT3 }}> / {totalSeats} filled · </span>
+                {seatsLeft > 0 ? <span style={{ fontWeight: 700, color: CL7 }}>{seatsLeft} open</span> : <span style={{ fontWeight: 700, color: J5 }}>Full</span>}
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: 4 }}>
+              {Array.from({ length: totalSeats }).map((_,i) => (
+                <div key={i} style={{ flex: 1, height: 8, borderRadius: 4, background: i < filledSeats ? J5 : IV3, border: i < filledSeats ? "none" : `1px solid ${BDD}` }} />
+              ))}
+            </div>
+          </div>
+          {isFull && waitlistList.length > 0 && (
+            <div style={{ marginTop: 10, fontSize: 12, color: CL7, fontFamily: FU, fontWeight: 600 }}>
+              🀄 Full · {waitlistList.length} on waitlist
             </div>
           )}
         </div>
 
-        {/* RSVPs card */}
-        {(() => {
-          // Build named lists for each status
-          // Returns null if the person is no longer in the game/group
-          const resolveName = (id) => {
-            const m = group.members.find((m) => m.id === id);
-            if (m) return { name: m.name, avatar: m.avatar };
-            const g = allGuests.find((g) => g.id === id);
-            if (g) return { name: g.name, avatar: g.avatar, isGuest: true };
-            const rg = (game.registeredGuests || []).find(g => g.id === id);
-            if (rg) return { name: rg.name, avatar: rg.avatar, isGuest: true };
-            // Fallback for guestIds entries without a registeredGuests record (legacy joins)
-            if ((game.guestIds || []).includes(id)) return { name: "Guest", avatar: "👤", isGuest: true };
-            return null;
-          };
-          const goingList = [
-            ...Object.entries(game.rsvps).filter(([, v]) => v === "yes")
-              .map(([id]) => { const r = resolveName(id); return r ? { id, ...r } : null; })
-              .filter(Boolean),
-            ...confirmedGuests.map((g) => ({ ...g, isGuest: true })),
-          ];
-          const maybeList = Object.entries(game.rsvps).filter(([, v]) => v === "maybe")
-            .map(([id]) => { const r = resolveName(id); return r ? { id, ...r } : null; })
-            .filter(Boolean);
-          const noList = Object.entries(game.rsvps).filter(([, v]) => v === "no")
-            .map(([id]) => { const r = resolveName(id); return r ? { id, ...r } : null; })
-            .filter(Boolean);
-
-          const AttendeeRow = ({ entry }) => (
-            <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0" }}>
-              <span style={{ fontSize: 19 }}>{entry.avatar}</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", flex: 1, fontFamily: "'Inter',sans-serif" }}>{entry.name}</span>
-              {entry.id === game.hostId && <span style={{ fontSize: 11, color: "#8a6a00", fontWeight: 700, background: "rgba(212,168,67,0.15)", borderRadius: 999, padding: "2px 8px" }}>⭐ Host</span>}
-              {(game.coHostIds || []).includes(entry.id) && <span style={{ fontSize: 11, color: "#8a6a00", fontWeight: 700, background: "rgba(212,168,67,0.12)", borderRadius: 999, padding: "2px 8px" }}>👑 Co-host</span>}
-              {entry.isGuest && <span style={{ fontSize: 11, color: "var(--secondary-accent)", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
-              {entry.id === uid && <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 700, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, padding: "2px 8px" }}>You</span>}
+        {/* c. Host Notes */}
+        {!!game.note && (
+          <div style={card}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <span style={{ fontSize: 12 }}>📝</span>
+              <span style={{ fontFamily: FU, fontSize: 10, fontWeight: 600, color: CL7, textTransform: "uppercase", letterSpacing: 1.2 }}>Host Notes</span>
             </div>
-          );
+            <div style={{ fontFamily: FU, fontSize: 14, color: J9, lineHeight: 1.45 }}>{game.note}</div>
+          </div>
+        )}
 
-          const rsvpTabs = [
-            { key: "going",    icon: "✅", color: "var(--secondary-accent)", list: goingList },
-            { key: "maybe",    icon: "🤔", color: "#c4936e",                  list: maybeList },
-            { key: "no",       icon: "❌", color: "var(--primary)",            list: noList },
-            { key: "waitlist", icon: "⏳", color: "var(--text-muted)",         list: unifiedWaitlist },
-          ].filter((t) => t.list.length > 0);
-
-          // If current tab was filtered out (count dropped to 0), fall back to going
-          const activeTab = rsvpTabs.find((t) => t.key === rsvpTab) ?? rsvpTabs[0];
-
-          return (
-            <div style={{ background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, marginBottom: 12, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)", border: "1px solid var(--border-card)", overflow: "hidden" }}>
-              {/* Header — whole row toggles expand; chips also switch active tab */}
-              <div onClick={() => setShowAttendees((v) => !v)} style={{ padding: "15px 16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ fontWeight: 700, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>RSVPs</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {rsvpTabs.map((t) => {
-                      const isActive = showAttendees && activeTab?.key === t.key;
-                      return (
-                        <button key={t.key}
-                          onClick={(e) => { e.stopPropagation(); setShowAttendees(true); setRsvpTab(t.key); }}
-                          style={{ background: isActive ? t.color : "rgba(var(--primary-rgb),0.08)", border: isActive ? "none" : "1px solid rgba(var(--primary-rgb),0.15)", borderRadius: 999, padding: "4px 10px", fontSize: 12, fontWeight: 700, color: isActive ? "#fff" : "var(--text-muted)", cursor: "pointer", fontFamily: "'Inter',sans-serif", transition: "all .15s", boxShadow: isActive ? `0 2px 8px ${t.color}55` : "none" }}>
-                          {t.icon} {t.list.length}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <span style={{ fontSize: 17, color: "var(--primary-faint)", transition: "transform .2s", display: "inline-block", transform: showAttendees ? "rotate(180deg)" : "rotate(0deg)" }}>⌄</span>
-                </div>
+        {/* d. Who's in + RSVP */}
+        <div style={card}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <span style={{ fontFamily: FD, fontSize: 18, color: J9 }}>Who's in</span>
+            {allPips.length > 0 && (
+              <button onClick={() => setShowAllRsvp(v => !v)} style={{ fontFamily: FU, fontSize: 12, fontWeight: 600, color: CL7, background: "none", border: "none", cursor: "pointer" }}>
+                {showAllRsvp ? "Less ▲" : "See all ›"}
+              </button>
+            )}
+          </div>
+          {/* Pips */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {visiblePips.map(p => <Pip key={p.id} id={p.id} name={p.name} status={p.status} />)}
+            {overflowPips > 0 && <div style={{ width: 28, height: 28, borderRadius: "50%", background: IV3, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, fontFamily: FU, color: TXT2 }}>+{overflowPips}</div>}
+            {allPips.length === 0 && <span style={{ fontFamily: FU, fontSize: 13, color: TXT3 }}>No one yet — be the first!</span>}
+          </div>
+          {/* Tally */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            {[{label:"Going",count:yesCount+confirmedGuests.length,bg:J1,color:J5},{label:"Maybe",count:maybeCount,bg:BM1,color:BM7},{label:"Out",count:noCount,bg:CL1,color:CL7}].map(({label,count,bg,color}) => (
+              <div key={label} style={{ padding: "8px 10px", borderRadius: 10, background: bg, textAlign: "center" }}>
+                <div style={{ fontFamily: FD, fontSize: 20, color }}>{count}</div>
+                <div style={{ fontFamily: FU, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.8, color, opacity: 0.8, marginTop: 2 }}>{label}</div>
               </div>
-
-              {/* Expanded — only the active tab's list */}
-              {showAttendees && activeTab && (
-                <div style={{ borderTop: "1px solid rgba(var(--border-light-rgb),0.2)", padding: "10px 16px 14px" }}>
-                  {activeTab.key === "waitlist" ? (
-                    activeTab.list.map((entry, i) => (
-                      <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0" }}>
-                        <div style={{ width: 20, height: 20, borderRadius: 999, background: "rgba(var(--primary-rgb),0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "var(--primary)", flexShrink: 0 }}>{i + 1}</div>
-                        <span style={{ fontSize: 19 }}>{entry.avatar}</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-body)", flex: 1, fontFamily: "'Inter',sans-serif" }}>{entry.name}</span>
-                        {entry.isGuest && <span style={{ fontSize: 11, color: "var(--secondary-accent)", fontWeight: 700, background: "rgba(155,110,168,0.1)", borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
-                        {entry.id === uid && <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 700, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, padding: "2px 8px" }}>You</span>}
-                      </div>
-                    ))
-                  ) : (
-                    activeTab.list.map((entry) => <AttendeeRow key={entry.id} entry={entry} />)
-                  )}
+            ))}
+          </div>
+          {/* Expanded attendee list */}
+          {showAllRsvp && (
+            <div style={{ marginTop: 12, borderTop: `1px solid ${BDS}`, paddingTop: 10 }}>
+              {goingList.map(p => (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0" }}>
+                  <span style={{ fontSize: 18 }}>{p.avatar}</span>
+                  <span style={{ fontFamily: FU, fontSize: 14, fontWeight: 600, color: J9, flex: 1 }}>{p.name}</span>
+                  {p.id === game.hostId && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: BM7, background: BM1, borderRadius: 999, padding: "2px 8px" }}>Host</span>}
+                  {(game.coHostIds||[]).includes(p.id) && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: BM7, background: BM1, borderRadius: 999, padding: "2px 8px" }}>Co-host</span>}
+                  {p.isGuest && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: TXT2, background: IV3, borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
+                  {p.id === uid && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: J5, background: J1, borderRadius: 999, padding: "2px 8px" }}>You</span>}
                 </div>
-              )}
+              ))}
+              {maybeList.map(p => (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0", opacity: 0.75 }}>
+                  <span style={{ fontSize: 18 }}>{p.avatar}</span>
+                  <span style={{ fontFamily: FU, fontSize: 14, fontWeight: 600, color: J9, flex: 1 }}>{p.name}</span>
+                  <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: BM7, background: BM1, borderRadius: 999, padding: "2px 8px" }}>Maybe</span>
+                </div>
+              ))}
             </div>
-          );
-        })()}
+          )}
+        </div>
 
-        {/* Your RSVP / Waitlist */}
-        {!past && (
-          <div style={{ background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, padding: "15px 16px", marginBottom: 12, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)", border: "1px solid var(--border-card)" }}>
-            <div style={{ fontWeight: 700, color: "var(--text-body)", marginBottom: 10, fontFamily: "'Inter',sans-serif" }}>Your RSVP</div>
-
-            {/* Host / co-host cannot change their own RSVP */}
-            {game.hostId === uid || isCoHost ? (
+        {/* Your RSVP (non-hosts only, future games) */}
+        {!past && !isHost && (
+          <div style={card}>
+            <div style={{ fontFamily: FD, fontSize: 18, color: J9, marginBottom: 12 }}>Your RSVP</div>
+            {isFull && myRsvp !== "yes" ? (
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, background: "linear-gradient(135deg,rgba(155,110,168,0.15),rgba(var(--primary-rgb),0.1))", border: "1px solid rgba(155,110,168,0.25)", marginBottom: 10 }}>
-                  <span style={{ fontSize: 19 }}>{isCoHost && game.hostId !== uid ? "👑" : "⭐"}</span>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>
-                      {isCoHost && game.hostId !== uid ? "You're a co-host — you're always going!" : "You're the host — you're always going!"}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#b08090", marginTop: 2, fontFamily: "'Inter',sans-serif" }}>
-                      {isCoHost && game.hostId !== uid ? "The host can remove your co-host role in Edit → Players" : "To step down, transfer host in Edit → Players"}
-                    </div>
-                  </div>
+                <div style={{ fontFamily: FU, fontSize: 13, color: TXT2, marginBottom: 12, lineHeight: 1.6 }}>
+                  This game is full. {onWaitlistMe ? "You're on the waitlist — we'll notify you if a spot opens. 🌸" : "Join the waitlist to be notified when a spot opens."}
                 </div>
-              </div>
-            ) : isFull && myRsvp !== "yes" ? (
-              /* Full game waitlist */
-              <div>
-                <div style={{ fontSize: 14, color: "#7a4a58", marginBottom: 12, fontFamily: "'Inter',sans-serif", lineHeight: 1.6 }}>
-                  This game is full. {onWaitlistMe ? "You're on the waitlist — we'll let you know if a spot opens up! 🌸" : "Join the waitlist and you'll be notified if a spot opens up."}
-                </div>
-                <button onClick={() => onWaitlist(onWaitlistMe ? "leave" : "join")} style={{
-                  width: "100%", padding: "11px 0", borderRadius: 12, fontSize: 14, fontWeight: 700,
-                  cursor: "pointer", transition: "all .2s", fontFamily: "'Inter',sans-serif", border: "none",
-                  background: onWaitlistMe ? "rgba(var(--primary-rgb),0.12)" : "linear-gradient(135deg,rgba(155,110,168,0.85),rgba(var(--primary-rgb),0.85))",
-                  color: onWaitlistMe ? "var(--primary)" : "#fff",
-                  boxShadow: onWaitlistMe ? "none" : "0 4px 14px rgba(var(--shadow-rgb),0.3)",
-                }}>
+                <button onClick={() => onWaitlist(onWaitlistMe ? "leave" : "join")} style={{ width: "100%", padding: "11px 0", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: FU, border: "none", background: onWaitlistMe ? J1 : J5, color: onWaitlistMe ? J5 : IV1 }}>
                   {onWaitlistMe ? "✕ Leave Waitlist" : "⏳ Join Waitlist"}
                 </button>
               </div>
             ) : (
-              /* Normal RSVP buttons */
               <div style={{ display: "flex", gap: 8 }}>
-                {[["yes","✅ Going","#9b6ea8"],["maybe","🤔 Maybe","#c4936e"],["no","❌ Can't","#c9607a"]].map(([v, label, col]) => (
-                  <button key={v} onClick={() => onRsvp(v)} style={{ flex: 1, padding: "10px 4px", borderRadius: 12, fontSize: 13, fontWeight: 700, background: myRsvp === v ? col : "#f7eef2", color: myRsvp === v ? "#fff" : "#c0a0ac", border: "none", cursor: "pointer", transition: "all .18s", fontFamily: "'Inter',sans-serif" }}>{label}</button>
+                {[{v:"yes",label:"✓ Going",bg:J5,tint:J1,text:J5},{v:"maybe",label:"? Maybe",bg:BM5,tint:BM1,text:BM7},{v:"no",label:"✕ Can't",bg:CL7,tint:CL1,text:CL7}].map(({v,label,bg,tint,text}) => (
+                  <button key={v} onClick={() => onRsvp(v)} style={{ flex: 1, padding: "10px 4px", borderRadius: 12, fontSize: 13, fontWeight: 700, background: myRsvp === v ? bg : tint, color: myRsvp === v ? IV1 : text, border: "none", cursor: "pointer", fontFamily: FU, transition: "all .18s" }}>{label}</button>
                 ))}
               </div>
             )}
           </div>
         )}
 
-        {/* ── Table Seating (host only, collapsible) ── */}
+        {/* e. Table Seating */}
         {(isHost || (!isGuestView && seating)) && (
-          <div style={{ background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, marginBottom: 12, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)", border: "1px solid var(--border-card)", overflow: "hidden" }}>
-            {/* Header row */}
-            <div onClick={() => setSeatingOpen(v => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", cursor: "pointer", userSelect: "none" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 18 }}>🎲</span>
-                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>Table Seating</span>
-                {seating && <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(var(--primary-rgb),0.12)", color: "var(--primary)", borderRadius: 999, padding: "2px 9px", fontFamily: "'Inter',sans-serif" }}>Assigned</span>}
-
+          <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+            <div onClick={() => setSeatingOpen(v => !v)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: "pointer", userSelect: "none" }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: IV3, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🀄</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: FD, fontSize: 17, color: J9 }}>Table seating</div>
+                <div style={{ fontFamily: FU, fontSize: 12, color: TXT3, marginTop: 1 }}>{seating ? `${seating.length} table${seating.length !== 1 ? "s" : ""} assigned` : "Not assigned yet"}</div>
               </div>
-              <span style={{ fontSize: 17, color: "var(--primary-faint)", display: "inline-block", transform: seatingOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }}>⌄</span>
+              {seating && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 600, color: J5, background: J1, borderRadius: 999, padding: "3px 9px" }}>Assigned</span>}
+              <span style={{ fontSize: 14, color: TXT3, transform: seatingOpen ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }}>⌄</span>
             </div>
-
             {seatingOpen && (
-              <div style={{ borderTop: "1px solid rgba(var(--border-light-rgb),0.2)", padding: "12px 14px 16px" }}>
-                {/* Host-only controls */}
+              <div style={{ borderTop: `1px solid ${BDS}`, padding: "12px 16px 16px" }}>
                 {isHost && (
                   <>
                     {movingUid && (
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(var(--primary-rgb),0.1)", border: "1px solid rgba(var(--primary-rgb),0.22)", borderRadius: 10, padding: "8px 12px", marginBottom: 12 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)", fontFamily: "'Inter',sans-serif" }}>
-                          Tap a player to swap with {playerLookup[movingUid]?.name || "…"}
-                        </span>
-                        <button onClick={() => setMovingUid(null)} style={{ background: "none", border: "none", fontSize: 16, color: "var(--primary)", cursor: "pointer", padding: "0 4px" }}>✕</button>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: J1, border: `1px solid ${BDD}`, borderRadius: 10, padding: "8px 12px", marginBottom: 12 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: J5, fontFamily: FU }}>Tap a player to swap with {playerLookup[movingUid]?.name || "…"}</span>
+                        <button onClick={() => setMovingUid(null)} style={{ background: "none", border: "none", fontSize: 16, color: J5, cursor: "pointer" }}>✕</button>
                       </div>
                     )}
-                    <button onClick={handleRandomize} disabled={seatingPool.length === 0} style={{ width: "100%", padding: "10px 0", borderRadius: 999, border: "none", background: seatingPool.length === 0 ? "rgba(var(--primary-rgb),0.1)" : "var(--active-tab-gradient)", color: seatingPool.length === 0 ? "var(--text-muted)" : "#fff", fontWeight: 700, fontSize: 14, cursor: seatingPool.length === 0 ? "default" : "pointer", fontFamily: "'Inter',sans-serif", marginBottom: 14, boxShadow: seatingPool.length === 0 ? "none" : "0 4px 14px rgba(var(--shadow-rgb),0.28)", letterSpacing: 0.3 }}>
+                    <button onClick={handleRandomize} disabled={seatingPool.length === 0} style={{ width: "100%", padding: "10px 0", borderRadius: 12, border: "none", background: seatingPool.length === 0 ? IV3 : J5, color: seatingPool.length === 0 ? TXT3 : IV1, fontWeight: 700, fontSize: 14, cursor: seatingPool.length === 0 ? "default" : "pointer", fontFamily: FU, marginBottom: 14 }}>
                       🎲 Randomize Tables
                     </button>
                   </>
                 )}
-
-                {seatingLoading && <div style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", marginBottom: 10, fontFamily: "'Inter',sans-serif" }}>Loading player profiles…</div>}
-
-                {/* Table cards */}
+                {seatingLoading && <div style={{ fontSize: 13, color: TXT3, textAlign: "center", marginBottom: 10, fontFamily: FU }}>Loading profiles…</div>}
                 {seating ? seating.map((table, ti) => (
-                  <div key={ti} style={{ background: "rgba(255,255,255,0.55)", borderRadius: 12, padding: "10px 12px", marginBottom: 10, border: "1px solid rgba(var(--border-light-rgb),0.3)" }}>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: "var(--section-title)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontFamily: "'Inter',sans-serif" }}>
-                      Table {ti + 1} · {table.length} players
-                    </div>
+                  <div key={ti} style={{ background: IV2, borderRadius: 12, padding: "10px 12px", marginBottom: 10, border: `1px solid ${BDS}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontFamily: FU }}>Table {ti+1} · {table.length} players</div>
                     {table.map(pid => {
-                      const p = playerLookup[pid];
-                      const skill = skillMap[pid];
-                      const isMoving = movingUid === pid;
-                      const isTarget = isHost && !!movingUid && movingUid !== pid;
+                      const p = playerLookup[pid]; const skill = skillMap[pid]; const isMoving = movingUid === pid; const isTarget = isHost && !!movingUid && movingUid !== pid;
                       return (
-                        <div key={pid}
-                          onClick={isHost ? () => handlePlayerTap(pid) : undefined}
-                          style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 8px", borderRadius: 9, cursor: isHost ? "pointer" : "default", marginBottom: 2, transition: "background .15s, box-shadow .15s", background: isMoving ? "rgba(var(--primary-rgb),0.15)" : isTarget ? "rgba(var(--primary-rgb),0.05)" : "transparent", boxShadow: isMoving ? `0 0 0 2px var(--primary)` : isTarget ? "0 0 0 1px rgba(var(--primary-rgb),0.25)" : "none" }}>
+                        <div key={pid} onClick={isHost ? () => handlePlayerTap(pid) : undefined} style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 8px", borderRadius: 9, cursor: isHost ? "pointer" : "default", marginBottom: 2, background: isMoving ? J1 : "transparent", boxShadow: isMoving ? `0 0 0 2px ${J5}` : "none", transition: "background .15s" }}>
                           <span style={{ fontSize: 21, flexShrink: 0 }}>{p?.avatar || "👤"}</span>
-                          <span style={{ flex: 1, fontWeight: 600, fontSize: 14, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{p?.name || pid}</span>
-                          {skill && <span style={{ fontSize: 14, flexShrink: 0 }} title={skill}>{SKILL_ICON[skill]}</span>}
-                          {isMoving && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", fontFamily: "'Inter',sans-serif" }}>moving</span>}
-                          {pid === uid && <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 700, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, padding: "2px 8px", fontFamily: "'Inter',sans-serif" }}>You</span>}
+                          <span style={{ flex: 1, fontWeight: 600, fontSize: 14, color: J9, fontFamily: FU }}>{p?.name || pid}</span>
+                          {skill && <span style={{ fontSize: 14, flexShrink: 0 }}>{SKILL_ICON[skill]}</span>}
+                          {pid === uid && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: J5, background: J1, borderRadius: 999, padding: "2px 8px" }}>You</span>}
                         </div>
                       );
                     })}
                   </div>
                 )) : isHost && !seatingLoading && (
-                  <div style={{ textAlign: "center", padding: "10px 0 4px", fontSize: 13, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif" }}>
-                    {seatingPool.length === 0 ? "No confirmed players yet." : "Tap Randomize to generate table assignments."}
+                  <div style={{ textAlign: "center", padding: "8px 0 4px", fontSize: 13, color: TXT3, fontFamily: FU }}>
+                    {seatingPool.length === 0 ? "No confirmed players yet." : "Tap Randomize to assign tables."}
                   </div>
                 )}
               </div>
@@ -5624,47 +5616,42 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
           </div>
         )}
 
-        {/* Add to Calendar */}
-        <AddToCalendar game={game} groupName={group.name} />
+        {/* f. Add to Calendar */}
+        <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px" }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: IV3, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🗓</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: FD, fontSize: 17, color: J9 }}>Add to calendar</div>
+              <div style={{ fontFamily: FU, fontSize: 12, color: TXT3, marginTop: 1 }}>Apple Calendar · Google · Outlook</div>
+            </div>
+          </div>
+          <div style={{ borderTop: `1px solid ${BDS}`, display: "flex", gap: 0 }}>
+            {[{label:"Google Calendar",action:()=>window.open(googleUrl,"_blank")},{label:"Apple / Download .ics",action:()=>downloadIcs(game,group.name)}].map(({label,action},i) => (
+              <button key={label} onClick={action} style={{ flex: 1, padding: "12px 10px", background: "none", border: "none", borderRight: i === 0 ? `1px solid ${BDS}` : "none", cursor: "pointer", fontFamily: FU, fontSize: 13, fontWeight: 600, color: J5 }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        {/* Leave Game — only for non-hosts who have RSVP'd Can't */}
+        {/* Leave / Archive */}
         {onLeave && game.hostId !== uid && myRsvp === "no" && (
-          <Btn full outline danger onClick={() => setConfirmLeave(true)}>🚪 Leave Game</Btn>
+          <button onClick={() => setConfirmLeave(true)} style={{ width: "100%", padding: "12px", borderRadius: 14, border: `1px solid ${BDD}`, background: CL1, color: CL7, fontFamily: FU, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+            🚪 Leave Game
+          </button>
         )}
-
-        {game.hostId === uid && <Btn full outline danger onClick={() => setConfirmArchive(true)}>📦 Archive Game</Btn>}
+        {game.hostId === uid && (
+          <button onClick={() => setConfirmArchive(true)} style={{ width: "100%", padding: "12px", borderRadius: 14, border: `1px solid ${BDD}`, background: IV3, color: TXT2, fontFamily: FU, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+            📦 Archive Game
+          </button>
+        )}
       </div>
     </div>
-    {confirmArchive && (
-      <ConfirmDialog
-        title="Archive Game?"
-        message={`"${game.title}" will be moved to your archive. It won't count toward your plan limits and will be automatically removed after 60 days. You can still view it in the Archived tab.`}
-        confirmLabel="Archive Game"
-        onConfirm={() => { setConfirmArchive(false); onArchive(); }}
-        onCancel={() => setConfirmArchive(false)}
-      />
-    )}
-    {confirmLeave && (
-      <ConfirmDialog
-        title="Leave Game?"
-        message={`You'll be removed from "${game.title}". You can rejoin later using the invite link or QR code if available.`}
-        confirmLabel="Leave Game"
-        onConfirm={() => { setConfirmLeave(false); onLeave(); }}
-        onCancel={() => setConfirmLeave(false)}
-      />
-    )}
-    {confirmReRandomize && (
-      <ConfirmDialog
-        title="Re-randomize Tables?"
-        message="Tables have already been assigned. Randomizing again will overwrite the current seating order."
-        confirmLabel="Randomize Again"
-        onConfirm={doRandomize}
-        onCancel={() => setConfirmReRandomize(false)}
-      />
-    )}
-    {gameChatOpen && group.id && (
-      <GameChat game={game} group={group} uid={uid} user={user} onClose={() => setGameChatOpen(false)} />
-    )}
+
+    {confirmArchive && <ConfirmDialog title="Archive Game?" message={`"${game.title}" will be moved to your archive. It won't count toward your plan limits and will be removed after 60 days.`} confirmLabel="Archive Game" onConfirm={() => { setConfirmArchive(false); onArchive(); }} onCancel={() => setConfirmArchive(false)} />}
+    {confirmLeave && <ConfirmDialog title="Leave Game?" message={`You'll be removed from "${game.title}". You can rejoin via invite link or QR code.`} confirmLabel="Leave Game" onConfirm={() => { setConfirmLeave(false); onLeave(); }} onCancel={() => setConfirmLeave(false)} />}
+    {confirmReRandomize && <ConfirmDialog title="Re-randomize Tables?" message="Tables are already assigned. Randomizing again will overwrite the current order." confirmLabel="Randomize Again" onConfirm={doRandomize} onCancel={() => setConfirmReRandomize(false)} />}
+    {gameChatOpen && group.id && <GameChat game={game} group={group} uid={uid} user={user} onClose={() => setGameChatOpen(false)} />}
     </>
   );
 }
