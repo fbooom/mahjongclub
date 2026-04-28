@@ -5242,17 +5242,33 @@ function generateSeating(playerIds, skillMap, tableSize = 4) {
 
 /* GAME DETAIL — redesigned per spec */
 function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLeave, onBack, isGuestView = false }) {
-  // ── Design tokens ────────────────────────────────────────────────────────
-  const J9="#1a2e20",J8="#1f3a2a",J7="#2d4a36",J6="#3a5a44",J5="#2f5e3e",J1="#eaf3eb";
-  const CL7="#8a3a2a",CL5="#c96442",CL1="#f5e4df";
-  const BM7="#8a6b3a",BM5="#d6a64a",BM1="#f5ecd8";
-  const IV1="#fdfaf0",IV2="#faf6ea",IV3="#f3ede0";
-  const TXT2="#5b5448",TXT3="#7a7060";
-  const BDS="rgba(120,95,60,0.08)",BDD="rgba(120,95,60,0.15)";
-  const SHD="0 1px 2px rgba(60,50,30,0.06),0 8px 24px -12px rgba(60,50,30,0.12),inset 0 0 0 1px rgba(120,95,60,0.08)";
-  const FD="'DM Serif Display',Georgia,serif",FU="'Geist',system-ui,sans-serif";
-  const card={background:IV1,borderRadius:18,padding:"16px",boxShadow:SHD};
-  const iconBtn={width:38,height:38,borderRadius:12,background:"rgba(253,250,240,0.12)",border:"1px solid rgba(253,250,240,0.18)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:IV1,fontSize:16,flexShrink:0};
+  // ── Design tokens — mapped to active theme CSS variables ────────────────
+  // Going / positive action
+  const J9  = "var(--text-heading)";
+  const J5  = "var(--secondary-accent)";          // "going" pip, progress bar, confirm buttons
+  const J1  = "rgba(var(--primary-rgb),0.10)";    // light tint for going pips / tally cells
+  // Warning / emphasis (used for "out", host badge, open-seat count)
+  const CL7 = "var(--primary)";
+  const CL1 = "rgba(var(--primary-rgb),0.10)";
+  // Maybe / neutral secondary
+  const BM7 = "var(--primary-muted)";
+  const BM5 = "var(--primary-subtle)";
+  const BM1 = "rgba(var(--primary-rgb),0.06)";
+  // Surfaces
+  const IV1 = "var(--bg-card-base)";              // card backgrounds only — not text
+  const IV2 = "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)";
+  const IV3 = "var(--bg-surface)";
+  // Text
+  const TXT2 = "var(--text-muted)";
+  const TXT3 = "var(--text-subtle)";
+  // Borders / shadows
+  const BDS = "var(--border-card)";
+  const BDD = "var(--border-input)";
+  const SHD = "0 4px 16px rgba(var(--shadow-rgb),0.08),inset 0 1px 0 var(--shadow-inset)";
+  const FD  = "'DM Serif Display',Georgia,serif";
+  const FU  = "'Geist',system-ui,sans-serif";
+  const card = { background: IV1, borderRadius: 18, padding: "16px", boxShadow: SHD, border: `1px solid ${BDS}` };
+  const iconBtn = { width:38,height:38,borderRadius:12,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.18)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#fff",fontSize:16,flexShrink:0 };
 
   // ── State ────────────────────────────────────────────────────────────────
   const [showAllRsvp, setShowAllRsvp] = useState(false);
@@ -5372,8 +5388,8 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
 
   const Pip = ({ id, name, status }) => {
     const init = (name || "?")[0].toUpperCase();
-    const s = status === "yes"   ? { bg: J5,  col: IV1,  border: "none",    glyph: init }
-             : status === "maybe"? { bg: BM5, col: "#4a3800", border: "none", glyph: init }
+    const s = status === "yes"   ? { bg: J5,  col: "#fff", border: "none",   glyph: init }
+             : status === "maybe"? { bg: BM5, col: BM7,    border: "none",   glyph: init }
              : status === "no"   ? { bg: "transparent", col: CL7, border: `1.5px dashed ${CL7}`, glyph: "×" }
              :                     { bg: IV3, col: TXT3, border: `1.5px dashed ${BDD}`, glyph: "+" };
     return (
@@ -5391,13 +5407,13 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
     <div style={{ minHeight: "100%", background: IV2, fontFamily: FU }}>
 
       {/* ── HEADER ──────────────────────────────────────────────────────── */}
-      <div style={{ background: `linear-gradient(180deg,${J8} 0%,${J7} 60%,${J6} 100%)`, padding: "8px 16px 22px", position: "relative", overflow: "hidden" }}>
+      <div style={{ background: "var(--header-gradient2)", padding: "8px 16px 22px", position: "relative", overflow: "hidden" }}>
         {/* Decorative tile */}
         <div style={{ position: "absolute", top: -10, right: -22, fontSize: 130, opacity: 0.1, transform: "rotate(14deg)", pointerEvents: "none", userSelect: "none", lineHeight: 1 }}>🀄</div>
 
         {/* Row 1 — actions */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative", zIndex: 1 }}>
-          <button onClick={() => onBack ? onBack() : (isGuestView ? go("home") : go("games"))} aria-label="Back" style={{ background: "none", border: "none", color: `rgba(253,250,240,0.85)`, display: "flex", alignItems: "center", gap: 2, padding: "8px 12px 8px 6px", marginLeft: -4, cursor: "pointer", fontFamily: FU, fontSize: 14, fontWeight: 500 }}>
+          <button onClick={() => onBack ? onBack() : (isGuestView ? go("home") : go("games"))} aria-label="Back" style={{ background: "none", border: "none", color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 2, padding: "8px 12px 8px 6px", marginLeft: -4, cursor: "pointer", fontFamily: FU, fontSize: 14, fontWeight: 500 }}>
             ‹ Games
           </button>
           <div style={{ display: "flex", gap: 8 }}>
@@ -5408,19 +5424,19 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
         </div>
 
         {/* Row 2 — title */}
-        <h1 style={{ fontFamily: FD, fontSize: 32, lineHeight: 1.05, letterSpacing: -0.4, color: IV1, marginTop: 14, position: "relative", zIndex: 1 }}>
+        <h1 style={{ fontFamily: FD, fontSize: 32, lineHeight: 1.05, letterSpacing: -0.4, color: "#fff", marginTop: 14, position: "relative", zIndex: 1 }}>
           {game.title}
         </h1>
 
         {/* Row 3 — info strip */}
         <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 5, position: "relative", zIndex: 1 }}>
-          <div style={{ fontSize: 13, color: `rgba(253,250,240,0.85)`, fontFamily: FU }}>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", fontFamily: FU }}>
             📅 {fmt(game.date)}{game.time ? ` · ${fmtT(game.time)}` : ""}{game.endTime ? ` – ${fmtT(game.endTime)}` : ""}
           </div>
           {game.location && (
-            <div style={{ fontSize: 13, color: `rgba(253,250,240,0.70)`, fontFamily: FU, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.70)", fontFamily: FU, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {game.location}</span>
-              <button onClick={() => { window.location.href = Capacitor.getPlatform() === "ios" ? `maps://maps.apple.com/?q=${encodeURIComponent(game.location)}` : `https://maps.google.com/?q=${encodeURIComponent(game.location)}`; }} style={{ padding: "3px 9px", borderRadius: 999, background: "rgba(253,250,240,0.12)", border: "1px solid rgba(253,250,240,0.18)", color: `rgba(253,250,240,0.85)`, fontSize: 11, fontWeight: 600, fontFamily: FU, cursor: "pointer", flexShrink: 0 }}>
+              <button onClick={() => { window.location.href = Capacitor.getPlatform() === "ios" ? `maps://maps.apple.com/?q=${encodeURIComponent(game.location)}` : `https://maps.google.com/?q=${encodeURIComponent(game.location)}`; }} style={{ padding: "3px 9px", borderRadius: 999, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)", color: "rgba(255,255,255,0.85)", fontSize: 11, fontWeight: 600, fontFamily: FU, cursor: "pointer", flexShrink: 0 }}>
                 Directions
               </button>
             </div>
@@ -5433,9 +5449,9 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
 
         {/* a. Hosting card */}
         {isHost && (
-          <div style={{ ...card, background: `linear-gradient(180deg,${IV1} 0%,#f9f1da 100%)` }}>
+          <div style={{ ...card, background: `linear-gradient(180deg,${IV1} 0%,var(--bg-card-alt) 100%)` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 10, background: `linear-gradient(135deg,${BM5},#c98a32)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, color: IV1, flexShrink: 0 }}>★</div>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: "var(--active-tab-gradient)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, color: "#fff", flexShrink: 0 }}>★</div>
               <div>
                 <div style={{ fontFamily: FD, fontSize: 16, color: J9 }}>You're hosting</div>
                 <div style={{ fontFamily: FU, fontSize: 12, color: TXT2, marginTop: 2, lineHeight: 1.4 }}>
@@ -5450,8 +5466,8 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
         <div style={card}>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <div style={{ position: "relative", flexShrink: 0 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg,${J5},#3a7050)`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FD, fontSize: 18, color: IV1 }}>{hostInitials}</div>
-              <div style={{ position: "absolute", bottom: -2, right: -2, width: 18, height: 18, borderRadius: 9, background: CL5, border: `2px solid ${IV1}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: IV1, fontWeight: 700 }}>★</div>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--active-tab-gradient)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FD, fontSize: 18, color: "#fff" }}>{hostInitials}</div>
+              <div style={{ position: "absolute", bottom: -2, right: -2, width: 18, height: 18, borderRadius: 9, background: CL7, border: `2px solid ${IV1}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#fff", fontWeight: 700 }}>★</div>
             </div>
             <div>
               <div style={{ fontFamily: FU, fontSize: 10, fontWeight: 600, color: CL7, textTransform: "uppercase", letterSpacing: 1.2 }}>Hosted by</div>
@@ -5549,14 +5565,14 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
                 <div style={{ fontFamily: FU, fontSize: 13, color: TXT2, marginBottom: 12, lineHeight: 1.6 }}>
                   This game is full. {onWaitlistMe ? "You're on the waitlist — we'll notify you if a spot opens. 🌸" : "Join the waitlist to be notified when a spot opens."}
                 </div>
-                <button onClick={() => onWaitlist(onWaitlistMe ? "leave" : "join")} style={{ width: "100%", padding: "11px 0", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: FU, border: "none", background: onWaitlistMe ? J1 : J5, color: onWaitlistMe ? J5 : IV1 }}>
+                <button onClick={() => onWaitlist(onWaitlistMe ? "leave" : "join")} style={{ width: "100%", padding: "11px 0", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: FU, border: "none", background: onWaitlistMe ? J1 : J5, color: onWaitlistMe ? J5 : "#fff" }}>
                   {onWaitlistMe ? "✕ Leave Waitlist" : "⏳ Join Waitlist"}
                 </button>
               </div>
             ) : (
               <div style={{ display: "flex", gap: 8 }}>
                 {[{v:"yes",label:"✓ Going",bg:J5,tint:J1,text:J5},{v:"maybe",label:"? Maybe",bg:BM5,tint:BM1,text:BM7},{v:"no",label:"✕ Can't",bg:CL7,tint:CL1,text:CL7}].map(({v,label,bg,tint,text}) => (
-                  <button key={v} onClick={() => onRsvp(v)} style={{ flex: 1, padding: "10px 4px", borderRadius: 12, fontSize: 13, fontWeight: 700, background: myRsvp === v ? bg : tint, color: myRsvp === v ? IV1 : text, border: "none", cursor: "pointer", fontFamily: FU, transition: "all .18s" }}>{label}</button>
+                  <button key={v} onClick={() => onRsvp(v)} style={{ flex: 1, padding: "10px 4px", borderRadius: 12, fontSize: 13, fontWeight: 700, background: myRsvp === v ? bg : tint, color: myRsvp === v ? "#fff" : text, border: "none", cursor: "pointer", fontFamily: FU, transition: "all .18s" }}>{label}</button>
                 ))}
               </div>
             )}
@@ -5585,7 +5601,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
                         <button onClick={() => setMovingUid(null)} style={{ background: "none", border: "none", fontSize: 16, color: J5, cursor: "pointer" }}>✕</button>
                       </div>
                     )}
-                    <button onClick={handleRandomize} disabled={seatingPool.length === 0} style={{ width: "100%", padding: "10px 0", borderRadius: 12, border: "none", background: seatingPool.length === 0 ? IV3 : J5, color: seatingPool.length === 0 ? TXT3 : IV1, fontWeight: 700, fontSize: 14, cursor: seatingPool.length === 0 ? "default" : "pointer", fontFamily: FU, marginBottom: 14 }}>
+                    <button onClick={handleRandomize} disabled={seatingPool.length === 0} style={{ width: "100%", padding: "10px 0", borderRadius: 12, border: "none", background: seatingPool.length === 0 ? IV3 : J5, color: seatingPool.length === 0 ? TXT3 : "#fff", fontWeight: 700, fontSize: 14, cursor: seatingPool.length === 0 ? "default" : "pointer", fontFamily: FU, marginBottom: 14 }}>
                       🎲 Randomize Tables
                     </button>
                   </>
