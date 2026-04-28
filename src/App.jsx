@@ -3897,9 +3897,9 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
       }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.18) 0%,transparent 55%)", pointerEvents: "none" }} />
         {/* Back */}
-        <button onClick={() => go("groups")} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+        <button onClick={() => go("groups")} style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
         {/* Action icons */}
-        <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 7 }}>
+        <div style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", right: 14, display: "flex", gap: 7 }}>
           {isCreator && (
             <button onClick={() => go("editGroup", group.id)} title="Edit group" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>✏️</button>
           )}
@@ -5351,9 +5351,9 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
       <div style={{ background: `linear-gradient(135deg,${group.color}f0,${group.color}bb)`, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", padding: "max(52px, calc(env(safe-area-inset-top, 0px) + 8px)) 22px 28px", position: "relative", overflow: "hidden", boxShadow: `0 8px 32px ${group.color}44` }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.18) 0%,transparent 55%)", pointerEvents: "none" }} />
         {/* Back */}
-        <button onClick={() => onBack ? onBack() : (isGuestView ? go("home") : go("group", group.id))} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+        <button onClick={() => onBack ? onBack() : (isGuestView ? go("home") : go("group", group.id))} style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
         {/* Action icons */}
-        <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 7 }}>
+        <div style={{ position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 14px)", right: 14, display: "flex", gap: 7 }}>
           {isHost && (
             <button onClick={() => go("editGame", group.id, game.id)} title="Edit game" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>✏️</button>
           )}
