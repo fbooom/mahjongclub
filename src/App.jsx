@@ -973,7 +973,11 @@ export default function App() {
     : null;
 
   const scrollRef = useRef(null);
-  const go = (p, g, gm) => { setPage(p); if (g !== undefined) setGid(g); if (gm !== undefined) setGmid(gm || null); };
+  const prevPageRef = useRef("home");
+  const go = (p, g, gm) => {
+    prevPageRef.current = page;
+    setPage(p); if (g !== undefined) setGid(g); if (gm !== undefined) setGmid(gm || null);
+  };
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, [page]);
   const flash = (msg, icon) => { setToast({ msg, icon: icon || "✅" }); setTimeout(() => setToast(null), 6000); };
 
@@ -1005,8 +1009,8 @@ export default function App() {
     { id: "groups",  icon: "👥", label: "Groups"  },
     { id: "account", icon: "👤", label: "Account" },
   ];
-  const GROUP_PAGES = ["groups","group","newGroup","joinGroup","editGroup","newGame","game","editGame","invite","newChoice"];
-  const GAMES_PAGES = ["games","guestGame","standaloneGame"];
+  const GROUP_PAGES = ["groups","group","newGroup","joinGroup","editGroup","newGame","invite","newChoice"];
+  const GAMES_PAGES = ["games","guestGame","standaloneGame","game","editGame"];
 
   // Admin hub renders outside the app shell (full viewport)
   if (page === "adminHub" && user?.isAdmin) {
@@ -1263,6 +1267,7 @@ export default function App() {
         )}
         {page === "game" && game && group && (
           <Game uid={uid} user={displayUser} game={game} group={group} go={go}
+            onBack={() => GAMES_PAGES.includes(prevPageRef.current) ? go("games") : go("group", group.id)}
             onRsvp={async (ans) => {
               try {
                 await updateDoc(doc(db, "groups", group.id, "games", game.id), { [`rsvps.${uid}`]: ans });
@@ -3208,42 +3213,6 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
                       <span style={{ fontSize: 18 }}>{icon}</span>{label}
                     </button>
                   ))}
-                  <button onClick={() => setInviteOpen(o => !o)} style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
-                    padding: "14px 16px", background: "none", border: "none", cursor: "pointer",
-                    fontFamily: "'Inter',sans-serif", fontSize: 14, fontWeight: 600,
-                    color: "var(--text-body)", textAlign: "left",
-                    borderBottom: inviteOpen ? "1px solid var(--border-card)" : "none",
-                  }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ fontSize: 18 }}>✉️</span>Invite a friend</span>
-                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{inviteOpen ? "▲" : "▼"}</span>
-                  </button>
-                  {inviteOpen && (() => {
-                    const appUrl = APP_PUBLIC_URL;
-                    const txt = `Join me on Mahjong Club!\n\n${appUrl}`;
-                    const share = (method) => {
-                      if (method === "sms") window.open(`sms:?body=${encodeURIComponent(txt)}`);
-                      else if (method === "email") window.open(`mailto:?subject=${encodeURIComponent("Join me on Mahjong Club!")}&body=${encodeURIComponent(txt)}`);
-                      else if (method === "copy") navigator.clipboard.writeText(appUrl).catch(() => {});
-                      else if (method === "share") { if (navigator.share) navigator.share({ title: "Mahjong Club", url: appUrl }).catch(() => {}); else navigator.clipboard.writeText(appUrl).catch(() => {}); }
-                    };
-                    return [
-                      { icon: "💬", label: "Text Message", method: "sms" },
-                      { icon: "📧", label: "Email",        method: "email" },
-                      { icon: "🔗", label: "Copy link",    method: "copy" },
-                      { icon: "📤", label: "Share…",       method: "share" },
-                    ].map(({ icon, label, method }) => (
-                      <button key={method} onClick={() => { share(method); setMenuOpen(false); setInviteOpen(false); }} style={{
-                        display: "flex", alignItems: "center", gap: 12, width: "100%",
-                        padding: "12px 16px 12px 44px", background: "rgba(var(--primary-rgb),0.04)",
-                        border: "none", borderBottom: "1px solid var(--border-card)", cursor: "pointer",
-                        fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 500,
-                        color: "var(--text-body)", textAlign: "left",
-                      }}>
-                        <span style={{ fontSize: 16 }}>{icon}</span>{label}
-                      </button>
-                    ));
-                  })()}
                 </div>
               </>
             )}
@@ -3431,7 +3400,6 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
                     };
                     return [
                       { icon: "💬", label: "Text Message", method: "sms" },
-                      { icon: "📧", label: "Email",        method: "email" },
                       { icon: "🔗", label: "Copy link",    method: "copy" },
                       { icon: "📤", label: "Share…",       method: "share" },
                     ].map(({ icon, label, method }) => (
@@ -5267,7 +5235,7 @@ function generateSeating(playerIds, skillMap, tableSize = 4) {
 }
 
 /* GAME DETAIL */
-function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLeave, isGuestView = false }) {
+function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLeave, onBack, isGuestView = false }) {
   const [showAttendees, setShowAttendees] = useState(false);
   const [rsvpTab, setRsvpTab] = useState("going");
   const [confirmArchive, setConfirmArchive] = useState(false);
@@ -5287,7 +5255,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
   const [gameChatOpen, setGameChatOpen] = useState(false);
   const isCreator = !isGuestView && group.members.some((m) => m.id === uid && m.host);
   const isCoHost = !isGuestView && (game.coHostIds || []).includes(uid);
-  const canInvite = !isGuestView && (isCreator || isCoHost || (game.hostId === uid) || (group.openInvites ?? false));
+  const canInvite = !isGuestView && !!group.id;
   const myRsvp = game.rsvps[uid] || "pending";
   const yes = Object.values(game.rsvps).filter((v) => v === "yes").length;
   const maybe = Object.values(game.rsvps).filter((v) => v === "maybe").length;
@@ -5383,7 +5351,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
       <div style={{ background: `linear-gradient(135deg,${group.color}f0,${group.color}bb)`, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", padding: "max(52px, calc(env(safe-area-inset-top, 0px) + 8px)) 22px 28px", position: "relative", overflow: "hidden", boxShadow: `0 8px 32px ${group.color}44` }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.18) 0%,transparent 55%)", pointerEvents: "none" }} />
         {/* Back */}
-        <button onClick={() => isGuestView ? go("home") : go("group", group.id)} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+        <button onClick={() => onBack ? onBack() : (isGuestView ? go("home") : go("group", group.id))} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
         {/* Action icons */}
         <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 7 }}>
           {isHost && (
@@ -6125,7 +6093,6 @@ function Invite({ group, game, flash, onBack }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 11, marginBottom: 11 }}>
         {[
           ["💬","Text Message","Opens SMS app","var(--secondary-accent)","sms"],
-          ["📧","Email","Opens mail app","var(--primary)","email"],
           ["📋","Copy Message","Paste anywhere","#c4936e","copy"],
           ["📤","Share...","All options","#d4829b","share"],
         ].map(([icon, label, sub, color, method]) => (
