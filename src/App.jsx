@@ -6,7 +6,7 @@ import {
 } from "firebase/auth";
 import {
   collection, collectionGroup, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
-  onSnapshot, query, where, orderBy, addDoc, serverTimestamp,
+  onSnapshot, query, where, orderBy, limit, addDoc, serverTimestamp,
   arrayUnion, arrayRemove, deleteField, runTransaction, writeBatch,
   enableNetwork, disableNetwork,
 } from "firebase/firestore";
@@ -666,6 +666,13 @@ export default function App() {
   const guestGroupCache = useRef({});
   const knownGameIds = useRef({}); // { [groupId]: Set<gameId> } — per-group tracking
 
+  // ── Unread chat badge tracking ──
+  // unreadCounts: { [chatId]: count }, chatId is a groupId (group chat) or gameId (game chat)
+  const [unreadCounts, setUnreadCounts] = useState({});
+  const chatMsgTsRef = useRef({});     // { [chatId]: number[] } — recent message createdAt (ms), capped
+  const lastReadRef = useRef({});      // { [chatId]: number } — this user's lastRead (ms) per chat
+  const chatMsgUnsubsRef = useRef({}); // { [chatId]: unsubscribe fn }
+
   // ── Subscription plan configs (real-time) ──
   // Gated on authUser so the listener never fires before auth is established.
   // On mobile (indexedDBLocalPersistence) auth restoration is slower — starting
@@ -1003,6 +1010,80 @@ export default function App() {
       groupMeta.current = {};
       guestGameUnsubs.current = {};
       guestGroupCache.current = {};
+    };
+  }, [effectiveUid]);
+
+  // ── Unread chat badges: lastRead listener ──
+  // Single listener on users/{uid}/chatLastRead for all per-chat lastRead timestamps.
+  useEffect(() => {
+    if (!effectiveUid) { lastReadRef.current = {}; return; }
+    const recompute = (chatId) => {
+      const ts = chatMsgTsRef.current[chatId] || [];
+      const lastRead = lastReadRef.current[chatId] || 0;
+      const count = ts.filter((t) => t > lastRead).length;
+      setUnreadCounts((prev) => (prev[chatId] === count ? prev : { ...prev, [chatId]: count }));
+    };
+    const unsub = onSnapshot(collection(db, "users", effectiveUid, "chatLastRead"), (snap) => {
+      const map = {};
+      snap.docs.forEach((d) => { map[d.id] = d.data()?.lastRead?.toMillis?.() || 0; });
+      lastReadRef.current = map;
+      Object.keys(chatMsgTsRef.current).forEach(recompute);
+    });
+    return unsub;
+  }, [effectiveUid]);
+
+  // ── Unread chat badges: per-chat message listeners ──
+  // One lightweight listener per group/game chat (capped to the most recent 100
+  // messages — enough to know if there are unread ones without loading full history).
+  useEffect(() => {
+    if (!effectiveUid) return;
+    const recompute = (chatId) => {
+      const ts = chatMsgTsRef.current[chatId] || [];
+      const lastRead = lastReadRef.current[chatId] || 0;
+      const count = ts.filter((t) => t > lastRead).length;
+      setUnreadCounts((prev) => (prev[chatId] === count ? prev : { ...prev, [chatId]: count }));
+    };
+
+    const chats = {}; // chatId -> messages collection ref
+    groups.forEach((g) => {
+      chats[g.id] = collection(db, "groups", g.id, "messages");
+      (g.games || []).forEach((gm) => {
+        chats[gm.id] = collection(db, "groups", g.id, "games", gm.id, "messages");
+      });
+    });
+    standaloneGames.forEach((gm) => { chats[gm.id] = collection(db, "games", gm.id, "messages"); });
+    guestGames.forEach((gm) => {
+      chats[gm.id] = gm.groupId
+        ? collection(db, "groups", gm.groupId, "games", gm.id, "messages")
+        : collection(db, "games", gm.id, "messages");
+    });
+
+    const currentIds = new Set(Object.keys(chats));
+    Object.keys(chatMsgUnsubsRef.current).forEach((id) => {
+      if (!currentIds.has(id)) {
+        chatMsgUnsubsRef.current[id]();
+        delete chatMsgUnsubsRef.current[id];
+        delete chatMsgTsRef.current[id];
+        setUnreadCounts((prev) => { if (!(id in prev)) return prev; const next = { ...prev }; delete next[id]; return next; });
+      }
+    });
+
+    Object.entries(chats).forEach(([chatId, colRef]) => {
+      if (chatMsgUnsubsRef.current[chatId]) return;
+      const q = query(colRef, orderBy("createdAt", "desc"), limit(100));
+      chatMsgUnsubsRef.current[chatId] = onSnapshot(q, (snap) => {
+        chatMsgTsRef.current[chatId] = snap.docs.map((d) => d.data().createdAt?.toMillis?.() || 0);
+        recompute(chatId);
+      }, () => {});
+    });
+  }, [effectiveUid, groups, standaloneGames, guestGames]);
+
+  // Tear down all chat message listeners on sign-out / impersonation change / unmount.
+  useEffect(() => {
+    return () => {
+      Object.values(chatMsgUnsubsRef.current).forEach((u) => u());
+      chatMsgUnsubsRef.current = {};
+      chatMsgTsRef.current = {};
     };
   }, [effectiveUid]);
 
@@ -1351,6 +1432,16 @@ const handleSignOut = async () => {
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; }, [page]);
   const flash = (msg, icon) => { setToast({ msg, icon: icon || "✅" }); setTimeout(() => setToast(null), 6000); };
 
+  // Mark a chat as read when the user navigates into its group or game detail page.
+  useEffect(() => {
+    if (!effectiveUid) return;
+    let chatId = null;
+    if (page === "group" && gid) chatId = gid;
+    else if ((page === "game" || page === "guestGame" || page === "standaloneGame") && gmid) chatId = gmid;
+    if (!chatId) return;
+    setDoc(doc(db, "users", effectiveUid, "chatLastRead", chatId), { lastRead: serverTimestamp() }, { merge: true }).catch(() => {});
+  }, [page, gid, gmid, effectiveUid]);
+
   // ── Loading / auth gate ──
   if (authUser === undefined) {
     return (
@@ -1381,6 +1472,7 @@ const handleSignOut = async () => {
   ];
   const GROUP_PAGES = ["groups","group","newGroup","joinGroup","editGroup","newGame","invite","newChoice"];
   const GAMES_PAGES = ["games","guestGame","standaloneGame","game","editGame"];
+  const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
   // Admin hub renders outside the app shell (full viewport)
   if (page === "adminHub" && user?.isAdmin) {
@@ -1495,9 +1587,9 @@ const handleSignOut = async () => {
           </div>
         )}
       <div ref={scrollRef} data-scroll-container style={{ height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 16, paddingTop: impersonating ? "calc(env(safe-area-inset-top, 0px) + 52px)" : 0 }}>
-        {page === "home" && <Home groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} user={displayUser} activeTheme={activeTheme} planCfg={userPlanCfg} flash={flash} onNew={() => go("newChoice")} />}
-        {page === "games" && <GamesPage groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} user={displayUser} />}
-        {page === "groups" && <GroupsPage groups={groups} go={go} user={displayUser} planCfg={userPlanCfg} flash={flash} onNew={() => go("newChoice")} />}
+        {page === "home" && <Home groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} user={displayUser} activeTheme={activeTheme} planCfg={userPlanCfg} flash={flash} onNew={() => go("newChoice")} unreadCounts={unreadCounts} />}
+        {page === "games" && <GamesPage groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} user={displayUser} unreadCounts={unreadCounts} />}
+        {page === "groups" && <GroupsPage groups={groups} go={go} user={displayUser} planCfg={userPlanCfg} flash={flash} onNew={() => go("newChoice")} unreadCounts={unreadCounts} />}
         {page === "newChoice" && <NewChoice uid={uid} groups={groups} user={displayUser} planCfg={userPlanCfg} standaloneGames={standaloneGames} go={go} flash={flash} onBack={() => go("home")} />}
         {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} activeThemeId={activeTheme.id} onThemeChange={handleThemeChange} planCfg={userPlanCfg} onInstallPWA={installBanner.install} canInstallPWA={installBanner.canPrompt} isIOSWeb={installBanner.isIOS} />}
         {page === "newGroup" && (
@@ -1635,7 +1727,7 @@ const handleSignOut = async () => {
             }} />
         )}
         {page === "group" && group && (
-          <Group uid={uid} group={group} go={go} flash={flash} user={displayUser} planCfg={userPlanCfg} groups={groups}
+          <Group uid={uid} group={group} go={go} flash={flash} user={displayUser} planCfg={userPlanCfg} groups={groups} unreadCounts={unreadCounts}
             onLeave={async () => {
               try {
                 await runTransaction(db, async (tx) => {
@@ -1912,7 +2004,10 @@ const handleSignOut = async () => {
               onTouchStart={(e) => e.currentTarget.style.transform = "scale(.93)"}
               onTouchEnd={(e) => e.currentTarget.style.transform = "scale(1)"}
             >
-              <div style={{ width: 42, height: 28, borderRadius: 14, background: active ? "var(--active-tab-gradient)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, boxShadow: active ? "0 2px 10px rgba(var(--shadow-rgb),0.35)" : "none", transition: "all .2s" }}>{item.icon}</div>
+              <div style={{ position: "relative", width: 42, height: 28, borderRadius: 14, background: active ? "var(--active-tab-gradient)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, boxShadow: active ? "0 2px 10px rgba(var(--shadow-rgb),0.35)" : "none", transition: "all .2s" }}>
+                {item.icon}
+                {item.id === "groups" && <Badge count={totalUnread} />}
+              </div>
               <span style={{ fontSize: 12, fontWeight: active ? 700 : 500, color: active ? "var(--primary)" : "#c0a0b0", fontFamily: "'Inter',sans-serif" }}>{item.label}</span>
             </button>
           );
@@ -3644,6 +3739,22 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
 }
 
 /* ── RSVP AVATAR STACK ── */
+// Small red circle with white number, positioned top-right of a `position: relative` parent.
+// Hidden entirely when count is 0; caps display at "99+".
+function Badge({ count }) {
+  if (!count || count <= 0) return null;
+  return (
+    <span style={{
+      position: "absolute", top: -6, right: -6, zIndex: 1,
+      minWidth: 18, height: 18, padding: "0 4px",
+      borderRadius: 999, background: "#e53e3e", color: "#fff",
+      fontSize: 11, fontWeight: 700, lineHeight: "18px", textAlign: "center",
+      fontFamily: "'Inter',sans-serif", boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
+      border: "1.5px solid var(--bg-card-base)", pointerEvents: "none",
+    }}>{count > 99 ? "99+" : count}</span>
+  );
+}
+
 function RsvpStack({ players, max = 5, size = 30, onClick }) {
   const ins = players.filter(p => p.state === "in");
   const shown = ins.slice(0, max);
@@ -3715,7 +3826,7 @@ function RsvpStack({ players, max = 5, size = 30, onClick }) {
 }
 
 /* ── SHARED GAME CARD ── */
-function GameCard({ gm, groups, user, go, animDelay = 0 }) {
+function GameCard({ gm, groups, user, go, animDelay = 0, unreadCounts = {} }) {
   const MON_ABR = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
   const DOW_ABR = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 
@@ -3751,13 +3862,15 @@ function GameCard({ gm, groups, user, go, animDelay = 0 }) {
   const gameNum = ((gameHash >>> 0) % 900) + 100;
   const isPast = gm.date < startOfTodayInTz(user?.timezone);
   const winnerFirstName = gm.winner ? (gm.winner.uid === user?.uid ? "You" : (gm.winner.name || "").split(" ")[0]) : null;
+  const unread = unreadCounts[gm.id] || 0;
 
   return (
     <div className="sUp" style={{ animationDelay: `${animDelay}s`, marginBottom: 10, cursor: "pointer" }}
       onClick={() => go(gm.isStandalone ? "standaloneGame" : gm.isGuestGame ? "guestGame" : "game", gm.groupId, gm.id)}>
       <div style={{ background: "var(--bg-card-base)", borderRadius: 16, border: "1px solid var(--border-card)", overflow: "hidden", boxShadow: "0 2px 10px rgba(var(--shadow-rgb),0.06)" }}>
         <div style={{ display: "flex", gap: 12, padding: "12px 14px 10px", alignItems: "center" }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: 54, minWidth: 54, padding: "6px 4px", background: "var(--date-block-bg)", border: "1px solid rgba(var(--primary-rgb),0.20)", borderRadius: 10, flexShrink: 0 }}>
+          <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: 54, minWidth: 54, padding: "6px 4px", background: "var(--date-block-bg)", border: "1px solid rgba(var(--primary-rgb),0.20)", borderRadius: 10, flexShrink: 0 }}>
+            <Badge count={unread} />
             <span style={{ fontSize: 9, fontWeight: 700, color: "var(--primary)", letterSpacing: 1.2, fontFamily: "'Inter',sans-serif" }}>{monAbbr}</span>
             <span style={{ fontSize: 24, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", lineHeight: 1.1 }}>{dayNum}</span>
             <span style={{ fontSize: 9, fontWeight: 700, color: "var(--primary)", letterSpacing: 1.2, fontFamily: "'Inter',sans-serif" }}>{dowAbbr}</span>
@@ -3802,7 +3915,7 @@ function GameCard({ gm, groups, user, go, animDelay = 0 }) {
 }
 
 /* ── ALL GAMES PANEL (shared by Home + Account) ── */
-function AllGamesPanel({ groups, guestGames = [], standaloneGames = [], go, user }) {
+function AllGamesPanel({ groups, guestGames = [], standaloneGames = [], go, user, unreadCounts = {} }) {
   const todayStart = startOfTodayInTz(user?.timezone);
   const memberGames = groups.flatMap((g) =>
     g.games.map((gm) => ({ ...gm, groupName: g.name, groupColor: g.color, groupId: g.id, groupEmoji: g.emoji }))
@@ -3828,7 +3941,7 @@ function AllGamesPanel({ groups, guestGames = [], standaloneGames = [], go, user
       ) : (
         <>
           {list.map((gm, i) => (
-            <GameCard key={`${gm.groupId}-${gm.id}`} gm={gm} groups={groups} user={user} go={go} animDelay={i * 0.05} />
+            <GameCard key={`${gm.groupId}-${gm.id}`} gm={gm} groups={groups} user={user} go={go} animDelay={i * 0.05} unreadCounts={unreadCounts} />
           ))}
           {upcoming.length > 3 && (
             <button onClick={() => go("games")} style={{
@@ -3851,7 +3964,7 @@ function AllGamesPanel({ groups, guestGames = [], standaloneGames = [], go, user
 }
 
 /* HOME */
-function Home({ groups, guestGames, standaloneGames, go, user, activeTheme, planCfg, flash, onNew }) {
+function Home({ groups, guestGames, standaloneGames, go, user, activeTheme, planCfg, flash, onNew, unreadCounts = {} }) {
   const todayStart = startOfTodayInTz(user?.timezone);
 
   // Background pattern — roses for Flowers, birds for Bam Bird, dragons for Dragons, tiles for all others
@@ -4000,7 +4113,10 @@ function Home({ groups, guestGames, standaloneGames, go, user, activeTheme, plan
                   boxShadow: "0 4px 20px rgba(var(--shadow-rgb),0.10), inset 0 1px 0 var(--shadow-inset)",
                   border: "1px solid var(--border-card)", borderLeft: `4px solid ${g.color}`,
                 }}>
-                  <div style={{ width: 50, height: 50, borderRadius: 15, flexShrink: 0, background: `linear-gradient(135deg,${g.color}33,${g.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 27, boxShadow: "inset 0 1px 0 var(--border-card)" }}>{g.emoji}</div>
+                  <div style={{ position: "relative", width: 50, height: 50, borderRadius: 15, flexShrink: 0, background: `linear-gradient(135deg,${g.color}33,${g.color}18)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 27, boxShadow: "inset 0 1px 0 var(--border-card)" }}>
+                    {g.emoji}
+                    <Badge count={unreadCounts[g.id]} />
+                  </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{g.name}</div>
                     <div style={{ fontSize: 13, color: "#b08090", marginTop: 2 }}>{g.members.length} members</div>
@@ -4028,7 +4144,7 @@ function Home({ groups, guestGames, standaloneGames, go, user, activeTheme, plan
             )}
 
             {/* All-groups games tabs */}
-            <AllGamesPanel groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} user={user} />
+            <AllGamesPanel groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} user={user} unreadCounts={unreadCounts} />
           </>
         )}
       </div>
@@ -4037,7 +4153,7 @@ function Home({ groups, guestGames, standaloneGames, go, user, activeTheme, plan
 }
 
 /* GAMES PAGE */
-function GamesPage({ groups, guestGames = [], standaloneGames = [], go, user }) {
+function GamesPage({ groups, guestGames = [], standaloneGames = [], go, user, unreadCounts = {} }) {
   const [tab, setTab] = useState("upcoming");
   const [menuOpen, setMenuOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -4214,7 +4330,7 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go, user }) 
               </div>
               {sGames.map(gm => {
                 const idx = gIdx++;
-                return <GameCard key={`${gm.groupId}-${gm.id}`} gm={gm} groups={groups} user={user} go={go} animDelay={idx * 0.04} />;
+                return <GameCard key={`${gm.groupId}-${gm.id}`} gm={gm} groups={groups} user={user} go={go} animDelay={idx * 0.04} unreadCounts={unreadCounts} />;
               })}
             </div>
           ));
@@ -4235,12 +4351,12 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go, user }) 
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1.5, fontFamily: "'Inter',sans-serif", marginBottom: 10, marginTop: cardIndex === 0 ? 0 : 18, paddingLeft: 2 }}>
                 {monthLabel}
               </div>
-              {mGames.map((gm) => <GameCard key={`${gm.groupId}-${gm.id}`} gm={gm} groups={groups} user={user} go={go} animDelay={(cardIndex++) * 0.04} />)}
+              {mGames.map((gm) => <GameCard key={`${gm.groupId}-${gm.id}`} gm={gm} groups={groups} user={user} go={go} animDelay={(cardIndex++) * 0.04} unreadCounts={unreadCounts} />)}
             </div>
           ));
         })() : (
           /* Archived tab */
-          list.map((gm, i) => <GameCard key={`${gm.groupId}-${gm.id}`} gm={gm} groups={groups} user={user} go={go} animDelay={i * 0.04} />)
+          list.map((gm, i) => <GameCard key={`${gm.groupId}-${gm.id}`} gm={gm} groups={groups} user={user} go={go} animDelay={i * 0.04} unreadCounts={unreadCounts} />)
         )}
       </div>
     </div>
@@ -4248,7 +4364,7 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go, user }) 
 }
 
 /* GROUPS PAGE */
-function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
+function GroupsPage({ groups, go, user, planCfg, flash, onNew, unreadCounts = {} }) {
   const [groupFilter, setGroupFilter] = useState("active");
   const [menuOpen, setMenuOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -4449,12 +4565,16 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
                   {/* Row 1: emoji + name + badge + chevron */}
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{
+                      position: "relative",
                       width: 52, height: 52, borderRadius: 15, flexShrink: 0,
                       background: `linear-gradient(135deg,${g.color}30,${g.color}14)`,
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 27, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.6), 0 2px 10px ${g.color}28`,
                       border: `1.5px solid ${g.color}22`,
-                    }}>{g.emoji}</div>
+                    }}>
+                      {g.emoji}
+                      <Badge count={unreadCounts[g.id]} />
+                    </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 18, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.name}</div>
                       <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3, fontFamily: "'Inter',sans-serif" }}>
@@ -5011,7 +5131,7 @@ function JoinGroup({ uid, groups, user, planCfg, onBack, onJoin, onJoinGame }) {
 }
 
 /* GROUP DETAIL */
-function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferHost, user, planCfg, groups }) {
+function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferHost, user, planCfg, groups, unreadCounts = {} }) {
   const [tab, setTab] = useState("games");
   const [gamesTab, setGamesTab] = useState("upcoming");
   const [chatOpen, setChatOpen] = useState(false);
@@ -5084,7 +5204,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
             ) : upcoming.map((gm, i) => (
               <GameCard key={gm.id}
                 gm={{ ...gm, groupId: group.id, groupName: group.name, groupColor: group.color, groupEmoji: group.emoji }}
-                groups={groups} user={user} go={go} animDelay={i * 0.07}
+                groups={groups} user={user} go={go} animDelay={i * 0.07} unreadCounts={unreadCounts}
               />
             ))}
           </>

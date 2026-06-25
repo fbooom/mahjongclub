@@ -35,6 +35,12 @@ service cloud.firestore {
 
       // Only admins can delete user documents (normally done via deleteUser CF).
       allow delete: if isAdmin();
+
+      // Per-chat "last read" timestamps, used to compute unread message badges.
+      // Only the owner ever needs to read or write their own read-state.
+      match /chatLastRead/{chatId} {
+        allow read, write: if isOwner(uid);
+      }
     }
 
     // ── Groups ───────────────────────────────────────────────────────────────
