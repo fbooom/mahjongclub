@@ -19,7 +19,7 @@
  * for the `date` range query. The `reminder24hSent` flag is checked in code.
  */
 
-const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
@@ -27,6 +27,7 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { getAuth } = require("firebase-admin/auth");
+const { getStorage } = require("firebase-admin/storage");
 
 const STRIPE_SECRET_KEY    = defineSecret("STRIPE_SECRET_KEY");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
@@ -36,40 +37,72 @@ const db = getFirestore();
 const messaging = getMessaging();
 
 /**
- * Fetch the right push tokens for a list of user IDs.
+ * Fetch all push tokens for a list of user IDs.
  *
- * Token strategy (prevents duplicate notifications):
- *   - nativePushTokens present → use those only (user has the native app)
- *   - no native tokens         → fall back to web fcmTokens
- *
- * This ensures a user with both the web app and native app installed
- * only receives one notification, delivered via the better channel.
+ * Sends to ALL tokens (native + web) so users receive notifications on every
+ * device they use — phone (native), laptop (web), etc.
  */
 async function getTokensForUsers(userIds) {
-  if (!userIds.length) return [];
+  if (!userIds.length) return { tokens: [], tokenToUid: {} };
   const chunks = [];
   for (let i = 0; i < userIds.length; i += 10) chunks.push(userIds.slice(i, i + 10));
-  const tokens = [];
+  const tokenToUid = {};
   for (const chunk of chunks) {
     const snaps = await Promise.all(chunk.map((uid) => db.doc(`users/${uid}`).get()));
     snaps.forEach((snap) => {
       const data = snap.data();
-      if (data?.notificationsEnabled !== true) return;
-      const native = data?.nativePushTokens || [];
-      const web    = data?.fcmTokens        || [];
-      tokens.push(...(native.length > 0 ? native : web));
+      if (data?.notificationsEnabled === false) return; // explicitly disabled
+      const allTokens = [...(data?.nativePushTokens || []), ...(data?.fcmTokens || [])];
+      if (!allTokens.length) return; // no tokens — nothing to send to
+      allTokens.forEach((t) => { if (t) tokenToUid[t] = snap.id; });
     });
   }
-  return [...new Set(tokens)];
+  return { tokens: [...new Set(Object.keys(tokenToUid))], tokenToUid };
 }
 
-/** Send FCM messages in batches of 500 */
-async function sendToTokens(tokens, notification, data = {}) {
+/** Send FCM messages in batches of 500. Removes stale tokens from Firestore after failures. */
+async function sendToTokens({ tokens, tokenToUid }, notification, data = {}) {
   if (!tokens.length) return;
+  const staleByUid = {};
   const batches = [];
   for (let i = 0; i < tokens.length; i += 500) batches.push(tokens.slice(i, i + 500));
   for (const batch of batches) {
-    await messaging.sendEachForMulticast({ tokens: batch, notification, data });
+    const result = await messaging.sendEachForMulticast({
+      tokens: batch,
+      notification,
+      data,
+      android: {
+        notification: { channelId: "default", sound: "default" },
+      },
+      apns: {
+        headers: { "apns-priority": "10" },
+        payload: { aps: { sound: "default" } },
+      },
+    });
+    result.responses.forEach((resp, idx) => {
+      if (!resp.success) {
+        const code = resp.error?.code || "";
+        if (code.includes("registration-token-not-registered") || code.includes("invalid-registration-token")) {
+          const token = batch[idx];
+          const uid = tokenToUid[token];
+          if (uid) { (staleByUid[uid] = staleByUid[uid] || []).push(token); }
+        }
+      }
+    });
+  }
+  // Remove stale tokens from Firestore (best effort, non-blocking)
+  if (Object.keys(staleByUid).length > 0) {
+    Promise.allSettled(Object.entries(staleByUid).map(async ([uid, stale]) => {
+      const snap = await db.doc(`users/${uid}`).get();
+      const d = snap.data();
+      if (!d) return;
+      const updates = {};
+      const newFcm = (d.fcmTokens || []).filter((t) => !stale.includes(t));
+      const newNative = (d.nativePushTokens || []).filter((t) => !stale.includes(t));
+      if (newFcm.length < (d.fcmTokens || []).length) updates.fcmTokens = newFcm;
+      if (newNative.length < (d.nativePushTokens || []).length) updates.nativePushTokens = newNative;
+      if (Object.keys(updates).length) await db.doc(`users/${uid}`).update(updates);
+    })).catch(() => {});
   }
 }
 
@@ -78,6 +111,55 @@ function fmtDate(ms) {
   return new Date(ms).toLocaleDateString("en-US", {
     weekday: "short", month: "short", day: "numeric",
   });
+}
+
+/* ── ADMIN LOG HELPERS ───────────────────────────────────────────────────────
+ * addAdminLog  — writes a structured entry to the adminLogs Firestore collection
+ *               (visible in Admin Hub → Logs tab).
+ * writeErrorLog — appends a line to a rolling .txt file in Firebase Storage.
+ *                 Filename: logs/mjlog_MM_DD_YYYY[_N].txt, max 10 MB per file.
+ * ────────────────────────────────────────────────────────────────────────── */
+async function addAdminLog(entry) {
+  try {
+    await db.collection("adminLogs").add({
+      ts: FieldValue.serverTimestamp(),
+      ...entry,
+    });
+  } catch (e) {
+    console.error("[addAdminLog] Failed to write log entry:", e.message);
+  }
+}
+
+const LOG_FILE     = "logs/mjlog.txt";
+const LOG_MAX_BYTES = 10 * 1024 * 1024; // 10 MB — trim oldest 25% when exceeded
+
+async function writeErrorLog(message) {
+  try {
+    const bucket  = getStorage().bucket();
+    const file    = bucket.file(LOG_FILE);
+    const logLine = `[${new Date().toISOString()}] ${message}\n`;
+
+    let existingContent = "";
+    try {
+      const [meta] = await file.getMetadata();
+      const [buf]  = await file.download();
+      existingContent = buf.toString("utf8");
+      if (parseInt(meta.size || "0", 10) >= LOG_MAX_BYTES) {
+        const lines    = existingContent.split("\n").filter(Boolean);
+        const keepFrom = Math.floor(lines.length * 0.25); // drop oldest 25%
+        existingContent = lines.slice(keepFrom).join("\n") + "\n";
+      }
+    } catch (e) {
+      if (e.code !== 404 && !e.message?.includes("No such object")) throw e;
+    }
+
+    await file.save(existingContent + logLine, {
+      contentType: "text/plain",
+      metadata: { cacheControl: "no-cache" },
+    });
+  } catch (e) {
+    console.error("[writeErrorLog] Failed to write error log file:", e.message);
+  }
 }
 
 // ── 1. New chat message ──────────────────────────────────────────────────────
@@ -92,10 +174,10 @@ exports.onNewChatMessage = onDocumentCreated(
     const group = groupSnap.data();
 
     const recipients = (group.memberIds || []).filter((id) => id !== msg.uid);
-    const tokens = await getTokensForUsers(recipients);
+    const tokenData = await getTokensForUsers(recipients);
 
     await sendToTokens(
-      tokens,
+      tokenData,
       {
         title: `${msg.name} in ${group.name}`,
         body: msg.text?.length > 100 ? msg.text.slice(0, 97) + "…" : msg.text,
@@ -119,17 +201,88 @@ exports.onNewGameChatMessage = onDocumentCreated(
     if (!gameSnap.exists) return;
     const game = gameSnap.data();
 
-    const rsvpUids  = Object.keys(game.rsvps  || {});
-    const guestUids = game.guestIds || [];
-    const recipients = [...new Set([...rsvpUids, ...guestUids])].filter((id) => id !== msg.uid);
+    const memberUids = game.memberIds || [];
+    const rsvpUids   = Object.keys(game.rsvps || {});
+    const guestUids  = game.guestIds || [];
+    const recipients = [...new Set([...memberUids, ...rsvpUids, ...guestUids])].filter((id) => id !== msg.uid);
     if (!recipients.length) return;
 
-    const tokens = await getTokensForUsers(recipients);
+    const tokenData = await getTokensForUsers(recipients);
     await sendToTokens(
-      tokens,
+      tokenData,
       {
         title: `${msg.name} · ${game.title}`,
         body: msg.text?.length > 100 ? msg.text.slice(0, 97) + "…" : msg.text,
+      },
+      { type: "gameChat", groupId, gameId, messageId: event.params.messageId }
+    );
+  }
+);
+
+// ── 1c. New standalone game chat message — notify all game participants ──────
+// Standalone games store messages at games/{gameId}/messages/{messageId}
+// (no groupId in path). Participants = memberIds + rsvps + guestIds.
+exports.onNewStandaloneGameChatMessage = onDocumentCreated(
+  "games/{gameId}/messages/{messageId}",
+  async (event) => {
+    const msg = event.data.data();
+    const { gameId } = event.params;
+
+    const gameSnap = await db.doc(`games/${gameId}`).get();
+    if (!gameSnap.exists) return;
+    const game = gameSnap.data();
+
+    const memberUids = game.memberIds || [];
+    const rsvpUids   = Object.keys(game.rsvps || {});
+    const guestUids  = game.guestIds || [];
+    const recipients = [...new Set([...memberUids, ...rsvpUids, ...guestUids])].filter((id) => id !== msg.uid);
+    if (!recipients.length) return;
+
+    const tokenData = await getTokensForUsers(recipients);
+    await sendToTokens(
+      tokenData,
+      {
+        title: `${msg.name} · ${game.title}`,
+        body: msg.text?.length > 100 ? msg.text.slice(0, 97) + "…" : msg.text,
+      },
+      { type: "gameChat", gameId, messageId: event.params.messageId }
+    );
+  }
+);
+
+// ── 1d. New reply in a game chat thread ─────────────────────────────────────
+// Notifies the original poster and all prior repliers when a new reply is added.
+exports.onNewGameChatReply = onDocumentUpdated(
+  "groups/{groupId}/games/{gameId}/messages/{messageId}",
+  async (event) => {
+    const before = event.data.before.data();
+    const after  = event.data.after.data();
+
+    const prevReplies = before.replies || [];
+    const newReplies  = after.replies  || [];
+    if (newReplies.length <= prevReplies.length) return;
+
+    const latestReply = newReplies[newReplies.length - 1];
+    const senderUid   = latestReply.uid;
+    const { groupId, gameId } = event.params;
+
+    const threadUids = [after.uid, ...prevReplies.map((r) => r.uid)];
+    const recipients = [...new Set(threadUids)].filter((id) => id !== senderUid);
+    if (!recipients.length) return;
+
+    const gameSnap = await db.doc(`groups/${groupId}/games/${gameId}`).get();
+    const gameTitle = gameSnap.data()?.title || "your game";
+
+    const tokenData = await getTokensForUsers(recipients);
+    const body = latestReply.text?.length > 100
+      ? latestReply.text.slice(0, 97) + "…"
+      : latestReply.text;
+
+    await sendToTokens(
+      tokenData,
+      {
+        title: `${latestReply.name} replied in ${gameTitle}`,
+        body,
       },
       { type: "gameChat", groupId, gameId, messageId: event.params.messageId }
     );
@@ -162,13 +315,13 @@ exports.onNewReply = onDocumentUpdated(
     const groupSnap = await db.doc(`groups/${groupId}`).get();
     const groupName = groupSnap.data()?.name || "your group";
 
-    const tokens = await getTokensForUsers(recipients);
+    const tokenData = await getTokensForUsers(recipients);
     const body = latestReply.text?.length > 100
       ? latestReply.text.slice(0, 97) + "…"
       : latestReply.text;
 
     await sendToTokens(
-      tokens,
+      tokenData,
       {
         title: `${latestReply.name} replied in ${groupName}`,
         body,
@@ -193,9 +346,9 @@ exports.onGameCreated = onDocumentCreated(
     const recipients = (game.memberIds || []).filter((id) => id !== game.hostId);
     if (!recipients.length) return;
 
-    const tokens = await getTokensForUsers(recipients);
+    const tokenData = await getTokensForUsers(recipients);
     await sendToTokens(
-      tokens,
+      tokenData,
       {
         title: "You've been added to a game!",
         body: `${game.title} · ${groupName}${game.date ? " · " + fmtDate(game.date) : ""}${game.time ? " · " + game.time : ""}`,
@@ -221,9 +374,9 @@ exports.onGameMembersAdded = onDocumentUpdated(
     const groupSnap = await db.doc(`groups/${groupId}`).get();
     const groupName = groupSnap.data()?.name || "your group";
 
-    const tokens = await getTokensForUsers(newMembers);
+    const tokenData = await getTokensForUsers(newMembers);
     await sendToTokens(
-      tokens,
+      tokenData,
       {
         title: "You've been added to a game!",
         body: `${after.title} · ${groupName}${after.date ? " · " + fmtDate(after.date) : ""}${after.time ? " · " + after.time : ""}`,
@@ -258,8 +411,12 @@ exports.sendGameReminders = onSchedule("every 60 minutes", async () => {
     // Skip if reminder already sent
     if (game.reminder24hSent) continue;
 
-    // Derive groupId from the document path: groups/{groupId}/games/{gameId}
-    const groupId = gameDoc.ref.parent.parent.id;
+    // Derive groupId from path: groups/{groupId}/games/{gameId} (4 parts)
+    // Standalone games live at games/{gameId} (2 parts) — skip them since
+    // they have no group context and parent.parent would be null.
+    const pathParts = gameDoc.ref.path.split("/");
+    if (pathParts.length < 4) continue;
+    const groupId = pathParts[1];
 
     const groupSnap = await db.doc(`groups/${groupId}`).get();
     const groupName = groupSnap.data()?.name || "your group";
@@ -270,10 +427,10 @@ exports.sendGameReminders = onSchedule("every 60 minutes", async () => {
       .map(([uid]) => uid);
     const recipients = [...new Set([...(game.memberIds || []), ...rsvpYes])];
 
-    const tokens = await getTokensForUsers(recipients);
+    const tokenData = await getTokensForUsers(recipients);
     sends.push(
       sendToTokens(
-        tokens,
+        tokenData,
         {
           title: `Game tomorrow: ${game.title}`,
           body: `${groupName}${game.date ? " · " + fmtDate(game.date) : ""}${game.time ? " · " + game.time : ""}`,
@@ -428,7 +585,7 @@ exports.stripeWebhook = onRequest(
     try {
       event = stripe.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK_SECRET.value());
     } catch (err) {
-      console.error("Webhook signature verification failed:", err.message);
+      await writeErrorLog(`[stripe] Webhook signature verification failed: ${err.message}`);
       return res.status(400).send("Webhook Error: invalid signature");
     }
 
@@ -457,7 +614,7 @@ exports.stripeWebhook = onRequest(
           const uid       = await getUid();
           const subId     = obj.subscription;
           const planKey   = obj.metadata?.planKey ?? "club";
-          if (!uid) { console.warn("No uid found for checkout session", obj.id); break; }
+          if (!uid) { await writeErrorLog(`[stripe] No uid found for checkout session ${obj.id}`); break; }
 
           // Retrieve subscription to get trial end date
           let trialEnd = null;
@@ -480,7 +637,7 @@ exports.stripeWebhook = onRequest(
             "subscription.stripeStatus":         "active",
             "subscription.changedAt":            FieldValue.serverTimestamp(),
           });
-          console.log(`✓ checkout.session.completed — uid=${uid} plan=${planKey} trial=${isTrial}`);
+          await writeErrorLog(`[stripe] checkout.session.completed — uid=${uid} plan=${planKey} trial=${isTrial}`);
           break;
         }
 
@@ -509,7 +666,7 @@ exports.stripeWebhook = onRequest(
             "subscription.stripeStatus":         "cancelled",
             "subscription.changedAt":            FieldValue.serverTimestamp(),
           });
-          console.log(`✓ subscription cancelled — uid=${uid} → free plan`);
+          await writeErrorLog(`[stripe] subscription cancelled — uid=${uid} → free plan`);
           break;
         }
 
@@ -524,10 +681,10 @@ exports.stripeWebhook = onRequest(
         }
 
         default:
-          console.log(`Unhandled Stripe event: ${event.type}`);
+          break;
       }
     } catch (err) {
-      console.error("Error processing Stripe event:", err);
+      await writeErrorLog(`[stripe] Error processing event ${event.type}: ${err.message}`);
       return res.status(500).send("Internal error");
     }
 
@@ -578,7 +735,7 @@ exports.cancelSubscription = onCall(
       "subscription.changedAt":            FieldValue.serverTimestamp(),
     });
 
-    console.log(`✓ cancelSubscription — uid=${uid} → free plan`);
+    await writeErrorLog(`[stripe] cancelSubscription — uid=${uid} → free plan`);
     return { success: true };
   }
 );
@@ -623,6 +780,37 @@ exports.setAdminRole = onCall({ invoker: "public" }, async (request) => {
   return { success: true };
 });
 
+/* ── ADMIN UPDATE USER ───────────────────────────────────────────────────────
+ * Allows an admin to update a user's profile fields and/or email address.
+ * Email changes are applied to Firebase Auth so they take effect on next login.
+ * ────────────────────────────────────────────────────────────────────────── */
+exports.adminUpdateUser = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+
+  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
+  if (callerSnap.data()?.isAdmin !== true) {
+    throw new HttpsError("permission-denied", "Admins only.");
+  }
+
+  const { targetUid, email } = request.data;
+  if (!targetUid || typeof targetUid !== "string") {
+    throw new HttpsError("invalid-argument", "targetUid is required.");
+  }
+  if (typeof email !== "string" || !email.trim()) {
+    throw new HttpsError("invalid-argument", "email is required.");
+  }
+
+  const newEmail = email.trim().toLowerCase();
+  if (!/\S+@\S+\.\S+/.test(newEmail)) {
+    throw new HttpsError("invalid-argument", "Invalid email address.");
+  }
+
+  await getAuth().updateUser(targetUid, { email: newEmail });
+  await db.doc(`users/${targetUid}`).update({ email: newEmail });
+
+  return { success: true };
+});
+
 /* ── LOG IMPERSONATION ───────────────────────────────────────────────────────
  * Called by the client when an admin starts or stops impersonating a user.
  * Verifies admin status server-side before writing the audit entry.
@@ -636,6 +824,67 @@ exports.logImpersonation = onCall({ invoker: "public" }, async (request) => {
   }
 
   const { targetUid, targetName, action } = request.data;
+
+  // ── SMTP test — piggybacked here because this function already has allUsers IAM ──
+  if (action === "_testSmtp") {
+    const { to, logResults } = request.data;
+    if (!to || !/\S+@\S+\.\S+/.test(to)) {
+      throw new HttpsError("invalid-argument", "A valid recipient email is required.");
+    }
+
+    let cfg = {};
+    try {
+      const cfgDoc = await db.doc("adminConfig/smtp").get();
+      if (cfgDoc.exists) cfg = cfgDoc.data() || {};
+    } catch (e) {
+      throw new HttpsError("internal", `Could not read SMTP config: ${e.message}`);
+    }
+
+    const missing = ["host", "user", "pass"].filter(k => !cfg[k]);
+    if (missing.length) {
+      throw new HttpsError("failed-precondition", `SMTP settings incomplete — missing: ${missing.join(", ")}`);
+    }
+
+    try {
+      await sendEmail({
+        to,
+        subject: "Mahjong Club — SMTP test",
+        html: "<p>This is a test email from your Mahjong Club admin panel. If you received this, your SMTP settings are working correctly.</p>",
+      });
+
+      if (logResults) {
+        await db.collection("adminLogs").add({
+          ts: FieldValue.serverTimestamp(), type: "email",
+          message: `[SMTP test] success — delivered to ${to} via ${cfg.host}`,
+        }).catch(() => {});
+        await writeErrorLog(`[smtpTest] Success: delivered to ${to}`);
+      }
+
+      return { success: true };
+
+    } catch (e) {
+      const smtpResponse = e.response     || "";
+      const smtpCode     = String(e.responseCode || e.code || "");
+      const smtpCommand  = e.command      || "";
+
+      const fullMsg = [
+        `[SMTP test] failed: ${e.message}`,
+        smtpCode     ? `code ${smtpCode}`        : "",
+        smtpCommand  ? `cmd ${smtpCommand}`       : "",
+        smtpResponse ? `server: ${smtpResponse}`  : "",
+      ].filter(Boolean).join(" | ");
+
+      await db.collection("adminLogs").add({
+        ts: FieldValue.serverTimestamp(), type: "error",
+        message: fullMsg, smtpCode, smtpCommand, smtpResponse,
+      }).catch(() => {});
+
+      if (logResults) await writeErrorLog(`[smtpTest] SMTP failure — ${fullMsg}`);
+
+      throw new HttpsError("internal", e.message, { smtpResponse, smtpCode, smtpCommand });
+    }
+  }
+
   if (!["start", "stop"].includes(action)) {
     throw new HttpsError("invalid-argument", "action must be 'start' or 'stop'.");
   }
@@ -652,6 +901,383 @@ exports.logImpersonation = onCall({ invoker: "public" }, async (request) => {
   });
 
   return { success: true };
+});
+
+/* ── SEND ADMIN PUSH NOTIFICATION ───────────────────────────────────────────
+ * Triggered when an admin sets status → "queued" on an adminNotifications doc.
+ * Queries users by audience filter, sends FCM push to all their tokens,
+ * then updates the doc to status "sent" with recipient counts.
+ *
+ * Using a Firestore trigger instead of onCall avoids needing
+ * roles/functions.admin to set IAM invoker policies.
+ * ────────────────────────────────────────────────────────────────────────── */
+exports.sendAdminPush = onDocumentWritten("adminNotifications/{notifId}", async (event) => {
+  const after = event.data?.after?.data();
+  const before = event.data?.before?.data();
+
+  // Only fire when status transitions to "queued"
+  if (!after || after.status !== "queued" || before?.status === "queued") return;
+  if (after.type !== "push") return;
+
+  const notifId = event.params.notifId;
+  const audience = after.audience || "all";
+
+  // Fetch all users
+  const allUsersSnap = await db.collection("users").get();
+  let userDocs = allUsersSnap.docs;
+
+  // Apply audience filter
+  if (audience === "_test_single_uid") {
+    userDocs = userDocs.filter(d => d.id === after.testUid);
+  } else if (audience === "google") {
+    userDocs = userDocs.filter(d => d.data().loginProvider === "google");
+  } else if (audience !== "all") {
+    userDocs = userDocs.filter(d => {
+      const plan = d.data().subscription?.plan || "free";
+      return plan === audience;
+    });
+  }
+
+  // Collect all unique tokens
+  const tokenSet = new Set();
+  for (const d of userDocs) {
+    const data = d.data();
+    (data.fcmTokens || []).forEach(t => tokenSet.add(t));
+    (data.nativePushTokens || []).forEach(t => tokenSet.add(t));
+  }
+  const tokens = [...tokenSet].filter(Boolean);
+
+  let successCount = 0;
+  const batchSize = 500;
+  for (let i = 0; i < tokens.length; i += batchSize) {
+    const batch = tokens.slice(i, i + batchSize);
+    try {
+      const res = await messaging.sendEachForMulticast({
+        tokens: batch,
+        notification: { title: after.title, body: after.body },
+        data: { type: "admin_notification", notificationId: notifId },
+      });
+      successCount += res.successCount;
+    } catch { /* skip failed batches */ }
+  }
+
+  await db.doc(`adminNotifications/${notifId}`).update({
+    status: "sent",
+    sentAt: FieldValue.serverTimestamp(),
+    recipientCount: userDocs.length,
+    tokensSent: successCount,
+  });
+});
+
+/* ── EMAIL HELPERS ───────────────────────────────────────────────────────────
+ * Creates a nodemailer transporter from SMTP secrets and sends an email.
+ * Silently skips if secrets aren't configured yet (returns false).
+ * ────────────────────────────────────────────────────────────────────────── */
+const nodemailer = require("nodemailer");
+
+async function sendEmail({ to, subject, html }) {
+  let cfg = {};
+  try {
+    const cfgDoc = await db.doc("adminConfig/smtp").get();
+    if (cfgDoc.exists) cfg = cfgDoc.data() || {};
+  } catch (e) {
+    await writeErrorLog(`[sendEmail] Could not read adminConfig/smtp: ${e.message}`);
+  }
+
+  const host = cfg.host;
+  const user = cfg.user;
+  const pass = cfg.pass;
+  if (!host || !user || !pass) return false;
+  const port      = parseInt(cfg.port || "587", 10);
+  const fromEmail = cfg.fromEmail || user;
+  const fromName  = cfg.fromName  || "Mahjong Club";
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  // Throws on failure — callers are responsible for logging the error details
+  await transporter.sendMail({ from: `"${fromName}" <${fromEmail}>`, to, subject, html });
+  return true;
+}
+
+function applyTemplate(html, vars) {
+  return Object.entries(vars).reduce((s, [k, v]) => s.replaceAll(`{{${k}}}`, v ?? ""), html);
+}
+
+/* ── SEND ADMIN EMAIL BLAST ──────────────────────────────────────────────────
+ * Triggered when an admin sets status → "queued" on a type:"email" notification.
+ * Fans out individual emails to all matching users via SMTP.
+ * ────────────────────────────────────────────────────────────────────────── */
+exports.sendAdminEmail = onDocumentWritten(
+  { document: "adminNotifications/{notifId}" },
+  async (event) => {
+    const after  = event.data?.after?.data();
+    const before = event.data?.before?.data();
+    if (!after || after.status !== "queued" || before?.status === "queued") return;
+    if (after.type !== "email") return;
+
+    const notifId  = event.params.notifId;
+    const audience = after.audience || "all";
+
+    // Safety net — ensures status is always resolved even on unexpected crashes
+    const resolveStatus = async (status, extra = {}) => {
+      try {
+        await db.doc(`adminNotifications/${notifId}`).update({
+          status,
+          sentAt: FieldValue.serverTimestamp(),
+          ...extra,
+        });
+      } catch (e) {
+        await writeErrorLog(`[sendAdminEmail] Failed to update notification status: ${e.message}`);
+      }
+    };
+
+    try {
+      // ── Test send — single recipient, skip user-list fetch entirely ──────
+      if (audience === "_test_single") {
+        const to = after.testRecipient;
+        const shouldLog = after.logResults === true;
+
+        if (shouldLog) await addAdminLog({ type: "email", message: `Test email queued to ${to || "(no recipient)"}`, subject: after.subject });
+
+        if (!to) {
+          await resolveStatus("error", { error: "No test recipient specified." });
+          return;
+        }
+
+        // Read SMTP config so we can surface details in the error
+        let cfg = {};
+        try {
+          const cfgDoc = await db.doc("adminConfig/smtp").get();
+          if (cfgDoc.exists) cfg = cfgDoc.data() || {};
+        } catch (e) {
+          // cfg stays empty; missing fields check below will surface the error
+        }
+        const missing = ["host", "user", "pass"].filter(k => !cfg[k]);
+        if (missing.length) {
+          const errMsg = `SMTP settings incomplete — missing: ${missing.join(", ")}`;
+          if (shouldLog) await addAdminLog({ type: "error", message: errMsg });
+          await resolveStatus("error", { error: errMsg, smtpResponse: "" });
+          return;
+        }
+
+        try {
+          await sendEmail({ to, subject: after.subject || after.title, html: after.body || "" });
+          if (shouldLog) await addAdminLog({ type: "email", message: `Test email sent successfully to ${to}`, subject: after.subject });
+          await resolveStatus("sent", { emailsSent: 1 });
+        } catch (e) {
+          const smtpResponse = e.response || "";
+          const smtpCode     = String(e.responseCode || e.code || "");
+          const smtpCommand  = e.command || "";
+          const fullMsg = [
+            `SMTP send failed: ${e.message}`,
+            smtpCode    ? `code ${smtpCode}`       : "",
+            smtpCommand ? `cmd ${smtpCommand}`      : "",
+            smtpResponse ? `server: ${smtpResponse}` : "",
+          ].filter(Boolean).join(" | ");
+          if (shouldLog) await addAdminLog({ type: "error", message: fullMsg });
+          await resolveStatus("error", { emailsSent: 0, error: e.message, smtpResponse: fullMsg });
+        }
+        return;
+      }
+
+      // ── Blast send ───────────────────────────────────────────────────────
+      const allUsersSnap = await db.collection("users").get();
+      let userDocs = allUsersSnap.docs;
+
+      if (audience === "google") {
+        userDocs = userDocs.filter(d => d.data().loginProvider === "google");
+      } else if (audience !== "all") {
+        userDocs = userDocs.filter(d => (d.data().subscription?.plan || "free") === audience);
+      }
+
+      await addAdminLog({ type: "email", message: `Email blast started — audience: ${audience}, recipients: ${userDocs.length}`, subject: after.subject });
+
+      let sent = 0;
+      let failed = 0;
+      for (const d of userDocs) {
+        const u = d.data();
+        if (!u.email) continue;
+        const html = applyTemplate(after.body || "", { name: u.name || "there", email: u.email });
+        try {
+          const ok = await sendEmail({ to: u.email, subject: after.subject || after.title, html });
+          if (ok) sent++;
+        } catch {
+          failed++;
+        }
+      }
+
+      await addAdminLog({ type: "email", message: `Email blast completed — sent: ${sent}, failed: ${failed}, audience: ${audience}`, subject: after.subject });
+      await resolveStatus("sent", { recipientCount: userDocs.length, emailsSent: sent, emailsFailed: failed });
+
+    } catch (e) {
+      // Unexpected crash — log it and mark the notification so it doesn't stay stuck
+      const msg = `[sendAdminEmail] Unexpected error: ${e.message}`;
+      await addAdminLog({ type: "error", message: `Email function crashed: ${e.message}` });
+      await writeErrorLog(msg);
+      await resolveStatus("error", { error: e.message });
+    }
+  }
+);
+
+/* ── CUSTOM PASSWORD RESET EMAIL ─────────────────────────────────────────────
+ * Triggered when the client writes to passwordResetRequests/{reqId}.
+ * Generates a Firebase password reset link, loads the custom template from
+ * Firestore (adminNotifications where key=="forgot_password"), and sends it.
+ * Falls back to Firebase's built-in email sending if SMTP isn't configured.
+ * ────────────────────────────────────────────────────────────────────────── */
+exports.sendPasswordReset = onDocumentCreated(
+  { document: "passwordResetRequests/{reqId}" },
+  async (event) => {
+    const { getAuth } = require("firebase-admin/auth");
+    const adminAuth = getAuth();
+
+    const data = event.data?.data();
+    if (!data?.email) return;
+    const email = data.email.trim().toLowerCase();
+
+    // Always delete the request doc (prevent replay)
+    await event.data.ref.delete();
+
+    // Verify the account exists in Firebase Auth — if not, silently exit
+    let userRecord;
+    try {
+      userRecord = await adminAuth.getUserByEmail(email);
+    } catch {
+      return; // no account — don't reveal this to the caller
+    }
+
+    // Generate the official Firebase reset link, then rewrite the domain to
+    // ourmahjong.club so the URL looks clean. Firebase Hosting serves
+    // /__/auth/action on all custom hosting domains automatically.
+    let resetLink;
+    try {
+      const rawLink = await adminAuth.generatePasswordResetLink(email, {
+        url: "https://ourmahjong.club",
+      });
+      const p = new URL(rawLink);
+      resetLink = `https://ourmahjong.club/__/auth/action?mode=${p.searchParams.get("mode")}&oobCode=${encodeURIComponent(p.searchParams.get("oobCode"))}&apiKey=${encodeURIComponent(p.searchParams.get("apiKey"))}&lang=en&continueUrl=${encodeURIComponent("https://ourmahjong.club")}`;
+    } catch (e) {
+      const msg = `[sendPasswordReset] generatePasswordResetLink failed for ${email}: ${e.message}`;
+      await addAdminLog({ type: "error", message: `Password reset link generation failed for ${email}: ${e.message}` });
+      await writeErrorLog(msg);
+      return;
+    }
+
+    // Load custom template from Firestore
+    const tmplSnap = await db.collection("adminNotifications")
+      .where("key", "==", "forgot_password")
+      .limit(1)
+      .get();
+
+    const tmpl = tmplSnap.empty ? null : tmplSnap.docs[0].data();
+    const subject = tmpl?.subject || "Reset your Mahjong Club password";
+    const bodyHtml = tmpl?.body || `<p>Hi {{name}},</p><p>Click the link below to reset your password:</p><p><a href="{{resetLink}}">Reset Password</a></p><p>If you didn't request this, you can ignore this email.</p>`;
+    const html = applyTemplate(bodyHtml, {
+      name: userRecord.displayName || email.split("@")[0],
+      email,
+      resetLink,
+    });
+
+    try {
+      await sendEmail({ to: email, subject, html });
+    } catch (e) {
+      // Error already logged inside sendEmail — no double-log needed
+    }
+  }
+);
+
+/* ── SEND TEST EMAIL (Gen 1 callable) ────────────────────────────────────────
+ * Uses firebase-functions v1 API so it runs on the original Cloud Functions
+ * infrastructure instead of Cloud Run, bypassing the org-policy IAM restriction
+ * that blocks allUsers Cloud Run Invoker on new services.
+ * ────────────────────────────────────────────────────────────────────────── */
+const functionsV1 = require("firebase-functions/v1");
+
+exports.smtpTest = functionsV1.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functionsV1.https.HttpsError("unauthenticated", "Sign in required.");
+
+  let callerData = {};
+  try {
+    const snap = await db.doc(`users/${context.auth.uid}`).get();
+    callerData = snap.data() || {};
+  } catch (e) {
+    throw new functionsV1.https.HttpsError("internal", `Could not read caller profile: ${e.message}`);
+  }
+  if (callerData.isAdmin !== true) throw new functionsV1.https.HttpsError("permission-denied", "Admins only.");
+
+  const { to, logResults } = data || {};
+  if (!to || !/\S+@\S+\.\S+/.test(to)) {
+    throw new functionsV1.https.HttpsError("invalid-argument", "A valid recipient email is required.");
+  }
+
+  // Read SMTP config
+  let cfg = {};
+  try {
+    const cfgDoc = await db.doc("adminConfig/smtp").get();
+    if (cfgDoc.exists) cfg = cfgDoc.data() || {};
+  } catch (e) {
+    const msg = `Could not read SMTP config: ${e.message}`;
+    await db.collection("adminLogs").add({ ts: FieldValue.serverTimestamp(), type: "error", message: `[SMTP test] ${msg}` }).catch(() => {});
+    throw new functionsV1.https.HttpsError("internal", msg);
+  }
+
+  const missing = ["host", "user", "pass"].filter(k => !cfg[k]);
+  if (missing.length) {
+    const msg = `SMTP settings incomplete — missing: ${missing.join(", ")}`;
+    await db.collection("adminLogs").add({ ts: FieldValue.serverTimestamp(), type: "error", message: `[SMTP test] ${msg}` }).catch(() => {});
+    throw new functionsV1.https.HttpsError("failed-precondition", msg);
+  }
+
+  if (logResults) {
+    await db.collection("adminLogs").add({
+      ts: FieldValue.serverTimestamp(), type: "email",
+      message: `[SMTP test] attempting send to ${to} via ${cfg.host}:${cfg.port || 587}`,
+    }).catch(() => {});
+  }
+
+  try {
+    await sendEmail({
+      to,
+      subject: "Mahjong Club — SMTP test",
+      html: "<p>This is a test email from your Mahjong Club admin panel. If you received this, your SMTP settings are working correctly.</p>",
+    });
+
+    if (logResults) {
+      await db.collection("adminLogs").add({
+        ts: FieldValue.serverTimestamp(), type: "email",
+        message: `[SMTP test] success — delivered to ${to}`,
+      }).catch(() => {});
+      await writeErrorLog(`[sendTestEmail] Success: delivered to ${to}`);
+    }
+
+    return { success: true };
+
+  } catch (e) {
+    const smtpResponse = e.response     || "";
+    const smtpCode     = String(e.responseCode || e.code || "");
+    const smtpCommand  = e.command      || "";
+
+    const fullMsg = [
+      `[SMTP test] failed to ${to}: ${e.message}`,
+      smtpCode     ? `SMTP code: ${smtpCode}`      : "",
+      smtpCommand  ? `SMTP cmd: ${smtpCommand}`     : "",
+      smtpResponse ? `Server: ${smtpResponse}`      : "",
+    ].filter(Boolean).join(" | ");
+
+    await db.collection("adminLogs").add({
+      ts: FieldValue.serverTimestamp(), type: "error",
+      message: fullMsg, smtpCode, smtpCommand, smtpResponse,
+    }).catch(() => {});
+
+    if (logResults) await writeErrorLog(`[sendTestEmail] SMTP failure — ${fullMsg}`);
+
+    throw new functionsV1.https.HttpsError("internal", e.message, { smtpResponse, smtpCode, smtpCommand });
+  }
 });
 
 /* ── ARCHIVE CLEANUP (runs daily) ──────────────────────────────────────────
@@ -747,5 +1373,5 @@ exports.archiveCleanup = onSchedule("every 24 hours", async () => {
     deletedGames++;
   }
 
-  console.log(`archiveCleanup complete — deleted ${deletedGroups} groups, ${deletedGames} games`);
+  await writeErrorLog(`archiveCleanup complete — deleted ${deletedGroups} groups, ${deletedGames} games`);
 });

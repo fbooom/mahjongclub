@@ -5,14 +5,17 @@ import {
   GoogleAuthProvider, signOut,
 } from "firebase/auth";
 import {
-  collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
+  collection, collectionGroup, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
   onSnapshot, query, where, orderBy, addDoc, serverTimestamp,
   arrayUnion, arrayRemove, deleteField, runTransaction, writeBatch,
+  enableNetwork, disableNetwork,
 } from "firebase/firestore";
-import { auth, db, googleProvider, messagingReady } from "./firebase";
-import { getToken, onMessage } from "firebase/messaging";
+import { auth, db, storage, googleProvider, messagingReady } from "./firebase";
+import { ref as storageRef, listAll, getMetadata } from "firebase/storage";
+import { getToken, onMessage, deleteToken } from "firebase/messaging";
 import { getFunctions, httpsCallable, httpsCallableFromURL } from "firebase/functions";
 import { Capacitor } from "@capacitor/core";
+import { App as CapApp } from "@capacitor/app";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { GoogleAuth } from "@southdevs/capacitor-google-auth";
 
@@ -22,6 +25,7 @@ const HOSTING_BASE = "https://mahjong-club-da606.web.app/api";
 const hostingFn = (name) => httpsCallableFromURL(getFunctions(), `${HOSTING_BASE}/${name}`);
 import { sakura as defaultTheme, themes, buildCSSVars } from "./theme";
 import { QRCodeSVG } from "qrcode.react";
+import jsQR from "jsqr";
 
 // VAPID key — get from Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
 const VAPID_KEY = "BKkYCO7TpfkGKyFGFwxP9qv_SqUyey_tLi5yzk5bngZxZ6ZBd3S9IgYSsHwIlRMinuGxmiFK4bQDjwxIPj8M0Bg";
@@ -32,10 +36,46 @@ const VAPID_KEY = "BKkYCO7TpfkGKyFGFwxP9qv_SqUyey_tLi5yzk5bngZxZ6ZBd3S9IgYSsHwIl
 const GOOGLE_WEB_CLIENT_ID = "744873688381-a12j7rdj7cpfjedddvfn2ejjobmt2p6t.apps.googleusercontent.com";
 
 // On iOS the CSS env(safe-area-inset-top) resolves to 0 in Capacitor's WKWebView
-// even with viewport-fit=cover, so absolutely-positioned header buttons need a
-// platform-aware top offset instead of relying on the CSS variable.
-// 60px clears the Dynamic Island on iPhone 14 Pro (59px) and all older notch models.
-const HEADER_BTN_TOP = Capacitor.getPlatform() === "ios" ? 60 : 14;
+// even with viewport-fit=cover, so headers use a hardcoded offset instead.
+// 74px = 59px (Dynamic Island status bar on iPhone 14 Pro+) + 15px breathing room,
+// matching the ~14px gap the bookmarked web app shows below the status bar.
+// Older iPhones (notch: 47px, SE: 20px) get slightly more padding — still correct.
+const HEADER_BTN_TOP = Capacitor.getPlatform() === "ios" ? 74 : 14;
+
+// Returns the UTC timestamp for midnight of today in the given IANA timezone.
+// Uses binary search so it handles all offsets including ±30/45-minute zones.
+const _tzDayCache = {};
+function startOfTodayInTz(tz) {
+  const safeTz = tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: safeTz });
+  const key = `${safeTz}|${todayStr}`;
+  if (_tzDayCache[key] !== undefined) return _tzDayCache[key];
+  const [y, m, d] = todayStr.split("-").map(Number);
+  let lo = Date.UTC(y, m - 1, d - 1), hi = Date.UTC(y, m - 1, d + 1);
+  while (hi - lo > 1000) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (new Date(mid).toLocaleDateString("en-CA", { timeZone: safeTz }) < todayStr) lo = mid;
+    else hi = mid;
+  }
+  return (_tzDayCache[key] = hi);
+}
+
+// Common IANA timezones for the profile timezone picker.
+const TIMEZONES = [
+  "America/New_York","America/Chicago","America/Denver","America/Los_Angeles",
+  "America/Anchorage","America/Honolulu","America/Phoenix","America/Toronto",
+  "America/Vancouver","America/Sao_Paulo","America/Argentina/Buenos_Aires",
+  "America/Mexico_City","America/Bogota","America/Lima","America/Santiago",
+  "Europe/London","Europe/Paris","Europe/Berlin","Europe/Madrid","Europe/Rome",
+  "Europe/Amsterdam","Europe/Stockholm","Europe/Warsaw","Europe/Zurich",
+  "Europe/Athens","Europe/Helsinki","Europe/Istanbul","Europe/Moscow",
+  "Africa/Cairo","Africa/Johannesburg","Africa/Lagos","Africa/Nairobi",
+  "Asia/Dubai","Asia/Karachi","Asia/Kolkata","Asia/Dhaka","Asia/Bangkok",
+  "Asia/Jakarta","Asia/Singapore","Asia/Shanghai","Asia/Hong_Kong",
+  "Asia/Seoul","Asia/Tokyo","Asia/Manila","Australia/Sydney","Australia/Melbourne",
+  "Australia/Brisbane","Australia/Perth","Pacific/Auckland","Pacific/Auckland",
+  "Pacific/Honolulu","Pacific/Fiji","UTC",
+];
 
 // Canonical public URL used for all shareable links and QR codes.
 // In the Capacitor native app window.location.origin is "capacitor://localhost"
@@ -86,42 +126,74 @@ function canHostGame(user, groups, cfg, standaloneGames = []) {
   const { gamesPerCycle } = getPlanLimits(cfg);
   if (!isFinite(gamesPerCycle)) return { ok: true };
   const uid = user?.uid;
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const now = Date.now();
   const futureGroupHosted = (groups || []).reduce((n, g) =>
-    n + (g.games || []).filter(gm => gm.hostId === uid && gm.date >= todayStart.getTime() && gm.status !== "archived").length, 0);
+    n + (g.games || []).filter(gm => gm.hostId === uid && gm.date > now && gm.status !== "archived").length, 0);
   const futureStandaloneHosted = (standaloneGames || [])
-    .filter(gm => gm.date >= todayStart.getTime() && gm.status !== "archived").length;
+    .filter(gm => gm.date > now && gm.status !== "archived").length;
   return (futureGroupHosted + futureStandaloneHosted) >= gamesPerCycle ? { ok: false } : { ok: true };
 }
 
 const showBrowserNotif = (title, body, tag) => {
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-  try { new Notification(title, { body, icon: "/favicon.ico", tag }); } catch(e) {}
+  // iOS Safari PWA does not support the Notification() constructor — use SW showNotification().
+  getSwRegistration()
+    .then((swReg) => {
+      if (swReg) return swReg.showNotification(title, { body, icon: "/favicon.ico", tag });
+      return new Notification(title, { body, icon: "/favicon.ico", tag });
+    })
+    .catch(() => {});
 };
 
-// Silent token refresh — called on every sign-in.
 // ── Push notification helpers (web + native) ─────────────────────────────────
 
+// Returns the active service worker registration for FCM, registering it if needed.
+// Passing the registration explicitly to getToken() prevents Firebase from trying
+// to auto-register the SW, which fails on Safari iOS PWA when the CSP was blocking
+// importScripts from gstatic.com (now fixed) or when registration is already active.
+async function getSwRegistration() {
+  if (!("serviceWorker" in navigator)) return undefined;
+  try {
+    const existing = await navigator.serviceWorker.getRegistration("/firebase-messaging-sw.js");
+    if (existing) return existing;
+    return await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+  } catch { return undefined; }
+}
+
+// Tracks the current device's native push token so logout can remove it from Firestore.
+let _nativePushToken = null;
+
 // Silent refresh: re-registers and saves FCM token without showing any dialog.
-// Called on sign-in when the user has already opted in.
+// Called on sign-in. Also sets notificationsEnabled=true so the Cloud Function
+// includes this user in pushes (tokens present = OS permission already granted).
+// Handle to the currently-active "registration" listener, so it can be
+// swapped out on re-registration without wiping foreground/tap listeners.
+let _registrationListener = null;
+
+// Returns true if token was successfully registered, false if OS permission not granted.
 async function silentlyRefreshFcmToken(uid) {
   if (Capacitor.isNativePlatform()) {
-    // On native, register only if permission is already granted
     try {
       const { receive } = await PushNotifications.checkPermissions();
-      if (receive !== "granted") return;
-      await PushNotifications.register();
-      PushNotifications.addListener("registration", async ({ value: token }) => {
-        if (token) await updateDoc(doc(db, "users", uid), { nativePushTokens: arrayUnion(token) });
+      if (receive !== "granted") return false;
+      if (_registrationListener) { _registrationListener.then(h => h.remove()).catch(() => {}); }
+      _registrationListener = PushNotifications.addListener("registration", async ({ value: token }) => {
+        if (token) {
+          _nativePushToken = token;
+          updateDoc(doc(db, "users", uid), { nativePushTokens: arrayUnion(token) })
+            .catch(e => console.error("[FCM native] Firestore write failed:", e));
+        }
       });
-    } catch (e) { console.error("[FCM native] silent refresh failed:", e); }
-    return;
+      await PushNotifications.register();
+      return true;
+    } catch (e) { console.error("[FCM native] silent refresh failed:", e); return false; }
   }
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   const messaging = await messagingReady;
   if (!messaging) return;
   try {
-    const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+    const swReg = await getSwRegistration();
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY, ...(swReg && { serviceWorkerRegistration: swReg }) });
     if (token) await updateDoc(doc(db, "users", uid), { fcmTokens: arrayUnion(token) });
   } catch (e) { console.error("[FCM] silent refresh failed:", e); }
 }
@@ -136,15 +208,24 @@ async function enablePushNotifications(uid) {
       const result = await PushNotifications.requestPermissions();
       if (result.receive !== "granted") return "no-permission";
     }
+    if (_registrationListener) { _registrationListener.then(h => h.remove()).catch(() => {}); }
+    let _errListener = null;
     return new Promise((resolve) => {
-      PushNotifications.addListener("registration", async ({ value: token }) => {
+      const timer = setTimeout(() => resolve("error:timeout"), 10000);
+      const finish = (r) => {
+        clearTimeout(timer);
+        _errListener?.then(h => h.remove()).catch(() => {});
+        resolve(r);
+      };
+      _registrationListener = PushNotifications.addListener("registration", async ({ value: token }) => {
         if (token) {
+          _nativePushToken = token;
           await updateDoc(doc(db, "users", uid), { notificationsEnabled: true, nativePushTokens: arrayUnion(token) });
-          resolve("ok");
-        } else { resolve("empty-token"); }
+          finish("ok");
+        } else { finish("empty-token"); }
       });
-      PushNotifications.addListener("registrationError", () => resolve("error:registration-failed"));
-      PushNotifications.register().catch(() => resolve("error:register-threw"));
+      _errListener = PushNotifications.addListener("registrationError", () => finish("error:registration-failed"));
+      PushNotifications.register().catch(() => finish("error:register-threw"));
     });
   }
   // Web path
@@ -157,7 +238,8 @@ async function enablePushNotifications(uid) {
   const messaging = await messagingReady;
   if (!messaging) return "unsupported";
   try {
-    const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+    const swReg = await getSwRegistration();
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY, ...(swReg && { serviceWorkerRegistration: swReg }) });
     if (token) {
       await updateDoc(doc(db, "users", uid), { notificationsEnabled: true, fcmTokens: arrayUnion(token) });
       return "ok";
@@ -187,21 +269,33 @@ async function enablePushNotificationsWithLog(uid, log) {
       if (res.receive !== "granted") return "no-permission";
     }
     log.push("Registering for push…");
+    if (_registrationListener) { _registrationListener.then(h => h.remove()).catch(() => {}); }
+    let _errListener = null;
     return new Promise((resolve) => {
-      PushNotifications.addListener("registration", async ({ value: token }) => {
+      const timer = setTimeout(() => {
+        log.push("FAIL: APNs registration timed out after 10s — check Push Notifications capability in Xcode target");
+        _errListener?.then(h => h.remove()).catch(() => {});
+        resolve("error:timeout");
+      }, 10000);
+      const finish = (result) => {
+        clearTimeout(timer);
+        _errListener?.then(h => h.remove()).catch(() => {});
+        resolve(result);
+      };
+      _registrationListener = PushNotifications.addListener("registration", async ({ value: token }) => {
         log.push(`Token: ${token ? token.slice(0, 30) + "…" : "(empty)"}`);
         if (token) {
           await updateDoc(doc(db, "users", uid), { notificationsEnabled: true, nativePushTokens: arrayUnion(token) });
           const snap = await getDoc(doc(db, "users", uid));
           log.push(`Firestore confirmed: nativePushTokens.length=${snap.data()?.nativePushTokens?.length}`);
-          resolve("ok");
-        } else { resolve("empty-token"); }
+          finish("ok");
+        } else { finish("empty-token"); }
       });
-      PushNotifications.addListener("registrationError", (err) => {
-        log.push(`FAIL: ${JSON.stringify(err)}`);
-        resolve("error:registration-failed");
+      _errListener = PushNotifications.addListener("registrationError", (err) => {
+        log.push(`FAIL: registrationError — ${JSON.stringify(err)}`);
+        finish("error:registration-failed");
       });
-      PushNotifications.register().catch((e) => { log.push(`FAIL: register threw — ${e.message}`); resolve("error:register-threw"); });
+      PushNotifications.register().catch((e) => { log.push(`FAIL: register threw — ${e.message}`); finish("error:register-threw"); });
     });
   }
 
@@ -223,7 +317,9 @@ async function enablePushNotificationsWithLog(uid, log) {
   log.push("Messaging instance: ok");
   try {
     log.push("Calling getToken…");
-    const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+    const swReg = await getSwRegistration();
+    log.push(`SW registration: ${swReg ? swReg.scope : "none — Firebase will auto-register"}`);
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY, ...(swReg && { serviceWorkerRegistration: swReg }) });
     log.push(`Token value: ${token ? token.slice(0, 30) + "…" : "(empty)"}`);
     if (token) {
       log.push(`Writing to users/${uid}…`);
@@ -398,28 +494,38 @@ function buildGlobalCSS(theme) {
 function useInstallBanner() {
   const [showBanner, setShowBanner] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [canPrompt, setCanPrompt] = useState(false);
   const deferredPrompt = useRef(null);
 
   useEffect(() => {
+    if (Capacitor.isNativePlatform()) return;
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       ("standalone" in window.navigator && window.navigator.standalone);
     if (isStandalone) return;
-    if (localStorage.getItem("mjc_install_dismissed")) return;
 
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     setIsIOS(ios);
 
-    const visits = parseInt(localStorage.getItem("mjc_install_visits") || "0") + 1;
-    localStorage.setItem("mjc_install_visits", String(visits));
-    if (visits < 3) return;
-
-    if (ios) {
-      setShowBanner(true);
-    } else {
-      const handler = (e) => { e.preventDefault(); deferredPrompt.current = e; setShowBanner(true); };
+    if (!ios) {
+      const handler = (e) => {
+        e.preventDefault();
+        deferredPrompt.current = e;
+        setCanPrompt(true);
+        if (!localStorage.getItem("mjc_install_dismissed")) {
+          const visits = parseInt(localStorage.getItem("mjc_install_visits") || "0") + 1;
+          localStorage.setItem("mjc_install_visits", String(visits));
+          if (visits >= 3) setShowBanner(true);
+        }
+      };
       window.addEventListener("beforeinstallprompt", handler);
       return () => window.removeEventListener("beforeinstallprompt", handler);
+    } else {
+      if (!localStorage.getItem("mjc_install_dismissed")) {
+        const visits = parseInt(localStorage.getItem("mjc_install_visits") || "0") + 1;
+        localStorage.setItem("mjc_install_visits", String(visits));
+        if (visits >= 3) setShowBanner(true);
+      }
     }
   }, []);
 
@@ -429,12 +535,13 @@ function useInstallBanner() {
       deferredPrompt.current.prompt();
       const { outcome } = await deferredPrompt.current.userChoice;
       deferredPrompt.current = null;
+      setCanPrompt(false);
       if (outcome === "accepted") localStorage.setItem("mjc_install_dismissed", "1");
     }
     setShowBanner(false);
   };
 
-  return { showBanner, isIOS, dismiss, install };
+  return { showBanner, isIOS, canPrompt, dismiss, install };
 }
 
 function InstallBanner({ showBanner, isIOS, onDismiss, onInstall }) {
@@ -487,7 +594,12 @@ function InstallBanner({ showBanner, isIOS, onDismiss, onInstall }) {
 
 export default function App() {
   const installBanner = useInstallBanner();
-  const [activeTheme, setActiveTheme] = useState(defaultTheme);
+  const [activeTheme, setActiveTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem("mahjong_theme");
+      return (saved && themes[saved]) ? themes[saved] : defaultTheme;
+    } catch { return defaultTheme; }
+  });
   const cssElRef = useRef(null);
 
   // Create the style element once; update it whenever activeTheme changes
@@ -546,6 +658,7 @@ export default function App() {
   const [authUser, setAuthUser] = useState(undefined); // undefined = checking, null = logged out
   const [user, setUser] = useState(null);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [pendingAnnouncement, setPendingAnnouncement] = useState(null);
   const [impersonating, setImpersonating] = useState(null); // { uid, name, avatar, email }
   const gamesUnsubs = useRef({});
   const groupMeta = useRef({});
@@ -582,22 +695,45 @@ export default function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
+        // Set authUser immediately so the groups/games listeners start in parallel
+        // with the profile fetch — don't block data loading on sequential awaits.
+        setAuthUser(fbUser);
+        setPage("home");
         try {
           const snap = await getDoc(doc(db, "users", fbUser.uid));
+          const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          const loginProvider = fbUser.providerData?.[0]?.providerId === "google.com" ? "google" : "email";
           if (snap.exists()) {
             const data = snap.data();
             setUser({ uid: fbUser.uid, ...data });
-            if (data.theme && themes[data.theme]) setActiveTheme(themes[data.theme]);
-            // If the user has opted into notifications, call enablePushNotifications so
-            // they get prompted (or silently tokenized if already granted) on every device
-            // they sign in on. If not opted in, only refresh silently if already granted.
-            if (data.notificationsEnabled) {
-              enablePushNotifications(fbUser.uid);
-            } else {
+            if (data.theme && themes[data.theme]) {
+              setActiveTheme(themes[data.theme]);
+              try { localStorage.setItem("mahjong_theme", data.theme); } catch {}
+            }
+            const backfill = {};
+            if (!data.timezone) backfill.timezone = detectedTz;
+            if (!data.loginProvider) backfill.loginProvider = loginProvider;
+            if (Object.keys(backfill).length) updateDoc(doc(db, "users", fbUser.uid), backfill).catch(() => {});
+            if (data.notificationsEnabled !== false) {
+              // Silently refresh/store the token on every sign-in.
+              // This covers both returning users (notificationsEnabled=true) and new users
+              // (unset). The flag is only flipped to true when the user explicitly enables
+              // push via the toggle. notificationsEnabled===false → respect opt-out.
               silentlyRefreshFcmToken(fbUser.uid);
             }
+            // Check for announcements — non-blocking, runs after critical path
+            getDocs(query(collection(db, "adminNotifications"),
+              where("type", "==", "announcement"), where("status", "==", "active")))
+              .then((announcSnap) => {
+                const viewed = data.viewedAnnouncements || [];
+                const unseen = announcSnap.docs
+                  .map(d => ({ id: d.id, ...d.data() }))
+                  .filter(a => !viewed.includes(a.id))
+                  .sort((a, b) => (b.publishedAt?.toMillis?.() || 0) - (a.publishedAt?.toMillis?.() || 0));
+                if (unseen.length > 0) setPendingAnnouncement(unseen[0]);
+              }).catch(() => {});
           } else {
-            const profile = { name: fbUser.displayName || fbUser.email.split("@")[0], email: fbUser.email, avatar: randAvatar(), phone: "" };
+            const profile = { name: fbUser.displayName || fbUser.email.split("@")[0], email: fbUser.email, avatar: randAvatar(), phone: "", timezone: detectedTz, loginProvider };
             await setDoc(doc(db, "users", fbUser.uid), profile);
             setUser({ uid: fbUser.uid, ...profile });
             setShowWelcome(true);
@@ -605,8 +741,6 @@ export default function App() {
         } catch (e) {
           setUser({ uid: fbUser.uid, name: fbUser.displayName || "Player", email: fbUser.email || "", avatar: "🐼", phone: "" });
         }
-        setPage("home");
-        setAuthUser(fbUser);
       } else {
         setAuthUser(null);
         setUser(null);
@@ -618,6 +752,22 @@ export default function App() {
     return unsub;
   }, []);
 
+  // ── Web foreground FCM handler ────────────────────────────────────────────
+  // Service worker only handles background; onMessage handles foreground.
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) return;
+    let unsub;
+    messagingReady.then((msg) => {
+      if (!msg) return;
+      unsub = onMessage(msg, (payload) => {
+        const title = payload.notification?.title || "Mahjong Club";
+        const body = payload.notification?.body || "";
+        showBrowserNotif(title, body, payload.data?.type);
+      });
+    });
+    return () => { if (unsub) unsub(); };
+  }, []);
+
   // ── Native foreground push listener ──────────────────────────────────────
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -625,6 +775,78 @@ export default function App() {
       showBrowserNotif(notification.title, notification.body);
     });
     return () => { sub.then((h) => h.remove()); };
+  }, []);
+
+  // ── Native push tap: navigate when user taps a notification ──────────────
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const sub = PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
+      const data = action.notification?.data || {};
+      const { type, groupId, gameId } = data;
+      if ((type === "chat" || type === "reply") && groupId) {
+        setPage("group"); setGid(groupId);
+      } else if ((type === "gameChat" || type === "game" || type === "gameReminder") && groupId && gameId) {
+        setPage("game"); setGid(groupId); setGmid(gameId);
+      } else if (type === "gameChat" && !groupId && gameId) {
+        setPage("standaloneGame"); setGid(null); setGmid(gameId);
+      }
+    });
+    return () => { sub.then((h) => h.remove()); };
+  }, []);
+
+  // ── Universal Links (iOS) / App Links (Android) ──────────────────────────
+  // appUrlOpen fires when the OS routes an HTTPS link to the native app.
+  // Parse the URL and store params so the deepLinkPending effect can process
+  // them once the user is authenticated (handles both cold and warm starts).
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const sub = CapApp.addListener("appUrlOpen", (event) => {
+      try {
+        const url = new URL(event.url);
+        const gameCode = url.searchParams.get("gameCode")?.toUpperCase() || null;
+        const code = url.searchParams.get("joinGroup") || null;
+        const gameId = url.searchParams.get("game") || null;
+        if (gameCode || code) setDeepLinkPending({ gameCode, code, gameId });
+      } catch {}
+    });
+    return () => { sub.then((h) => h.remove()); };
+  }, []);
+
+  // ── Re-enable Firestore network on app resume ────────────────────────────
+  // On iOS the WKWebView suspends JS (and drops WebSocket connections) when backgrounded.
+  // Calling enableNetwork on visibility restore kicks Firestore to reconnect and re-fire
+  // all active onSnapshot listeners without tearing them down.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        disableNetwork(db).catch(() => {}).finally(() => enableNetwork(db).catch(() => {}));
+        // Re-register push token on foreground so rotated tokens are refreshed in Firestore.
+        const uid = auth.currentUser?.uid;
+        if (uid) silentlyRefreshFcmToken(uid);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  // ── Web push notification tap: navigate when SW posts a NAVIGATE message ──
+  // Fires when the user taps a push notification and the app tab is already open.
+  // The cold-start case (app was closed) is handled by pendingNavigation above.
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) return;
+    const handler = (event) => {
+      if (event.data?.type !== "NAVIGATE") return;
+      const { type, groupId, gameId } = event.data.data || {};
+      if ((type === "chat" || type === "reply") && groupId) {
+        setPage("group"); setGid(groupId);
+      } else if ((type === "gameChat" || type === "game" || type === "gameReminder") && groupId && gameId) {
+        setPage("game"); setGid(groupId); setGmid(gameId);
+      } else if (type === "gameChat" && !groupId && gameId) {
+        setPage("standaloneGame"); setGid(null); setGmid(gameId);
+      }
+    };
+    navigator.serviceWorker?.addEventListener("message", handler);
+    return () => navigator.serviceWorker?.removeEventListener("message", handler);
   }, []);
 
   // ── Firestore real-time listeners for groups + games ──
@@ -753,14 +975,14 @@ export default function App() {
         getDoc(doc(db, "groups", groupId)).then((gs) => {
           if (!gs.exists()) return;
           const gd = gs.data();
-          guestGroupCache.current[groupId] = { name: gd.name, color: gd.color, emoji: gd.emoji };
+          guestGroupCache.current[groupId] = { name: gd.name, color: gd.color, emoji: gd.emoji, members: gd.members || [] };
 
           guestGameUnsubs.current[key] = onSnapshot(
             doc(db, "groups", groupId, "games", gameId),
             (gameSnap) => {
               if (!gameSnap.exists()) return;
               const gm = guestGroupCache.current[groupId];
-              const updated = { ...gameSnap.data(), id: gameId, groupId, groupName: gm.name, groupColor: gm.color, groupEmoji: gm.emoji, isGuestGame: true };
+              const updated = { ...gameSnap.data(), id: gameId, groupId, groupName: gm.name, groupColor: gm.color, groupEmoji: gm.emoji, groupMembers: gm.members, isGuestGame: true };
               setGuestGames((prev) => {
                 const filtered = prev.filter((g) => !(g.id === gameId && g.groupId === groupId));
                 return [...filtered, updated];
@@ -784,12 +1006,36 @@ export default function App() {
     };
   }, [effectiveUid]);
 
-  const handleSignOut = async () => { await signOut(auth); };
+const handleSignOut = async () => {
+  try {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      if (Capacitor.isNativePlatform()) {
+        if (_nativePushToken) {
+          await updateDoc(doc(db, "users", currentUser.uid), { nativePushTokens: arrayRemove(_nativePushToken) }).catch(() => {});
+          _nativePushToken = null;
+        }
+      } else if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        const msg = await messagingReady;
+        if (msg) {
+          const swReg = await getSwRegistration();
+          const token = await getToken(msg, { vapidKey: VAPID_KEY, ...(swReg && { serviceWorkerRegistration: swReg }) }).catch(() => null);
+          if (token) {
+            await deleteToken(msg).catch(() => {});
+            await updateDoc(doc(db, "users", currentUser.uid), { fcmTokens: arrayRemove(token) }).catch(() => {});
+          }
+        }
+      }
+    }
+  } catch { /* best effort — don't block sign-out */ }
+  await signOut(auth);
+};
 
   const handleThemeChange = async (themeId) => {
     const theme = themes[themeId];
     if (!theme) return;
     setActiveTheme(theme);
+    try { localStorage.setItem("mahjong_theme", themeId); } catch {}
     try { await updateDoc(doc(db, "users", authUser.uid), { theme: themeId }); } catch {}
   };
 
@@ -822,8 +1068,9 @@ export default function App() {
   };
 
   // ── Deep-link invite processing ──
-  // Params are captured from the URL (or localStorage fallback for page-refresh edge cases)
-  // then cleared so they don't re-fire.
+  // pendingJoin: initialized once from URL params or localStorage — handles web cold starts.
+  // deepLinkPending: updated by the appUrlOpen listener — handles native Universal/App Links.
+  const [deepLinkPending, setDeepLinkPending] = useState(null);
   const [pendingJoin] = useState(() => {
     const p = new URLSearchParams(window.location.search);
     let code = p.get("joinGroup"), gameId = p.get("game"), gameCode = p.get("gameCode");
@@ -842,6 +1089,26 @@ export default function App() {
     return { code, gameId, gameCode };
   });
 
+  // pendingNavigation: push notification tap when app was closed — reads ?navGroup / ?navGame
+  const [pendingNavigation] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    const navGroup = p.get("navGroup");
+    const navGame = p.get("navGame");
+    if (navGroup || navGame) {
+      window.history.replaceState({}, "", window.location.pathname);
+      return { groupId: navGroup, gameId: navGame };
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (!pendingNavigation || !authUser || !user) return;
+    const { groupId, gameId } = pendingNavigation;
+    if (groupId && gameId) { setPage("game"); setGid(groupId); setGmid(gameId); }
+    else if (groupId)      { setPage("group"); setGid(groupId); }
+    else if (gameId)       { setPage("standaloneGame"); setGmid(gameId); }
+  }, [pendingNavigation, authUser?.uid, user?.uid]);
+
   useEffect(() => {
     if ((!pendingJoin.code && !pendingJoin.gameCode) || !authUser || !user) return;
     const { code, gameId, gameCode } = pendingJoin;
@@ -852,7 +1119,7 @@ export default function App() {
       localStorage.removeItem("pendingGameCode");
       getDoc(doc(db, "gameCodes", gameCode))
         .then(async (codeSnap) => {
-          if (!codeSnap.exists() || codeSnap.data().date < Date.now()) {
+          if (!codeSnap.exists()) {
             setToast({ msg: "Game code is invalid or expired.", icon: "❌" }); setTimeout(() => setToast(null), 2600); return;
           }
           const { groupId, gameId: gId } = codeSnap.data();
@@ -971,6 +1238,103 @@ export default function App() {
       .catch(() => { setToast({ msg: "Error processing invite.", icon: "❌" }); setTimeout(() => setToast(null), 2600); });
   }, [authUser?.uid, user?.uid]);
 
+  // ── Process deep links that arrived via appUrlOpen (native Universal/App Links) ──
+  // Mirrors the pendingJoin logic exactly; runs after the user is authenticated.
+  useEffect(() => {
+    if (!deepLinkPending || !authUser || !user) return;
+    const { code, gameId, gameCode } = deepLinkPending;
+    setDeepLinkPending(null);
+    const go_ = (p, g, gm) => { setPage(p); setGid(g || null); setGmid(gm || null); };
+
+    if (gameCode && !code) {
+      getDoc(doc(db, "gameCodes", gameCode))
+        .then(async (codeSnap) => {
+          if (!codeSnap.exists()) {
+            setToast({ msg: "Game code is invalid or expired.", icon: "❌" }); setTimeout(() => setToast(null), 2600); return;
+          }
+          const { groupId, gameId: gId } = codeSnap.data();
+          try {
+            const gameRef = groupId ? doc(db, "groups", groupId, "games", gId) : doc(db, "games", gId);
+            const gameSnap = await getDoc(gameRef);
+            if (!gameSnap.exists()) { setToast({ msg: "Game not found.", icon: "❌" }); setTimeout(() => setToast(null), 2600); return; }
+            const gData = gameSnap.data();
+            if ((gData.rsvps?.[authUser.uid] !== undefined) || (gData.guestIds || []).includes(authUser.uid)) {
+              const hasEntry = (gData.registeredGuests || []).some(g => g.id === authUser.uid);
+              if (!hasEntry) updateDoc(gameRef, { registeredGuests: arrayUnion({ id: authUser.uid, name: user.name, avatar: user.avatar }) }).catch(() => {});
+              if (groupId) go_("guestGame", groupId, gId); else go_("standaloneGame", null, gId);
+              return;
+            }
+            const yesCount = Object.values(gData.rsvps || {}).filter(v => v === "yes").length;
+            const confirmedManualGuests = (gData.guests || []).filter(g => !(gData.waitlist || []).includes(g.id)).length;
+            const isFull = (yesCount + confirmedManualGuests) >= (gData.seats || 4);
+            const userInfo = { id: authUser.uid, name: user.name, avatar: user.avatar };
+            if (isFull) {
+              await updateDoc(gameRef, { guestIds: arrayUnion(authUser.uid), waitlist: arrayUnion(authUser.uid), registeredGuests: arrayUnion(userInfo) });
+              await updateDoc(doc(db, "users", authUser.uid), { guestGameRefs: arrayUnion({ groupId: groupId || null, gameId: gId }) });
+              setToast({ msg: "Game is full — you're on the waitlist", icon: "⏳" });
+            } else {
+              await updateDoc(gameRef, { guestIds: arrayUnion(authUser.uid), [`rsvps.${authUser.uid}`]: "yes", registeredGuests: arrayUnion(userInfo) });
+              await updateDoc(doc(db, "users", authUser.uid), { guestGameRefs: arrayUnion({ groupId: groupId || null, gameId: gId }) });
+              setToast({ msg: "You're in! See you at the table 🀄", icon: "🎉" });
+            }
+            setTimeout(() => setToast(null), 3000);
+            if (groupId) go_("guestGame", groupId, gId); else go_("standaloneGame", null, gId);
+          } catch { setToast({ msg: "Could not join game.", icon: "❌" }); setTimeout(() => setToast(null), 2600); }
+        })
+        .catch(() => { setToast({ msg: "Error processing game invite.", icon: "❌" }); setTimeout(() => setToast(null), 2600); });
+      return;
+    }
+
+    if (!code) return;
+    getDocs(query(collection(db, "groups"), where("code", "==", code)))
+      .then(async (snap) => {
+        if (snap.empty) { setToast({ msg: "Invite link is invalid or expired.", icon: "❌" }); setTimeout(() => setToast(null), 2600); return; }
+        const groupDoc = snap.docs[0];
+        const gid_ = groupDoc.id;
+        const data = groupDoc.data();
+        if (gameId) {
+          try {
+            const gameRef = doc(db, "groups", gid_, "games", gameId);
+            const gameSnap = await getDoc(gameRef);
+            const gData = gameSnap.exists() ? gameSnap.data() : {};
+            const yesCount = Object.values(gData.rsvps || {}).filter(v => v === "yes").length;
+            const confirmedManualGuests = (gData.guests || []).filter(g => !(gData.waitlist || []).includes(g.id)).length;
+            const isFull = (yesCount + confirmedManualGuests) >= (gData.seats || 4);
+            const userInfo = { id: authUser.uid, name: user.name, avatar: user.avatar };
+            if ((gData.rsvps?.[authUser.uid] !== undefined) || (gData.guestIds || []).includes(authUser.uid)) {
+              go_("guestGame", gid_, gameId); return;
+            }
+            if (isFull) {
+              await updateDoc(gameRef, { guestIds: arrayUnion(authUser.uid), waitlist: arrayUnion(authUser.uid), registeredGuests: arrayUnion(userInfo) });
+              setToast({ msg: "Game is full — you're on the waitlist", icon: "⏳" });
+            } else {
+              await updateDoc(gameRef, { guestIds: arrayUnion(authUser.uid), [`rsvps.${authUser.uid}`]: "yes", registeredGuests: arrayUnion(userInfo) });
+              setToast({ msg: "You're in! See you at the table 🀄", icon: "🎉" });
+            }
+            await updateDoc(doc(db, "users", authUser.uid), { guestGameRefs: arrayUnion({ groupId: gid_, gameId }) });
+            go_("guestGame", gid_, gameId);
+            setTimeout(() => setToast(null), 3000);
+          } catch { setToast({ msg: "Could not join game.", icon: "❌" }); setTimeout(() => setToast(null), 2600); }
+        } else {
+          if (!(data.memberIds || []).includes(authUser.uid)) {
+            await runTransaction(db, async (tx) => {
+              const ref = doc(db, "groups", gid_);
+              const latest = await tx.get(ref);
+              const d = latest.data();
+              if ((d.memberIds || []).includes(authUser.uid)) return;
+              tx.update(ref, {
+                memberIds: [...(d.memberIds || []), authUser.uid],
+                members: [...(d.members || []), { id: authUser.uid, name: user.name, avatar: user.avatar }],
+              });
+            });
+            setToast({ msg: `Joined ${data.name}!`, icon: "🎊" }); setTimeout(() => setToast(null), 2600);
+          }
+          go_("group", gid_);
+        }
+      })
+      .catch(() => { setToast({ msg: "Error processing invite.", icon: "❌" }); setTimeout(() => setToast(null), 2600); });
+  }, [deepLinkPending, authUser?.uid, user?.uid]);
+
   const group = groups.find((g) => g.id === gid) || null;
   const game = group ? group.games.find((g) => g.id === gmid) || null : null;
   const guestGame = guestGames.find((g) => g.id === gmid && g.groupId === gid) || null;
@@ -1072,6 +1436,18 @@ export default function App() {
 
     <div className="app-shell">
 
+      {/* iOS status-bar colour strip — position:absolute inside the shell so it isn't
+          clipped by overflow:hidden in WKWebView the way position:fixed can be. */}
+      {Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios" && (
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0,
+          height: HEADER_BTN_TOP,
+          background: activeTheme?.primary || "#c9607a",
+          zIndex: 99999,
+          pointerEvents: "none",
+        }} />
+      )}
+
       {/* Impersonation banner */}
       {impersonating && (
         <div style={{
@@ -1091,6 +1467,19 @@ export default function App() {
       )}
 
       {showWelcome && <WelcomeModal onClose={() => { setShowWelcome(false); go("account"); }} />}
+      {pendingAnnouncement && (
+        <AnnouncementModal
+          announcement={pendingAnnouncement}
+          onClose={async () => {
+            const id = pendingAnnouncement.id;
+            setPendingAnnouncement(null);
+            try {
+              await updateDoc(doc(db, "users", user.uid), { viewedAnnouncements: arrayUnion(id) });
+              setUser(u => ({ ...u, viewedAnnouncements: [...(u.viewedAnnouncements || []), id] }));
+            } catch { /* non-critical */ }
+          }}
+        />
+      )}
 
       {/* Page content + toast — wrapped so toast floats just above the nav */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
@@ -1107,12 +1496,12 @@ export default function App() {
         )}
       <div ref={scrollRef} data-scroll-container style={{ height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 16, paddingTop: impersonating ? "calc(env(safe-area-inset-top, 0px) + 52px)" : 0 }}>
         {page === "home" && <Home groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} user={displayUser} activeTheme={activeTheme} planCfg={userPlanCfg} flash={flash} onNew={() => go("newChoice")} />}
-        {page === "games" && <GamesPage groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} />}
+        {page === "games" && <GamesPage groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} user={displayUser} />}
         {page === "groups" && <GroupsPage groups={groups} go={go} user={displayUser} planCfg={userPlanCfg} flash={flash} onNew={() => go("newChoice")} />}
         {page === "newChoice" && <NewChoice uid={uid} groups={groups} user={displayUser} planCfg={userPlanCfg} standaloneGames={standaloneGames} go={go} flash={flash} onBack={() => go("home")} />}
-        {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} activeThemeId={activeTheme.id} onThemeChange={handleThemeChange} planCfg={userPlanCfg} />}
+        {page === "account" && <Account uid={uid} user={displayUser} setUser={setUser} groups={groups} guestGames={guestGames} flash={flash} go={go} onSignOut={handleSignOut} isAdmin={!!user?.isAdmin} onImpersonate={startImpersonating} isImpersonating={!!impersonating} activeThemeId={activeTheme.id} onThemeChange={handleThemeChange} planCfg={userPlanCfg} onInstallPWA={installBanner.install} canInstallPWA={installBanner.canPrompt} isIOSWeb={installBanner.isIOS} />}
         {page === "newGroup" && (
-          <NewGroup onBack={() => go("groups")}
+          <NewGroup onBack={() => go("groups")} themeColor={activeTheme.primary}
             onSave={async (g) => {
               if (!canAddGroup(groups, user, userPlanCfg).ok) {
                 const lim = getPlanLimits(userPlanCfg);
@@ -1150,17 +1539,31 @@ export default function App() {
             }}
             onJoinGame={async (groupId, gameId, isStandalone) => {
               try {
+                const gameRef = isStandalone
+                  ? doc(db, "games", gameId)
+                  : doc(db, "groups", groupId, "games", gameId);
+                const gameSnap = await getDoc(gameRef);
+                const gData = gameSnap.data() || {};
+                if ((gData.rsvps?.[uid] !== undefined) || (gData.guestIds || []).includes(uid)) {
+                  flash("You've already joined this game!", "ℹ️");
+                  if (isStandalone) go("standaloneGame", null, gameId);
+                  else go("guestGame", groupId, gameId);
+                  return;
+                }
+                const userInfo = { id: uid, name: user.name, avatar: user.avatar };
                 if (isStandalone) {
-                  await updateDoc(doc(db, "games", gameId), {
+                  await updateDoc(gameRef, {
                     guestIds: arrayUnion(uid), [`rsvps.${uid}`]: "yes",
+                    registeredGuests: arrayUnion(userInfo),
                   });
                   await updateDoc(doc(db, "users", uid), {
                     guestGameRefs: arrayUnion({ groupId: null, gameId }),
                   });
                   go("standaloneGame", null, gameId);
                 } else {
-                  await updateDoc(doc(db, "groups", groupId, "games", gameId), {
+                  await updateDoc(gameRef, {
                     guestIds: arrayUnion(uid), [`rsvps.${uid}`]: "yes",
+                    registeredGuests: arrayUnion(userInfo),
                   });
                   await updateDoc(doc(db, "users", uid), {
                     guestGameRefs: arrayUnion({ groupId, gameId }),
@@ -1187,6 +1590,48 @@ export default function App() {
                 setGroups((prev) => prev.map((g) => g.id === group.id ? { ...g, status: "archived" } : g));
                 go("groups"); flash("Group archived", "📦");
               } catch { flash("Error archiving group", "❌"); }
+            }}
+            onArchiveAndMove={async (scheduledGames) => {
+              try {
+                const batch = writeBatch(db);
+                for (const gm of scheduledGames) {
+                  const { id: gmId, groupId: _gid, ...gmData } = gm;
+                  batch.set(doc(db, "games", gmId), { ...gmData, isStandalone: true });
+                  batch.delete(doc(db, "groups", group.id, "games", gmId));
+                }
+                batch.update(doc(db, "groups", group.id), {
+                  status: "archived", archivedAt: serverTimestamp(), updatedAt: serverTimestamp(),
+                });
+                await batch.commit();
+                for (const gm of scheduledGames) {
+                  for (const p of (gm.players || [])) {
+                    if (!p.uid || p.uid === gm.hostId) continue;
+                    try {
+                      const uRef = doc(db, "users", p.uid);
+                      await updateDoc(uRef, { guestGameRefs: arrayRemove({ groupId: group.id, gameId: gm.id }) });
+                      await updateDoc(uRef, { guestGameRefs: arrayUnion({ groupId: null, gameId: gm.id }) });
+                    } catch { /* best effort */ }
+                  }
+                }
+                setGroups((prev) => prev.map((g) => g.id === group.id ? { ...g, status: "archived" } : g));
+                go("groups"); flash("Games moved & group archived", "📦");
+              } catch { flash("Error archiving group", "❌"); }
+            }}
+            onArchiveAll={async (scheduledGames) => {
+              try {
+                const batch = writeBatch(db);
+                for (const gm of scheduledGames) {
+                  batch.update(doc(db, "groups", group.id, "games", gm.id), {
+                    status: "archived", archivedAt: serverTimestamp(), updatedAt: serverTimestamp(),
+                  });
+                }
+                batch.update(doc(db, "groups", group.id), {
+                  status: "archived", archivedAt: serverTimestamp(), updatedAt: serverTimestamp(),
+                });
+                await batch.commit();
+                setGroups((prev) => prev.map((g) => g.id === group.id ? { ...g, status: "archived" } : g));
+                go("groups"); flash("Group & games archived", "📦");
+              } catch { flash("Error archiving group", "❌"); }
             }} />
         )}
         {page === "group" && group && (
@@ -1202,6 +1647,33 @@ export default function App() {
                     members: (data.members || []).filter((m) => m.id !== uid),
                   });
                 });
+                // Remove user from RSVP/guest lists on all group games (best effort)
+                try {
+                  const gamesSnap = await getDocs(collection(db, "groups", group.id, "games"));
+                  if (!gamesSnap.empty) {
+                    const batch = writeBatch(db);
+                    gamesSnap.docs.forEach((d) => {
+                      const gm = d.data();
+                      const updates = {};
+                      if (gm.rsvps?.[uid]) updates[`rsvps.${uid}`] = deleteField();
+                      if ((gm.guestIds || []).includes(uid)) {
+                        updates.guestIds = arrayRemove(uid);
+                        updates.guests = (gm.guests || []).filter((g) => g.id !== uid);
+                        updates.registeredGuests = (gm.registeredGuests || []).filter((g) => g.id !== uid);
+                      }
+                      if ((gm.waitlist || []).includes(uid)) updates.waitlist = arrayRemove(uid);
+                      if (Object.keys(updates).length > 0) batch.update(d.ref, updates);
+                    });
+                    await batch.commit();
+                  }
+                } catch { /* best effort — membership removal already succeeded */ }
+                // Also clean up any guestGameRefs pointing to this group's games
+                try {
+                  await updateDoc(doc(db, "users", uid), {
+                    guestGameRefs: (await getDoc(doc(db, "users", uid))).data()?.guestGameRefs?.filter((r) => r.groupId !== group.id) ?? [],
+                  });
+                } catch { /* best effort */ }
+                setGroups((prev) => prev.filter((g) => g.id !== group.id));
                 go("groups"); flash("Left group");
               } catch { flash("Error leaving group", "❌"); }
             }}
@@ -1218,6 +1690,32 @@ export default function App() {
                       .map((m) => m.id === newHostId ? { ...m, host: true } : m),
                   });
                 });
+                // Remove user from RSVP/guest lists on all group games (best effort)
+                try {
+                  const gamesSnap = await getDocs(collection(db, "groups", group.id, "games"));
+                  if (!gamesSnap.empty) {
+                    const batch = writeBatch(db);
+                    gamesSnap.docs.forEach((d) => {
+                      const gm = d.data();
+                      const updates = {};
+                      if (gm.rsvps?.[uid]) updates[`rsvps.${uid}`] = deleteField();
+                      if ((gm.guestIds || []).includes(uid)) {
+                        updates.guestIds = arrayRemove(uid);
+                        updates.guests = (gm.guests || []).filter((g) => g.id !== uid);
+                        updates.registeredGuests = (gm.registeredGuests || []).filter((g) => g.id !== uid);
+                      }
+                      if ((gm.waitlist || []).includes(uid)) updates.waitlist = arrayRemove(uid);
+                      if (Object.keys(updates).length > 0) batch.update(d.ref, updates);
+                    });
+                    await batch.commit();
+                  }
+                } catch { /* best effort */ }
+                try {
+                  await updateDoc(doc(db, "users", uid), {
+                    guestGameRefs: (await getDoc(doc(db, "users", uid))).data()?.guestGameRefs?.filter((r) => r.groupId !== group.id) ?? [],
+                  });
+                } catch { /* best effort */ }
+                setGroups((prev) => prev.filter((g) => g.id !== group.id));
                 go("groups"); flash("Host transferred — group left", "👑");
               } catch { flash("Error leaving group", "❌"); }
             }}
@@ -1312,6 +1810,10 @@ export default function App() {
                 if (isGuest) await updateDoc(doc(db, "users", uid), { guestGameRefs: arrayRemove({ groupId: group.id, gameId: game.id }) });
                 go("group", group.id); flash("You've left the game", "👋");
               } catch { flash("Error leaving game", "❌"); }
+            }}
+            onSaveWinner={async (winner) => {
+              await updateDoc(doc(db, "groups", group.id, "games", game.id), { winner });
+              flash("Winner saved!", "🏆");
             }} />
         )}
         {page === "editGame" && game && group && (
@@ -1353,21 +1855,35 @@ export default function App() {
           <GuestGameView uid={uid} user={displayUser} groupId={gid} gameId={gmid} go={go} flash={flash} />
         )}
         {page === "newStandaloneGame" && (
-          <NewGame uid={uid} user={user} group={null} planCfg={userPlanCfg} onBack={() => go("home")}
-            onSave={async (games) => {
+          <NewGame uid={uid} user={user} group={null} groups={groups} planCfg={userPlanCfg} onBack={() => go("home")}
+            onSave={async (games, selectedGroupId) => {
               const arr = Array.isArray(games) ? games : [games];
               const hostCheck = canHostGame(user, groups, userPlanCfg, standaloneGames);
               if (!hostCheck.ok) { flash("Hosted game limit reached — upgrade for unlimited games", "🔒"); return; }
               try {
                 const batch = writeBatch(db);
-                arr.forEach((gm) => {
-                  batch.set(doc(db, "games", gm.id), { ...gm, isStandalone: true });
-                  if (gm.joinCode) {
-                    batch.set(doc(db, "gameCodes", gm.joinCode), { groupId: null, gameId: gm.id, date: gm.date });
-                  }
-                });
-                await batch.commit();
-                go("home"); flash("Game scheduled!", "🀄");
+                if (selectedGroupId) {
+                  arr.forEach((gm) => {
+                    batch.set(doc(db, "groups", selectedGroupId, "games", gm.id), gm);
+                    if (gm.joinCode) batch.set(doc(db, "gameCodes", gm.joinCode), { groupId: selectedGroupId, gameId: gm.id, date: gm.date });
+                  });
+                  await batch.commit();
+                  setGroups((prev) => prev.map((g) => {
+                    if (g.id !== selectedGroupId) return g;
+                    const existingIds = new Set(g.games.map((gm) => gm.id));
+                    const newGames = arr.filter((gm) => !existingIds.has(gm.id));
+                    return { ...g, games: [...g.games, ...newGames] };
+                  }));
+                  if (arr.length === 1) { go("game", selectedGroupId, arr[0].id); flash("Game scheduled!", "🀄"); }
+                  else { go("group", selectedGroupId); flash(`${arr.length} games scheduled! 🀄`); }
+                } else {
+                  arr.forEach((gm) => {
+                    batch.set(doc(db, "games", gm.id), { ...gm, isStandalone: true });
+                    if (gm.joinCode) batch.set(doc(db, "gameCodes", gm.joinCode), { groupId: null, gameId: gm.id, date: gm.date });
+                  });
+                  await batch.commit();
+                  go("home"); flash("Game scheduled!", "🀄");
+                }
               } catch { flash("Error creating game", "❌"); }
             }} />
         )}
@@ -1419,36 +1935,24 @@ export default function App() {
  * plan limits. Dimmed options indicate the limit is reached.
  * ─────────────────────────────────────────────────────────────────────────── */
 function NewChoice({ uid, groups, user, planCfg, standaloneGames, go, flash, onBack }) {
-  const groupCheck   = canAddGroup(groups, user, planCfg);
-  const gameCheck    = canHostGame(user, groups, planCfg, standaloneGames);
-  const hostedGroups = groups.filter(g => g.members?.some(m => m.id === uid && m.host));
-  const isHost       = hostedGroups.length > 0;
-  const canGroup     = groupCheck.ok;
-  const canGame      = gameCheck.ok;
-  const lim          = getPlanLimits(planCfg);
+  const groupCheck = canAddGroup(groups, user, planCfg);
+  const gameCheck  = canHostGame(user, groups, planCfg, standaloneGames);
+  const canGroup   = groupCheck.ok;
+  const canGame    = gameCheck.ok;
+  const lim        = getPlanLimits(planCfg);
 
   const handleGame = () => {
-    if (!isHost) {
-      go("newStandaloneGame");
-    } else if (hostedGroups.length === 1) {
-      go("newGame", hostedGroups[0].id);
-    } else {
-      go("groups");
-    }
+    go("newStandaloneGame");
   };
 
-  const gameSub = isHost
-    ? hostedGroups.length === 1
-      ? `In ${hostedGroups[0].name}`
-      : `${hostedGroups.length} groups available`
-    : "Open game — invite anyone with a link";
+  const gameSub = canGame ? "Standalone or pick a group — no group required" : "Hosted game limit reached — upgrade for more";
 
   const options = [
     {
       id: "game",
       icon: "🀄",
       label: "Schedule a Game",
-      sub: canGame ? gameSub : `Hosted game limit reached — upgrade for more`,
+      sub: gameSub,
       disabled: !canGame,
       onClick: handleGame,
     },
@@ -1548,6 +2052,48 @@ function ConfirmDialog({ title, message, confirmLabel = "Delete", onConfirm, onC
   );
 }
 
+function AnnouncementModal({ announcement, onClose }) {
+  const features = announcement.features || [];
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 10001, background: "rgba(20,10,40,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div className="bIn" style={{
+        background: "linear-gradient(160deg,#1a0d30 0%,#2d1b4e 60%,#3d1f5e 100%)",
+        borderRadius: 28, padding: "28px 22px 22px", maxWidth: 420, width: "100%",
+        boxShadow: "0 32px 80px rgba(80,20,120,0.5)", border: "1px solid rgba(155,110,168,0.35)",
+        maxHeight: "80vh", display: "flex", flexDirection: "column",
+      }}>
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <div style={{ fontSize: 42, marginBottom: 10 }}>🎉</div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: 0.5 }}>{announcement.title || "What's New"}</div>
+          {announcement.body && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", marginTop: 6, fontFamily: "'Inter',sans-serif", lineHeight: 1.5 }}>{announcement.body}</div>}
+        </div>
+
+        {features.length > 0 && (
+          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+            {features.map((f, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 14, background: "rgba(255,255,255,0.07)", borderRadius: 16, padding: "14px 16px", border: "1px solid rgba(255,255,255,0.1)" }}>
+                <div style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{f.icon || "✨"}</div>
+                <div>
+                  <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 3 }}>{f.title}</div>
+                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", fontFamily: "'Inter',sans-serif", lineHeight: 1.5 }}>{f.description}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button onClick={onClose} style={{
+          width: "100%", padding: "14px 0", borderRadius: 14,
+          background: "linear-gradient(135deg,#c9607a,#9b6ea8)",
+          border: "none", color: "#fff", fontSize: 16, fontWeight: 700,
+          cursor: "pointer", fontFamily: "'Inter',sans-serif",
+          boxShadow: "0 4px 20px rgba(201,96,122,0.4)",
+        }}>Got it!</button>
+      </div>
+    </div>
+  );
+}
+
 function WelcomeModal({ onClose }) {
   return (
     <div style={{
@@ -1627,12 +2173,49 @@ function WelcomeModal({ onClose }) {
   );
 }
 
-/* ── AUTH SCREEN ── */
-const AUTH_AVATARS = [
-  "🐼","🌸","🦋","🍀","🌹","🦚","🎋","🌿","🦩","🌺","🎍","🐝",
-  "🦊","🐱","🐰","🦁","🐨","🦄","🐸","🦜","🌙","⭐","🌊","🍵",
-  "🎀","🍄","🌻","🪷","🦢","🐞","🍒","🫧","🌈","🪸","🫶","🎐",
+/* ── AVATAR SYSTEM ── */
+// Curated luxury emoji — mahjong, florals, cocktail culture, elegant nature.
+// Each has a signature jewel-tone gradient shown in the picker and throughout the app.
+const AVATAR_DEFS = [
+  // ── Mahjong & Asian culture ──────────────────────────────────────────────────
+  { id: "🀄", bg: "linear-gradient(135deg,#500808,#880808)" }, // mahjong red dragon
+  { id: "🎋", bg: "linear-gradient(135deg,#081808,#0e2808)" }, // bamboo suit
+  { id: "🎴", bg: "linear-gradient(135deg,#1a0808,#300810)" }, // flower playing cards
+  { id: "🧧", bg: "linear-gradient(135deg,#580808,#900808)" }, // red envelope (lucky money)
+  { id: "🏮", bg: "linear-gradient(135deg,#480808,#780808)" }, // red lantern
+  { id: "🎐", bg: "linear-gradient(135deg,#0a1060,#141898)" }, // wind chime
+  // ── Cocktail & social club ───────────────────────────────────────────────────
+  { id: "🥂", bg: "linear-gradient(135deg,#282808,#404808)" }, // champagne toast
+  { id: "🍸", bg: "linear-gradient(135deg,#083028,#0c4838)" }, // martini
+  { id: "🍷", bg: "linear-gradient(135deg,#3a0818,#600820)" }, // wine
+  { id: "🥃", bg: "linear-gradient(135deg,#3a1808,#6a2808)" }, // whiskey / old fashioned
+  { id: "🫖", bg: "linear-gradient(135deg,#381020,#601838)" }, // teapot
+  { id: "🍵", bg: "linear-gradient(135deg,#082808,#104018)" }, // matcha
+  // ── Elegant nature ───────────────────────────────────────────────────────────
+  { id: "🦚", bg: "linear-gradient(135deg,#083a28,#105840)" }, // peacock
+  { id: "🦋", bg: "linear-gradient(135deg,#0a1870,#1428b0)" }, // butterfly
+  { id: "🌸", bg: "linear-gradient(135deg,#4a0838,#7a1058)" }, // cherry blossom
+  { id: "🌺", bg: "linear-gradient(135deg,#4a0840,#880860)" }, // hibiscus
+  { id: "🌷", bg: "linear-gradient(135deg,#400868,#6a10a0)" }, // tulip
+  { id: "🪷", bg: "linear-gradient(135deg,#38086a,#601098)" }, // lotus
+  { id: "🌙", bg: "linear-gradient(135deg,#060620,#0a0a38)" }, // moon
+  // ── Luxury symbols ───────────────────────────────────────────────────────────
+  { id: "💎", bg: "linear-gradient(135deg,#080a60,#1018a8)" }, // diamond
+  { id: "👑", bg: "linear-gradient(135deg,#280858,#4a0890)" }, // crown
+  { id: "✨", bg: "linear-gradient(135deg,#080830,#100850)" }, // sparkles
+  { id: "🎀", bg: "linear-gradient(135deg,#500828,#8a1040)" }, // bow
+  { id: "💐", bg: "linear-gradient(135deg,#0e2808,#183a10)" }, // bouquet
 ];
+
+const AVATAR_BG_MAP = new Map(AVATAR_DEFS.map(d => [d.id, d.bg]));
+const avatarBg = (av) => AVATAR_BG_MAP.get(av) || "var(--avatar-bubble-bg)";
+
+function AvatarImg({ av, size }) {
+  return <span style={{ fontSize: size * 0.54, lineHeight: 1 }}>{av}</span>;
+}
+
+/* ── AUTH SCREEN ── */
+const AUTH_AVATARS = AVATAR_DEFS.map(d => d.id);
 const randAvatar = () => AUTH_AVATARS[Math.floor(Math.random() * AUTH_AVATARS.length)];
 
 function AuthScreen() {
@@ -1646,7 +2229,9 @@ function AuthScreen() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const switchMode = (m) => { setMode(m); setError(""); };
+  const [forgotSent, setForgotSent] = useState(false);
+
+  const switchMode = (m) => { setMode(m); setError(""); setForgotSent(false); };
 
   const fmtFirebaseError = (code) => {
     const map = {
@@ -1668,8 +2253,8 @@ function AuthScreen() {
     if (!email.trim() || !password.trim()) { setError("Please enter your email and password."); return; }
     setLoading(true);
     try {
-      const { user: fbUser } = await signInWithEmailAndPassword(auth, email.trim(), password);
-      silentlyRefreshFcmToken(fbUser.uid);
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      // Token refresh handled by onAuthStateChanged — do not double-register here.
     } catch (e) {
       setError(fmtFirebaseError(e.code));
     } finally {
@@ -1693,9 +2278,11 @@ function AuthScreen() {
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
         avatar: chosenAvatar,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        loginProvider: "email",
       };
       await setDoc(doc(db, "users", fbUser.uid), profile);
-      silentlyRefreshFcmToken(fbUser.uid);
+      // Token refresh handled by onAuthStateChanged.
     } catch (e) {
       setError(fmtFirebaseError(e.code));
     } finally {
@@ -1714,18 +2301,40 @@ function AuthScreen() {
           serverClientId: GOOGLE_WEB_CLIENT_ID,
           grantOfflineAccess: true,
         });
-        const { user: fbUser } = await signInWithCredential(
+        await signInWithCredential(
           auth, GoogleAuthProvider.credential(authentication.idToken)
         );
-        silentlyRefreshFcmToken(fbUser.uid);
+        // Token refresh handled by onAuthStateChanged.
       } else {
-        const { user: fbUser } = await signInWithPopup(auth, googleProvider);
-        silentlyRefreshFcmToken(fbUser.uid);
+        await signInWithPopup(auth, googleProvider);
+        // Token refresh handled by onAuthStateChanged.
       }
     } catch (e) {
       setError(fmtFirebaseError(e.code));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setError("");
+    if (!email.trim() || !/\S+@\S+\.\S+/.test(email.trim())) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    setLoading(true);
+    try {
+      // Write a request doc — the sendPasswordReset Cloud Function picks it up,
+      // verifies the account exists, applies the admin-editable template, and sends.
+      await addDoc(collection(db, "passwordResetRequests"), {
+        email: email.trim().toLowerCase(),
+        requestedAt: serverTimestamp(),
+      });
+    } catch {
+      // Swallow all errors — never reveal whether the account exists
+    } finally {
+      setLoading(false);
+      setForgotSent(true);
     }
   };
 
@@ -1783,23 +2392,52 @@ function AuthScreen() {
         boxShadow: "0 28px 72px rgba(100,30,60,0.38), inset 0 1px 0 var(--shadow-inset)",
         border: "1px solid rgba(var(--border-light-rgb),0.5)", position: "relative",
       }}>
-        {/* Tab toggle */}
-        <div style={{ display: "flex", background: "rgba(240,217,227,0.55)", borderRadius: 999, padding: 4, marginBottom: 20 }}>
-          {[["login","Sign In"],["signup","Create Account"]].map(([m, label]) => (
-            <button key={m} onClick={() => switchMode(m)} style={{
-              flex: 1, padding: "9px 0", borderRadius: 999, fontSize: 14, fontWeight: 700,
-              fontFamily: "'Inter',sans-serif", border: "none", cursor: "pointer", transition: "all .2s",
-              background: mode === m ? "var(--active-tab-gradient)" : "transparent",
-              color: mode === m ? "#fff" : "var(--primary-subtle)",
-              boxShadow: mode === m ? "0 3px 12px rgba(var(--shadow-rgb),0.3)" : "none",
-            }}>{label}</button>
-          ))}
-        </div>
+        {/* Tab toggle — hidden in forgot-password mode */}
+        {mode !== "forgot" && (
+          <div style={{ display: "flex", background: "rgba(240,217,227,0.55)", borderRadius: 999, padding: 4, marginBottom: 20 }}>
+            {[["login","Sign In"],["signup","Create Account"]].map(([m, label]) => (
+              <button key={m} onClick={() => switchMode(m)} style={{
+                flex: 1, padding: "9px 0", borderRadius: 999, fontSize: 14, fontWeight: 700,
+                fontFamily: "'Inter',sans-serif", border: "none", cursor: "pointer", transition: "all .2s",
+                background: mode === m ? "var(--active-tab-gradient)" : "transparent",
+                color: mode === m ? "#fff" : "var(--primary-subtle)",
+                boxShadow: mode === m ? "0 3px 12px rgba(var(--shadow-rgb),0.3)" : "none",
+              }}>{label}</button>
+            ))}
+          </div>
+        )}
 
-        {mode === "login" ? (
+        {mode === "forgot" ? (
+          forgotSent ? (
+            <>
+              <div style={{ textAlign: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>📬</div>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, fontWeight: 700, color: "var(--section-title)", marginBottom: 8 }}>Check your inbox</div>
+                <div style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", lineHeight: 1.6 }}>
+                  If you have an account with that email address, you'll receive an email with instructions to reset your password.
+                </div>
+              </div>
+              <ABtn onClick={() => switchMode("login")}>Back to Sign In</ABtn>
+            </>
+          ) : (
+            <>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, fontWeight: 700, color: "var(--section-title)", marginBottom: 4 }}>Reset your password</div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", marginBottom: 16, lineHeight: 1.5 }}>Enter your email and we'll send you a reset link.</div>
+              <AInput label="Email" type="email" value={email} set={setEmail} placeholder="you@email.com" />
+              {error && <ErrMsg msg={error} />}
+              <ABtn onClick={handleForgotPassword} disabled={loading}>{loading ? "Sending…" : "Send Reset Link"}</ABtn>
+              <p style={{ fontSize: 12, color: "#c0a0b0", textAlign: "center", marginTop: 14, fontFamily: "'Inter',sans-serif" }}>
+                <span onClick={() => switchMode("login")} style={{ color: "var(--primary)", fontWeight: 700, cursor: "pointer" }}>Back to Sign In</span>
+              </p>
+            </>
+          )
+        ) : mode === "login" ? (
           <>
             <AInput label="Email" type="email" value={email} set={setEmail} placeholder="you@email.com" />
             <AInput label="Password" type="password" value={password} set={setPassword} placeholder="••••••••" />
+            <p style={{ fontSize: 12, textAlign: "right", marginTop: -8, marginBottom: 12, fontFamily: "'Inter',sans-serif" }}>
+              <span onClick={() => switchMode("forgot")} style={{ color: "var(--primary)", fontWeight: 600, cursor: "pointer" }}>Forgot password?</span>
+            </p>
             {error && <ErrMsg msg={error} />}
             <ABtn onClick={handleLogin} disabled={loading}>{loading ? "Signing in…" : "Sign In 🀄"}</ABtn>
             <Divider />
@@ -1817,18 +2455,22 @@ function AuthScreen() {
 
             {/* Avatar picker */}
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--primary-subtle)", marginBottom: 7, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Inter',sans-serif" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--primary-subtle)", marginBottom: 9, textTransform: "uppercase", letterSpacing: .5, fontFamily: "'Inter',sans-serif" }}>
                 Avatar <span style={{ fontWeight: 400, color: "var(--primary-faint)", textTransform: "none", letterSpacing: 0, fontSize: 12 }}>— auto-selected if skipped</span>
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                {AUTH_AVATARS.map((a) => (
-                  <div key={a} onClick={() => setAvatar(avatar === a ? null : a)} style={{
-                    fontSize: 23, padding: 6, borderRadius: 11, cursor: "pointer",
-                    background: avatar === a ? "var(--input-selected-bg)" : "var(--border-card)",
-                    border: `2px solid ${avatar === a ? "var(--primary)" : "transparent"}`,
-                    transition: "all .14s",
-                    boxShadow: avatar === a ? "0 2px 8px rgba(var(--primary-rgb),0.25)" : "none",
-                  }}>{a}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 7 }}>
+                {AVATAR_DEFS.map(({ id, bg }) => (
+                  <div key={id} onClick={() => setAvatar(avatar === id ? null : id)} style={{
+                    aspectRatio: "1", borderRadius: 13, background: bg,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 24, cursor: "pointer",
+                    border: `2px solid ${avatar === id ? "var(--primary)" : "transparent"}`,
+                    boxShadow: avatar === id
+                      ? "0 0 0 1px var(--primary), 0 4px 14px rgba(var(--primary-rgb),0.45)"
+                      : "0 2px 8px rgba(0,0,0,0.35)",
+                    transform: avatar === id ? "scale(1.08)" : "scale(1)",
+                    transition: "all .15s",
+                  }}>{id}</div>
                 ))}
               </div>
             </div>
@@ -1840,12 +2482,14 @@ function AuthScreen() {
           </>
         )}
 
-        <p style={{ fontSize: 12, color: "#c0a0b0", textAlign: "center", marginTop: 14, fontFamily: "'Inter',sans-serif" }}>
-          {mode === "login" ? "Don't have an account? " : "Already have an account? "}
-          <span onClick={() => switchMode(mode === "login" ? "signup" : "login")} style={{ color: "var(--primary)", fontWeight: 700, cursor: "pointer" }}>
-            {mode === "login" ? "Create one" : "Sign in"}
-          </span>
-        </p>
+        {mode !== "forgot" && (
+          <p style={{ fontSize: 12, color: "#c0a0b0", textAlign: "center", marginTop: 14, fontFamily: "'Inter',sans-serif" }}>
+            {mode === "login" ? "Don't have an account? " : "Already have an account? "}
+            <span onClick={() => switchMode(mode === "login" ? "signup" : "login")} style={{ color: "var(--primary)", fontWeight: 700, cursor: "pointer" }}>
+              {mode === "login" ? "Create one" : "Sign in"}
+            </span>
+          </p>
+        )}
       </div>
       </div>{/* end inner centred layout */}
     </div>
@@ -1975,7 +2619,7 @@ function AdminPanel({ onImpersonate }) {
 
       {results.map((u) => (
         <div key={u.uid} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "rgba(255,255,255,0.7)", marginBottom: 8, border: "1px solid rgba(90,45,107,0.15)" }}>
-          <span style={{ fontSize: 23 }}>{u.avatar}</span>
+          <div style={{ width:28,height:28,borderRadius:999,background:avatarBg(u.avatar),overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center" }}><AvatarImg av={u.avatar} size={28}/></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: "#2d1b4e", fontFamily: "'Inter',sans-serif" }}>{u.name}</div>
             <div style={{ fontSize: 12, color: "var(--secondary-accent)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
@@ -2102,17 +2746,27 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
     border: "1px solid var(--border-card)",
   };
   const backBtn = {
+    position: "absolute", top: HEADER_BTN_TOP, left: 14,
     background: "none", border: "none", fontSize: 24, cursor: "pointer",
-    padding: "4px 8px 4px 0", color: "var(--primary)", lineHeight: 1,
+    padding: "4px 8px 4px 0", color: "rgba(255,255,255,0.9)", lineHeight: 1,
+  };
+  const planHeader = {
+    background: "var(--header-gradient)",
+    position: "relative",
+    padding: `${HEADER_BTN_TOP}px 22px 28px`,
+    boxShadow: "0 8px 32px rgba(var(--shadow-rgb),0.25)",
+    textAlign: "center",
   };
 
   /* ── Already on trial ── */
   if (isOnTrial) {
     return (
       <div style={wrap}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 8px" }}>
+        <div style={planHeader}>
           <button onClick={() => go("account")} style={backBtn}>‹</button>
-          <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 19, fontWeight: 700, color: "var(--section-title)" }}>Your Plan</span>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>✨</div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 22, fontWeight: 700, color: "#fff" }}>Your Plan</div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 4, fontFamily: "'Inter',sans-serif" }}>Club trial active</div>
         </div>
         <div style={{ padding: "0 16px" }}>
 
@@ -2162,9 +2816,11 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
   if (currentPlan === "club") {
     return (
       <div style={wrap}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 8px" }}>
+        <div style={planHeader}>
           <button onClick={() => go("account")} style={backBtn}>‹</button>
-          <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 19, fontWeight: 700, color: "var(--section-title)" }}>Your Plan</span>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>✨</div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 22, fontWeight: 700, color: "#fff" }}>Your Plan</div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 4, fontFamily: "'Inter',sans-serif" }}>Club — enjoy unlimited mahjong</div>
         </div>
         <div style={{ padding: "0 16px" }}>
           <div style={{ ...card, border: "2px solid rgba(245,158,11,0.3)" }}>
@@ -2202,21 +2858,14 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
   return (
     <div style={wrap}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 8px" }}>
+      <div style={planHeader}>
         <button onClick={() => go("account")} style={backBtn}>‹</button>
-        <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 19, fontWeight: 700, color: "var(--section-title)" }}>Plans & Pricing</span>
+        <div style={{ fontSize: 36, marginBottom: 8 }}>🎯</div>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 22, fontWeight: 700, color: "#fff" }}>Plans & Pricing</div>
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 4, fontFamily: "'Inter',sans-serif" }}>Start free for 30 days, upgrade when ready</div>
       </div>
 
-      <div style={{ padding: "0 16px" }}>
-
-        {/* Hero */}
-        <div style={{ textAlign: "center", padding: "16px 0 22px" }}>
-          <div style={{ fontSize: 40, marginBottom: 10 }}>🎯</div>
-          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 22, fontWeight: 700, color: "var(--section-title)", marginBottom: 6 }}>Level up your game</div>
-          <div style={{ fontSize: 14, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", lineHeight: 1.6, maxWidth: 280, margin: "0 auto" }}>
-            Host more, play more, schedule recurring games — starting free for 30 days.
-          </div>
-        </div>
+      <div style={{ padding: "16px 16px 0" }}>
 
         {/* Current plan — muted */}
         <div style={{ marginBottom: 10 }}>
@@ -2413,28 +3062,29 @@ function ManagePlan({ uid, user, setUser, planConfigs, go, flash }) {
 }
 
 /* ── ACCOUNT PAGE ── */
-function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut, isAdmin, onImpersonate, isImpersonating, activeThemeId, onThemeChange, planCfg }) {
+function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut, isAdmin, onImpersonate, isImpersonating, activeThemeId, onThemeChange, planCfg, onInstallPWA, canInstallPWA, isIOSWeb }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
-  const [notifEnabled, setNotifEnabled] = useState(
-    user.notificationsEnabled === true ||
-    (typeof Notification !== "undefined" && Notification.permission === "granted")
-  );
+  const [notifEnabled, setNotifEnabled] = useState(user.notificationsEnabled === true);
   const [notifDebug, setNotifDebug] = useState(null);
-  const AVATARS = [
-    "🐼","🌸","🦋","🍀","🌹","🦚","🎋","🌿","🦩","🌺","🎍","🐝",
-    "🦊","🐱","🐰","🦁","🐨","🦄","🐸","🦜","🌙","⭐","🌊","🍵",
-    "🎀","🍄","🌻","🪷","🦢","🐞","🍒","🫧","🌈","🪸","🫶","🎐",
-  ];
+  const [notifPermRevoked, setNotifPermRevoked] = useState(false);
+  const [showIOSInstallSteps, setShowIOSInstallSteps] = useState(false);
+  const isStandalone = !Capacitor.isNativePlatform() && (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    ("standalone" in window.navigator && window.navigator.standalone)
+  );
+  const showInstallRow = !Capacitor.isNativePlatform() && !isStandalone && (canInstallPWA || isIOSWeb);
+  const AVATARS = AUTH_AVATARS;
   const [avatar, setAvatar] = useState(user.avatar);
   const [skillLevel, setSkillLevel] = useState(user.skillLevel || "");
+  const [timezone, setTimezone] = useState(user.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
 
   const save = async () => {
     const newName = name.trim() || user.name;
     try {
-      await updateDoc(doc(db, "users", uid), { name: newName, avatar, skillLevel });
-      setUser({ ...user, name: newName, avatar, skillLevel });
+      await updateDoc(doc(db, "users", uid), { name: newName, avatar, skillLevel, timezone });
+      setUser({ ...user, name: newName, avatar, skillLevel, timezone });
       setEditing(false);
       flash("Profile updated!", "✨");
     } catch { flash("Error saving profile", "❌"); }
@@ -2444,11 +3094,30 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
   const isIOS = isNative
     ? Capacitor.getPlatform() === "ios"
     : /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  // Native always supports push; web falls back to Notification API check
+  // Chrome/Firefox/Edge on iOS use WKWebView which blocks the Push API entirely.
+  // Only Safari 16.4+ (as an installed PWA) supports web push on iOS.
+  const isNonSafariIOS = !isNative && isIOS && !/^((?!chrome|android).)*safari/i.test(navigator.userAgent);
   const notifUnsupported = !isNative && typeof Notification === "undefined";
+
+  // Detect OS/Firestore mismatch: Firestore says enabled but OS permission was revoked.
+  // This is the most common reason a user has notificationsEnabled:true but no tokens.
+  useEffect(() => {
+    if (!notifEnabled) return;
+    if (isNative) {
+      PushNotifications.checkPermissions().then(({ receive }) => {
+        setNotifPermRevoked(receive !== "granted");
+      }).catch(() => {});
+    } else if (typeof Notification !== "undefined") {
+      setNotifPermRevoked(Notification.permission !== "granted");
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleNotifications = async () => {
     if (!notifEnabled) {
+      if (isNonSafariIOS) {
+        flash("Chrome on iPhone can't receive push notifications — open in Safari and add to Home Screen instead", "🔕");
+        return;
+      }
       if (notifUnsupported) {
         await updateDoc(doc(db, "users", uid), { notificationsEnabled: true });
         setNotifEnabled(true);
@@ -2466,16 +3135,22 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
         log.push(`Permission before: ${Notification.permission}`);
       }
 
-      const result = await enablePushNotificationsWithLog(uid, log);
-      setNotifDebug(log);
+      let result;
+      try {
+        result = await enablePushNotificationsWithLog(uid, log);
+      } catch (e) {
+        log.push(`FATAL: ${e.name} — ${e.message}`);
+        result = "error:threw";
+      }
+      setNotifDebug([...log]);
 
       if (result === "ok") {
         setNotifEnabled(true);
         flash("Notifications enabled!", "🔔");
       } else if (result === "denied") {
-        flash("Notifications blocked — check browser settings", "🔕");
+        flash("Notifications blocked — check device settings", "🔕");
       } else if (result === "no-permission") {
-        flash("Notifications not granted — tap Allow when the browser asks", "🔕");
+        flash("Notifications not granted — tap Allow when asked", "🔕");
       } else if (result === "unsupported") {
         flash("Push notifications not supported in this browser. Try Chrome on desktop or Android.", "⚠️");
       } else if (result === "empty-token") {
@@ -2499,22 +3174,21 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
       <div style={{
         background: "var(--header-gradient)",
         backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
-        padding: "max(52px, calc(env(safe-area-inset-top, 0px) + 8px)) 22px 30px", textAlign: "center",
+        padding: `${HEADER_BTN_TOP}px 22px 30px`, textAlign: "center",
         boxShadow: "0 8px 32px rgba(var(--shadow-rgb),0.25)",
         position: "relative", overflow: "hidden",
       }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.15) 0%,transparent 55%)", pointerEvents: "none" }} />
         {/* Avatar */}
         <div style={{
-          width: 80, height: 80, borderRadius: 999, margin: "0 auto 12px",
-          background: "linear-gradient(135deg,rgba(255,255,255,0.35),rgba(255,255,255,0.15))",
-          backdropFilter: "blur(8px)",
+          width: 84, height: 84, borderRadius: 999, margin: "0 auto 12px",
+          background: avatarBg(user.avatar),
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 41, border: "3px solid rgba(255,255,255,0.55)",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+          overflow: "hidden", border: "3px solid rgba(255,255,255,0.30)",
+          boxShadow: "0 6px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.12)",
           position: "relative",
         }}>
-          {user.avatar}
+          <AvatarImg av={user.avatar} size={78} />
         </div>
         <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 23, color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,.2)", letterSpacing: 0.5 }}>{user.name}</h1>
         <p style={{ color: "rgba(255,255,255,.7)", fontSize: 14, marginTop: 4, fontFamily: "'Inter',sans-serif" }}>{user.email}</p>
@@ -2558,17 +3232,33 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                   </div>
                 ))}
               </div>
+              <Lbl mt>Timezone</Lbl>
+              <select value={timezone} onChange={(e) => setTimezone(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-body)", fontSize: 14, fontFamily: "'Inter',sans-serif", marginBottom: 14, outline: "none" }}>
+                {TIMEZONES.filter((v, i, a) => a.indexOf(v) === i).map((tz) => (
+                  <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
+                ))}
+              </select>
               <Lbl mt>Avatar</Lbl>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
-                {AVATARS.map((a) => (
-                  <div key={a} onClick={() => setAvatar(a)} style={{ fontSize: 27, padding: 7, borderRadius: 12, cursor: "pointer", background: avatar === a ? "var(--input-selected-bg)" : "var(--border-card)", border: `2px solid ${avatar === a ? "var(--primary)" : "transparent"}`, transition: "all .15s" }}>{a}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8, marginBottom: 18 }}>
+                {AVATAR_DEFS.map(({ id, bg }) => (
+                  <div key={id} onClick={() => setAvatar(id)} style={{
+                    aspectRatio: "1", borderRadius: 14, background: bg,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 26, cursor: "pointer",
+                    border: `2px solid ${avatar === id ? "var(--primary)" : "transparent"}`,
+                    boxShadow: avatar === id
+                      ? "0 0 0 1px var(--primary), 0 4px 16px rgba(var(--primary-rgb),0.45)"
+                      : "0 2px 10px rgba(0,0,0,0.38)",
+                    transform: avatar === id ? "scale(1.1)" : "scale(1)",
+                    transition: "all .15s",
+                  }}>{id}</div>
                 ))}
               </div>
               <Btn full onClick={save}>Save Changes ✨</Btn>
             </>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[["👤", "Name", user.name], ["📧", "Email", user.email], ["🎭", "Avatar", user.avatar]].map(([icon, lbl, val]) => (
+              {[["👤", "Name", user.name], ["📧", "Email", user.email]].map(([icon, lbl, val]) => (
                 <div key={lbl} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 17 }}>{icon}</span>
                   <div>
@@ -2590,6 +3280,13 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                   )}
                 </div>
               </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 17 }}>🌐</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, color: "var(--primary-faint)", fontWeight: 700, textTransform: "uppercase", letterSpacing: .5 }}>Timezone</div>
+                  <div style={{ fontSize: 15, color: "var(--text-body)", fontWeight: 500, marginTop: 1 }}>{(user.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone).replace(/_/g, " ")}</div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -2600,9 +3297,8 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
           const lim = getPlanLimits(planCfg);
           const hostCheck = canHostGame(user, groups, planCfg);
           const groupsUsed = activeGroups.length;
-          const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
           const futureHostedCount = activeGroups.reduce((n, g) =>
-            n + (g.games || []).filter(gm => gm.hostId === user?.uid && gm.date >= todayStart.getTime() && gm.status !== "archived" && gm.status !== "deleted").length, 0);
+            n + (g.games || []).filter(gm => gm.hostId === user?.uid && gm.date > Date.now() && gm.status !== "archived" && gm.status !== "deleted").length, 0);
 
           const Bar = ({ used, max, color }) => (
             <div style={{ height: 6, background: "rgba(var(--primary-rgb),0.1)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
@@ -2728,6 +3424,51 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
         }}>
           <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 17, color: "var(--section-title)", fontWeight: 700 }}>Notifications</span>
           <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+
+            {/* Add to Home Screen — web only, hidden once already installed */}
+            {showInstallRow && (
+              <div style={{ borderRadius: 14, background: "var(--bg-surface)", border: "1px solid rgba(var(--border-light-rgb),0.3)", overflow: "hidden" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(var(--primary-rgb),0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>📲</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-body)" }}>Add to Home Screen</div>
+                    <div style={{ fontSize: 13, color: "#b08090", marginTop: 2 }}>
+                      {isIOSWeb ? "Required for push notifications on iPhone" : "Install the app for the best experience"}
+                    </div>
+                  </div>
+                  {canInstallPWA ? (
+                    <button onClick={onInstallPWA} style={{
+                      background: "var(--active-tab-gradient)", border: "none", borderRadius: 10,
+                      padding: "8px 14px", color: "#fff", fontSize: 13, fontWeight: 700,
+                      cursor: "pointer", fontFamily: "'Inter',sans-serif", flexShrink: 0,
+                    }}>Install</button>
+                  ) : (
+                    <button onClick={() => setShowIOSInstallSteps(v => !v)} style={{
+                      background: "rgba(var(--primary-rgb),0.12)", border: "1px solid rgba(var(--primary-rgb),0.2)",
+                      borderRadius: 10, padding: "8px 14px", color: "var(--primary)", fontSize: 13, fontWeight: 700,
+                      cursor: "pointer", fontFamily: "'Inter',sans-serif", flexShrink: 0,
+                    }}>How to</button>
+                  )}
+                </div>
+                {showIOSInstallSteps && (
+                  <div style={{ padding: "0 14px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+                    {[
+                      ["1", "Tap the Share button", "at the bottom of Safari (the box with an arrow)"],
+                      ["2", "Scroll down and tap", '"Add to Home Screen"'],
+                      ["3", "Tap Add", "in the top-right corner"],
+                    ].map(([n, bold, rest]) => (
+                      <div key={n} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                        <div style={{ width: 22, height: 22, borderRadius: 999, background: "var(--active-tab-gradient)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "#fff", flexShrink: 0, marginTop: 1 }}>{n}</div>
+                        <div style={{ fontSize: 13, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", lineHeight: 1.5 }}>
+                          <strong>{bold}</strong> {rest}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 14, background: "var(--bg-surface)", border: "1px solid rgba(var(--border-light-rgb),0.3)" }}>
               <div style={{ width: 40, height: 40, borderRadius: 12, background: notifEnabled ? "var(--active-tab-gradient)" : "rgba(var(--primary-rgb),0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, transition: "all .2s" }}>
                 {notifEnabled ? "🔔" : "🔕"}
@@ -2737,9 +3478,11 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                 <div style={{ fontSize: 13, color: "#b08090", marginTop: 2 }}>
                   {notifEnabled
                     ? "You'll be notified of new messages and game updates"
-                    : notifUnsupported && isIOS
-                      ? "Tap Share → Add to Home Screen, then re-enable"
-                      : "Enable to get alerts for group chats and games"}
+                    : isNonSafariIOS
+                      ? "Not supported in Chrome on iPhone — open in Safari and add to Home Screen"
+                      : notifUnsupported && isIOS
+                        ? "Tap Share → Add to Home Screen, then re-enable"
+                        : "Enable to get alerts for group chats and games"}
                 </div>
               </div>
               {/* Toggle switch */}
@@ -2759,6 +3502,32 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
               </div>
             </div>
           </div>
+
+          {/* OS permission revoked warning — Firestore says enabled but OS disagrees */}
+          {notifEnabled && notifPermRevoked && (
+            <div style={{ marginTop: 8, padding: "10px 14px", borderRadius: 12, background: "rgba(220,80,60,0.10)", border: "1px solid rgba(220,80,60,0.25)", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 18 }}>⚠️</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-body)", marginBottom: 2 }}>Notifications permission was revoked</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                  {isIOS ? "Re-enable below, then allow in the system prompt or check Settings → Mahjong Club." : "Tap the toggle to re-grant notification permission."}
+                </div>
+              </div>
+              <div onClick={async () => {
+                setNotifEnabled(false);
+                setNotifPermRevoked(false);
+                const log = [];
+                let result;
+                try { result = await enablePushNotificationsWithLog(uid, log); } catch (e) { log.push(`FATAL: ${e.name} — ${e.message}`); result = "error:threw"; }
+                setNotifDebug([...log]);
+                if (result === "ok") { setNotifEnabled(true); flash("Notifications re-enabled!", "🔔"); }
+                else if (result === "denied") { flash("Still blocked — check Settings → Mahjong Club → Notifications", "🔕"); setNotifPermRevoked(true); }
+                else { flash(`Could not re-enable (${result})`, "⚠️"); }
+              }} style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)", cursor: "pointer", flexShrink: 0, padding: "6px 10px", borderRadius: 8, background: "rgba(var(--primary-rgb),0.1)" }}>
+                Fix →
+              </div>
+            </div>
+          )}
 
           {/* FCM debug log — shows after a failed enable attempt */}
           {notifDebug && (
@@ -2813,7 +3582,19 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
                       fontSize: 10, color: "#fff", fontWeight: 900,
                     }}>✓</div>
                   )}
-                  <div style={{ fontSize: 22, marginBottom: 6 }}>{t.emoji}</div>
+                  <div style={{ marginBottom: 6, height: 28, display: "flex", alignItems: "center" }}>
+                    {t.id === "forest" ? (
+                      <svg viewBox="0 0 62 26" width="40" height="17" style={{ fill: t.primary, display: "block" }}>
+                        {/* Side-profile bird, facing left, wings raised mid-flap */}
+                        {/* Body + wing + tail silhouette */}
+                        <path d="M2,18 L5,14 C8,11 12,10 14,11 C18,6 26,2 34,2 C42,2 48,8 50,16 C52,15 56,13 59,14 C58,18 56,21 53,22 C46,24 34,24 22,23 C14,22 8,20 6,20 Z"/>
+                        {/* Round head overlapping beak joint */}
+                        <circle cx="9" cy="14" r="4.5"/>
+                      </svg>
+                    ) : (
+                      <span style={{ fontSize: 22 }}>{t.emoji}</span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: t.textBody }}>{t.name}</div>
                   {/* Colour swatches */}
                   <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
@@ -2862,13 +3643,175 @@ function Account({ uid, user, setUser, groups, guestGames, flash, go, onSignOut,
   );
 }
 
+/* ── RSVP AVATAR STACK ── */
+function RsvpStack({ players, max = 5, size = 30, onClick }) {
+  const ins = players.filter(p => p.state === "in");
+  const shown = ins.slice(0, max);
+  const overflow = ins.length - shown.length;
+  const overlap = -Math.round(size * 0.27);
+  const fontSize = Math.round(size * 0.37);
+
+  // Disambiguate initials: if two shown players share a first letter, use two chars
+  const rawInits = shown.map(p => (p.name || "?")[0].toUpperCase());
+  const labels = shown.map((p, i) => {
+    const init = rawInits[i];
+    const isDupe = rawInits.some((c, j) => j !== i && c === init);
+    return isDupe ? (p.name || "??").slice(0, 2) : init;
+  });
+
+  if (ins.length === 0) {
+    return (
+      <button onClick={onClick} aria-label="0 going. Tap to see all."
+        style={{ display: "flex", alignItems: "center", background: "transparent", border: "none", padding: 0, cursor: onClick ? "pointer" : "default" }}>
+        <span style={{
+          width: size, height: size, borderRadius: size / 2,
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          border: "1.5px dashed var(--border-input)",
+          fontSize: Math.round(size * 0.4), fontWeight: 600,
+          color: "var(--text-subtle)", opacity: 0.45,
+          boxSizing: "border-box",
+        }}>+</span>
+      </button>
+    );
+  }
+
+  return (
+    <button onClick={onClick} aria-label={`${ins.length} going. Tap to see all.`}
+      style={{ display: "flex", alignItems: "center", background: "transparent", border: "none", padding: 0, cursor: onClick ? "pointer" : "default" }}>
+      {shown.map((p, i) => (
+        <span key={p.id || i} title={p.name} aria-label={p.name}
+          style={{
+            width: size, height: size, borderRadius: size / 2,
+            background: "var(--primary)",
+            color: "#fff",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "'Inter',sans-serif",
+            fontSize, fontWeight: 600,
+            border: "2px solid var(--bg-card-base)",
+            marginLeft: i === 0 ? 0 : overlap,
+            position: "relative", zIndex: max - i,
+            boxSizing: "border-box", flexShrink: 0,
+          }}
+        >{labels[i]}</span>
+      ))}
+      {overflow > 0 && (
+        <span aria-label={`${overflow} more going`}
+          style={{
+            height: size, padding: "0 9px", borderRadius: size / 2,
+            background: "var(--bg-surface)",
+            border: "2px solid var(--bg-card-base)",
+            color: "var(--text-muted)",
+            display: "inline-flex", alignItems: "center",
+            fontFamily: "'Inter',sans-serif",
+            fontVariantNumeric: "tabular-nums",
+            fontSize: Math.round(size * 0.4), fontWeight: 600,
+            marginLeft: overlap,
+            boxSizing: "border-box", flexShrink: 0,
+          }}
+        >+{overflow}</span>
+      )}
+    </button>
+  );
+}
+
+/* ── SHARED GAME CARD ── */
+function GameCard({ gm, groups, user, go, animDelay = 0 }) {
+  const MON_ABR = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  const DOW_ABR = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+
+  const resolveName = (playerId) => {
+    if (playerId === user?.uid && user?.name) return user.name;
+    if (playerId === gm.hostId && gm.host) return gm.host;
+    const grp = groups.find(g => g.id === gm.groupId);
+    const members = grp?.members || gm.groupMembers || [];
+    const member = members.find(m => m.id === playerId);
+    if (member) return member.name || "?";
+    const allG = [...(gm.guests||[]), ...(gm.registeredGuests||[])];
+    const guest = allG.find(g => g.id === playerId);
+    if (guest) return guest.name || "?";
+    return "?";
+  };
+
+  const d = new Date(gm.date);
+  const monAbbr = MON_ABR[d.getMonth()];
+  const dayNum = d.getDate();
+  const dowAbbr = DOW_ABR[d.getDay()];
+  const wl = gm.waitlist || [];
+  const yesUids = Object.entries(gm.rsvps || {}).filter(([,v]) => v === "yes").map(([id]) => id);
+  const maybeUids = Object.entries(gm.rsvps || {}).filter(([,v]) => v === "maybe").map(([id]) => id);
+  const confirmedG = (gm.guests || []).filter(g => !wl.includes(g.id));
+  const yesCount = yesUids.length + confirmedG.length;
+  const maybeCount = maybeUids.length;
+  const isHostCard = gm.hostId === user?.uid;
+  const stackPlayers = [
+    ...yesUids.map(id => ({ id, name: resolveName(id), state: "in" })),
+    ...confirmedG.map(g => ({ id: g.id, name: g.name || "?", state: "in" })),
+  ];
+  const gameHash = (gm.id||"").split("").reduce((h,c) => (Math.imul(31,h) + c.charCodeAt(0))|0, 0);
+  const gameNum = ((gameHash >>> 0) % 900) + 100;
+  const isPast = gm.date < startOfTodayInTz(user?.timezone);
+  const winnerFirstName = gm.winner ? (gm.winner.uid === user?.uid ? "You" : (gm.winner.name || "").split(" ")[0]) : null;
+
+  return (
+    <div className="sUp" style={{ animationDelay: `${animDelay}s`, marginBottom: 10, cursor: "pointer" }}
+      onClick={() => go(gm.isStandalone ? "standaloneGame" : gm.isGuestGame ? "guestGame" : "game", gm.groupId, gm.id)}>
+      <div style={{ background: "var(--bg-card-base)", borderRadius: 16, border: "1px solid var(--border-card)", overflow: "hidden", boxShadow: "0 2px 10px rgba(var(--shadow-rgb),0.06)" }}>
+        <div style={{ display: "flex", gap: 12, padding: "12px 14px 10px", alignItems: "center" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: 54, minWidth: 54, padding: "6px 4px", background: "var(--date-block-bg)", border: "1px solid rgba(var(--primary-rgb),0.20)", borderRadius: 10, flexShrink: 0 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: "var(--primary)", letterSpacing: 1.2, fontFamily: "'Inter',sans-serif" }}>{monAbbr}</span>
+            <span style={{ fontSize: 24, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", lineHeight: 1.1 }}>{dayNum}</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: "var(--primary)", letterSpacing: 1.2, fontFamily: "'Inter',sans-serif" }}>{dowAbbr}</span>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{gm.title}</span>
+              {isHostCard && !isPast && (
+                <span style={{ display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--primary)", display: "inline-block" }} />
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "var(--primary)", letterSpacing: 1, fontFamily: "'Inter',sans-serif" }}>HOSTING</span>
+                </span>
+              )}
+            </div>
+            {isPast ? (
+              <div style={{ fontSize: 12, fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ color: "var(--text-muted)", flexShrink: 0 }}>Winner:</span>
+                <span style={{ color: "var(--text-body)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{winnerFirstName || "—"}</span>
+              </div>
+            ) : (gm.time || gm.location) && (
+              <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", display: "flex", flexDirection: "column", gap: 2, overflow: "hidden" }}>
+                {gm.time && <span style={{ flexShrink: 0 }}>⏱ {fmtRange(gm.time, gm.endTime)}</span>}
+                {gm.location && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {gm.location}</span>}
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{ height: 1, background: "var(--border-input)", margin: "0 14px 0 80px" }} />
+        <div style={{ display: "flex", alignItems: "center", padding: "8px 14px", gap: 8 }}>
+          <RsvpStack players={stackPlayers} max={4} size={26} />
+          <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif", flex: 1 }}>
+            {isPast
+              ? <>{yesCount > 0 ? `${yesCount} played` : "No players"}</>
+              : <>{yesCount > 0 && `${yesCount} in`}{yesCount > 0 && maybeCount > 0 ? " · " : ""}{maybeCount > 0 && `${maybeCount} maybe`}{yesCount === 0 && maybeCount === 0 && "No responses yet"}</>
+            }
+          </span>
+          <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "'Inter',sans-serif", fontWeight: 600, flexShrink: 0 }}># {gameNum}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── ALL GAMES PANEL (shared by Home + Account) ── */
-function AllGamesPanel({ groups, guestGames = [], standaloneGames = [], go }) {
+function AllGamesPanel({ groups, guestGames = [], standaloneGames = [], go, user }) {
+  const todayStart = startOfTodayInTz(user?.timezone);
   const memberGames = groups.flatMap((g) =>
     g.games.map((gm) => ({ ...gm, groupName: g.name, groupColor: g.color, groupId: g.id, groupEmoji: g.emoji }))
   );
-  const allGames = [...memberGames, ...guestGames, ...standaloneGames];
-  const upcoming = allGames.filter((gm) => gm.status !== "archived" && gm.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
+  const seenKeys = new Set(memberGames.map((gm) => `${gm.groupId || ""}:${gm.id}`));
+  const dedupedGuest = guestGames.filter((gm) => !seenKeys.has(`${gm.groupId || ""}:${gm.id}`));
+  const dedupedStandalone = standaloneGames.filter((gm) => !seenKeys.has(`:${gm.id}`));
+  const allGames = [...memberGames, ...dedupedGuest, ...dedupedStandalone];
+  const upcoming = allGames.filter((gm) => gm.status !== "archived" && gm.date >= todayStart).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
   const list = upcoming.slice(0, 3);
 
   return (
@@ -2885,54 +3828,7 @@ function AllGamesPanel({ groups, guestGames = [], standaloneGames = [], go }) {
       ) : (
         <>
           {list.map((gm, i) => (
-            <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.05}s`, cursor: "pointer" }}
-              onClick={() => go(gm.isStandalone ? "standaloneGame" : gm.isGuestGame ? "guestGame" : "game", gm.groupId, gm.id)}>
-              <div style={{
-                background: "linear-gradient(135deg,var(--bg-card),var(--bg-card-alt))",
-                backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
-                borderRadius: 16, padding: "13px 15px", marginBottom: 10,
-                boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08), inset 0 1px 0 var(--shadow-inset)",
-                border: "1px solid var(--border-card)",
-                borderLeft: `4px solid ${gm.groupColor}`,
-              }}>
-                <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", marginBottom: 4 }}>{gm.title}</div>
-                {!gm.isGuestGame && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
-                    <span style={{ fontSize: 13 }}>{gm.groupEmoji}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: gm.groupColor, fontFamily: "'Inter',sans-serif" }}>{gm.groupName}</span>
-                  </div>
-                )}
-                {gm.isGuestGame && !gm.isStandalone && (
-                  <div style={{ marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: "var(--secondary-accent)", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "1px 7px" }}>Guest</span>
-                  </div>
-                )}
-                {gm.isStandalone && (
-                  <div style={{ marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", background: "rgba(124,58,237,0.1)", borderRadius: 999, padding: "1px 7px" }}>Open Game</span>
-                  </div>
-                )}
-                <div style={{ fontSize: 13, color: "#b08090", marginTop: 3 }}>📅 {fmt(gm.date)}</div>
-                <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(gm.time, gm.endTime)}</div>
-                <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>📍 {gm.location}</div>
-                {(() => {
-                  const yesCount = Object.values(gm.rsvps).filter(v => v === "yes").length;
-                  const wl = gm.waitlist || [];
-                  const confirmedG = (gm.guests || []).filter(g => !wl.includes(g.id)).length;
-                  const filled = yesCount + confirmedG;
-                  return (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                      <Chip color="var(--secondary-accent)">✅ {filled}</Chip>
-                      <Chip color="#c4936e">🤔 {Object.values(gm.rsvps).filter(v => v === "maybe").length}</Chip>
-                      <Chip color="#b08090">👤 {filled}/{gm.seats}</Chip>
-                      <div style={{ marginLeft: "auto" }}>
-                        <AddToCalendar game={gm} groupName={gm.groupName} compact />
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
+            <GameCard key={`${gm.groupId}-${gm.id}`} gm={gm} groups={groups} user={user} go={go} animDelay={i * 0.05} />
           ))}
           {upcoming.length > 3 && (
             <button onClick={() => go("games")} style={{
@@ -2956,6 +3852,7 @@ function AllGamesPanel({ groups, guestGames = [], standaloneGames = [], go }) {
 
 /* HOME */
 function Home({ groups, guestGames, standaloneGames, go, user, activeTheme, planCfg, flash, onNew }) {
+  const todayStart = startOfTodayInTz(user?.timezone);
 
   // Background pattern — roses for Flowers, birds for Bam Bird, dragons for Dragons, tiles for all others
   const color = activeTheme?.primary || "#a0456e";
@@ -3051,7 +3948,7 @@ function Home({ groups, guestGames, standaloneGames, go, user, activeTheme, plan
         background: "var(--header-gradient2)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
-        padding: "max(36px, calc(env(safe-area-inset-top, 0px) + 8px)) 24px 28px",
+        padding: `${HEADER_BTN_TOP}px 24px 28px`,
         position: "relative",
         overflow: "hidden",
         boxShadow: "0 8px 32px rgba(var(--shadow-rgb),0.25)",
@@ -3108,8 +4005,8 @@ function Home({ groups, guestGames, standaloneGames, go, user, activeTheme, plan
                     <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{g.name}</div>
                     <div style={{ fontSize: 13, color: "#b08090", marginTop: 2 }}>{g.members.length} members</div>
                   </div>
-                  {g.games.filter((gm) => gm.status !== "archived" && gm.date > NOW).length > 0 && (
-                    <div style={{ background: `linear-gradient(135deg,${g.color},${g.color}cc)`, color: "#fff", borderRadius: 999, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, boxShadow: `0 2px 8px ${g.color}55` }}>{g.games.filter((gm) => gm.status !== "archived" && gm.date > NOW).length}</div>
+                  {g.games.filter((gm) => gm.status !== "archived" && gm.date >= todayStart).length > 0 && (
+                    <div style={{ background: `linear-gradient(135deg,${g.color},${g.color}cc)`, color: "#fff", borderRadius: 999, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, boxShadow: `0 2px 8px ${g.color}55` }}>{g.games.filter((gm) => gm.status !== "archived" && gm.date >= todayStart).length}</div>
                   )}
                   <span style={{ color: "var(--primary-faint)", fontSize: 21 }}>›</span>
                 </div>
@@ -3131,7 +4028,7 @@ function Home({ groups, guestGames, standaloneGames, go, user, activeTheme, plan
             )}
 
             {/* All-groups games tabs */}
-            <AllGamesPanel groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} />
+            <AllGamesPanel groups={groups} guestGames={guestGames} standaloneGames={standaloneGames} go={go} user={user} />
           </>
         )}
       </div>
@@ -3140,21 +4037,36 @@ function Home({ groups, guestGames, standaloneGames, go, user, activeTheme, plan
 }
 
 /* GAMES PAGE */
-function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
+function GamesPage({ groups, guestGames = [], standaloneGames = [], go, user }) {
   const [tab, setTab] = useState("upcoming");
   const [menuOpen, setMenuOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const gamesMenuBtnRef = useRef(null);
   const [gamesMenuRect, setGamesMenuRect] = useState(null);
 
+  const todayStart = startOfTodayInTz(user?.timezone);
   const memberGames = groups.flatMap((g) =>
     g.games.map((gm) => ({ ...gm, groupName: g.name, groupColor: g.color, groupId: g.id, groupEmoji: g.emoji }))
   );
-  const allGames = [...memberGames, ...guestGames, ...standaloneGames];
-  const upcoming = allGames.filter((gm) => gm.status !== "archived" && gm.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
-  const completed = allGames.filter((gm) => gm.status !== "archived" && gm.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
+  const seenGameKeys = new Set(memberGames.map((gm) => `${gm.groupId || ""}:${gm.id}`));
+  const dedupedGuestGames = guestGames.filter((gm) => !seenGameKeys.has(`${gm.groupId || ""}:${gm.id}`));
+  const dedupedStandaloneGames = standaloneGames.filter((gm) => !seenGameKeys.has(`:${gm.id}`));
+  const allGames = [...memberGames, ...dedupedGuestGames, ...dedupedStandaloneGames];
+  const upcoming = allGames.filter((gm) => gm.status !== "archived" && gm.date >= todayStart).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
+  const completed = allGames.filter((gm) => gm.status !== "archived" && gm.date < todayStart).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
   const archived = allGames.filter((gm) => gm.status === "archived").sort((a, b) => b.date - a.date);
   const list = tab === "upcoming" ? upcoming : tab === "completed" ? completed : archived;
+
+  // Header week indicator
+  const _now = new Date();
+  const currentMonthName = _now.toLocaleDateString("en-US", { month: "long" }).toUpperCase();
+  const currentWeekNum = (() => {
+    const d = new Date(Date.UTC(_now.getFullYear(), _now.getMonth(), _now.getDate()));
+    const day = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - day);
+    const y0 = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d - y0) / 86400000 + 1) / 7);
+  })();
 
   return (
     <div style={{ minHeight: "100%", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)" }}>
@@ -3176,13 +4088,18 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
         <div style={{
           position: "relative",
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "max(54px, calc(env(safe-area-inset-top, 0px) + 10px)) 20px 20px", gap: 12,
+          padding: `${HEADER_BTN_TOP}px 20px 20px`, gap: 12,
         }}>
-          <h1 style={{
-            fontFamily: "'Shippori Mincho',serif", fontSize: 31, fontWeight: 700,
-            color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,0.25)",
-            margin: 0, lineHeight: 1.1, letterSpacing: 2,
-          }}>Your Games</h1>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: 2, fontFamily: "'Inter',sans-serif", marginBottom: 5 }}>
+              {currentMonthName} · WEEK {currentWeekNum}
+            </div>
+            <h1 style={{
+              fontFamily: "'Shippori Mincho',serif", fontSize: 31, fontWeight: 700,
+              color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,0.25)",
+              margin: 0, lineHeight: 1.1, letterSpacing: 2,
+            }}>Your Games</h1>
+          </div>
 
           <div ref={gamesMenuBtnRef} style={{ position: "relative", flexShrink: 0 }}>
             <button onClick={() => {
@@ -3244,6 +4161,12 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
           </button>
         ))}
       </div>
+      {tab === "archived" && (
+        <div style={{ margin: "12px 16px 0", padding: "10px 14px", borderRadius: 12, background: "rgba(156,163,175,0.10)", border: "1px dashed rgba(156,163,175,0.30)", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 15 }}>📦</span>
+          <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif" }}>Archived games auto-delete after 60 days and don't count toward your plan.</span>
+        </div>
+      )}
 
       {/* ── Game list ── */}
       <div style={{ padding: "16px 16px 24px" }}>
@@ -3257,52 +4180,67 @@ function GamesPage({ groups, guestGames = [], standaloneGames = [], go }) {
               {tab === "upcoming" ? "Head to a group and schedule your next session." : tab === "completed" ? "Completed games will appear here." : "Archived games will appear here."}
             </p>
           </div>
-        ) : (
-          list.map((gm, i) => {
-            const yesCount = Object.values(gm.rsvps).filter((v) => v === "yes").length;
-            const wl = gm.waitlist || [];
-            const confirmedG = (gm.guests || []).filter((g) => !wl.includes(g.id)).length;
-            const filled = yesCount + confirmedG;
-            return (
-              <div key={`${gm.groupId}-${gm.id}`} className="sUp" style={{ animationDelay: `${i * 0.04}s`, cursor: "pointer" }}
-                onClick={() => go(gm.isStandalone ? "standaloneGame" : gm.isGuestGame ? "guestGame" : "game", gm.groupId, gm.id)}>
-                <div style={{
-                  background: tab === "upcoming"
-                    ? "linear-gradient(135deg,var(--bg-card-base),var(--bg-card-alt))"
-                    : "rgba(245,235,242,0.55)",
-                  backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
-                  borderRadius: 18, padding: "14px 15px", marginBottom: 10,
-                  opacity: tab !== "upcoming" ? 0.78 : 1,
-                  boxShadow: tab === "upcoming" ? "0 4px 18px rgba(var(--shadow-rgb),0.09), inset 0 1px 0 var(--shadow-inset)" : "none",
-                  border: "1px solid var(--border-card)",
-                  borderLeft: `4px solid ${tab === "archived" ? "#9ca3af" : gm.groupColor}`,
-                }}>
-                  <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", marginBottom: 4 }}>{gm.title}</div>
-                  {!gm.isGuestGame ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
-                      <span style={{ fontSize: 13 }}>{gm.groupEmoji}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: gm.groupColor, fontFamily: "'Inter',sans-serif" }}>{gm.groupName}</span>
-                    </div>
-                  ) : (
-                    <div style={{ marginBottom: 5 }}>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: "var(--secondary-accent)", background: "rgba(155,110,168,0.12)", borderRadius: 999, padding: "1px 7px" }}>Guest</span>
-                    </div>
-                  )}
-                  <div style={{ fontSize: 13, color: "#b08090", marginTop: 2 }}>📅 {fmt(gm.date)}</div>
-                  <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(gm.time, gm.endTime)}</div>
-                  <div style={{ fontSize: 13, color: "#b08090", marginTop: 1 }}>📍 {gm.location}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 9, flexWrap: "wrap" }}>
-                    <Chip color="var(--secondary-accent)">✅ {filled}</Chip>
-                    <Chip color="#c4936e">🤔 {Object.values(gm.rsvps).filter((v) => v === "maybe").length}</Chip>
-                    <Chip color="#b08090">👤 {filled}/{gm.seats}</Chip>
-                    <div style={{ marginLeft: "auto" }}>
-                      <AddToCalendar game={gm} groupName={gm.groupName || ""} compact />
-                    </div>
-                  </div>
-                </div>
+        ) : tab === "upcoming" ? (() => {
+          // Section grouping: THIS WEEK / NEXT WEEK / IN [MONTH]
+          const todayDate = new Date(todayStart);
+          const dow = todayDate.getDay();
+          const thisMon = todayStart - (dow === 0 ? 6 : dow - 1) * 86400000;
+          const nextMon = thisMon + 7 * 86400000;
+          const weekAfter = nextMon + 7 * 86400000;
+
+          const sections = [];
+          const thisWeek = upcoming.filter(gm => gm.date < nextMon);
+          const nextWeek = upcoming.filter(gm => gm.date >= nextMon && gm.date < weekAfter);
+          const later = upcoming.filter(gm => gm.date >= weekAfter);
+          if (thisWeek.length) sections.push({ label: "THIS WEEK", games: thisWeek });
+          if (nextWeek.length) sections.push({ label: "NEXT WEEK", games: nextWeek });
+          const laterMonths = {};
+          later.forEach(gm => {
+            const d = new Date(gm.date);
+            const key = d.toLocaleDateString("en-US", { month: "long" }).toUpperCase();
+            const sk = d.getFullYear() * 100 + d.getMonth();
+            if (!laterMonths[key]) laterMonths[key] = { sk, games: [] };
+            laterMonths[key].games.push(gm);
+          });
+          Object.entries(laterMonths).sort((a,b) => a[1].sk - b[1].sk).forEach(([month, {games}]) => {
+            sections.push({ label: "IN " + month, games });
+          });
+
+          let gIdx = 0;
+          return sections.map(({ label, games: sGames }) => (
+            <div key={label}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1.5, fontFamily: "'Inter',sans-serif", marginBottom: 10, marginTop: gIdx === 0 ? 0 : 18, paddingLeft: 2 }}>
+                {label}
               </div>
-            );
-          })
+              {sGames.map(gm => {
+                const idx = gIdx++;
+                return <GameCard key={`${gm.groupId}-${gm.id}`} gm={gm} groups={groups} user={user} go={go} animDelay={idx * 0.04} />;
+              })}
+            </div>
+          ));
+        })() : tab === "completed" ? (() => {
+          const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+          const monthMap = {};
+          completed.forEach(gm => {
+            const d = new Date(gm.date);
+            const key = MONTH_NAMES[d.getMonth()].toUpperCase() + " " + d.getFullYear();
+            const sortKey = d.getFullYear() * 100 + d.getMonth();
+            if (!monthMap[key]) monthMap[key] = { sortKey, games: [] };
+            monthMap[key].games.push(gm);
+          });
+          const monthGroups = Object.entries(monthMap).sort((a, b) => b[1].sortKey - a[1].sortKey);
+          let cardIndex = 0;
+          return monthGroups.map(([monthLabel, { games: mGames }]) => (
+            <div key={monthLabel}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", letterSpacing: 1.5, fontFamily: "'Inter',sans-serif", marginBottom: 10, marginTop: cardIndex === 0 ? 0 : 18, paddingLeft: 2 }}>
+                {monthLabel}
+              </div>
+              {mGames.map((gm) => <GameCard key={`${gm.groupId}-${gm.id}`} gm={gm} groups={groups} user={user} go={go} animDelay={(cardIndex++) * 0.04} />)}
+            </div>
+          ));
+        })() : (
+          /* Archived tab */
+          list.map((gm, i) => <GameCard key={`${gm.groupId}-${gm.id}`} gm={gm} groups={groups} user={user} go={go} animDelay={i * 0.04} />)
         )}
       </div>
     </div>
@@ -3316,10 +4254,11 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const groupsMenuBtnRef = useRef(null);
   const [groupsMenuRect, setGroupsMenuRect] = useState(null);
+  const todayStart = startOfTodayInTz(user?.timezone);
   const activeGroups = groups.filter(g => g.status !== "archived");
   const archivedGroups = groups.filter(g => g.status === "archived");
   const displayGroups = groupFilter === "active" ? activeGroups : archivedGroups;
-  const totalUpcoming = activeGroups.reduce((sum, g) => sum + g.games.filter((gm) => gm.date > NOW && gm.status !== "archived").length, 0);
+  const totalUpcoming = activeGroups.reduce((sum, g) => sum + g.games.filter((gm) => gm.date >= todayStart && gm.status !== "archived").length, 0);
 
   return (
     <div style={{ minHeight: "100%", background: "linear-gradient(170deg,var(--bg-shell-start) 0%,var(--bg-shell-mid) 40%,var(--bg-shell-end) 100%)" }}>
@@ -3342,7 +4281,7 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
         <div style={{
           position: "relative",
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "max(54px, calc(env(safe-area-inset-top, 0px) + 10px)) 20px 20px", gap: 12,
+          padding: `${HEADER_BTN_TOP}px 20px 20px`, gap: 12,
         }}>
           <h1 style={{
             fontFamily: "'Shippori Mincho',serif", fontSize: 31, fontWeight: 700,
@@ -3440,6 +4379,12 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
           }}>{label}{val === "archived" && archivedGroups.length > 0 ? ` (${archivedGroups.length})` : ""}</button>
         ))}
       </div>
+      {groupFilter === "archived" && (
+        <div style={{ margin: "12px 16px 0", padding: "10px 14px", borderRadius: 12, background: "rgba(156,163,175,0.10)", border: "1px dashed rgba(156,163,175,0.30)", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 15 }}>📦</span>
+          <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif" }}>Archived groups auto-delete after 60 days and don't count toward your plan.</span>
+        </div>
+      )}
 
       {/* ── List ── */}
       <div style={{ padding: "18px 16px 24px" }}>
@@ -3486,7 +4431,7 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
           </div>
         ) : (
           displayGroups.map((g, i) => {
-            const upcoming = g.games.filter((gm) => gm.date > NOW && gm.status !== "archived").sort((a, b) => a.date - b.date);
+            const upcoming = g.games.filter((gm) => gm.date >= todayStart && gm.status !== "archived").sort((a, b) => a.date - b.date);
             const nextGame = upcoming[0] || null;
             const isHost = g.members.some((m) => m.id === undefined ? false : m.host);
             const isArchived = g.status === "archived";
@@ -3539,13 +4484,13 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
                     {g.members.slice(0, 6).map((m, idx) => (
                       <div key={m.id || idx} style={{
                         width: 28, height: 28, borderRadius: 999,
-                        background: "var(--avatar-bubble-bg)",
+                        background: avatarBg(m.avatar),
                         border: "2.5px solid var(--bg-card-base)",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 14, marginLeft: idx > 0 ? -9 : 0,
+                        overflow: "hidden", marginLeft: idx > 0 ? -9 : 0,
                         position: "relative", zIndex: 10 - idx,
                         boxShadow: "0 1px 4px rgba(var(--shadow-rgb),0.12)",
-                      }}>{m.avatar}</div>
+                      }}><AvatarImg av={m.avatar} size={28}/></div>
                     ))}
                     {g.members.length > 6 && (
                       <div style={{
@@ -3559,18 +4504,8 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
                     )}
                   </div>
 
-                  {/* Row 3: next game preview or archived notice */}
-                  {isArchived ? (
-                    <div style={{
-                      marginTop: 12, padding: "10px 13px",
-                      background: "rgba(156,163,175,0.07)", borderRadius: 12,
-                      border: "1px dashed rgba(156,163,175,0.25)",
-                    }}>
-                      <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "'Inter',sans-serif" }}>
-                        Archived · auto-deletes after 60 days
-                      </span>
-                    </div>
-                  ) : nextGame ? (
+                  {/* Row 3: next game preview */}
+                  {!isArchived && nextGame ? (
                     <div style={{
                       marginTop: 12, padding: "10px 13px",
                       background: `${g.color}0e`, borderRadius: 12,
@@ -3608,11 +4543,30 @@ function GroupsPage({ groups, go, user, planCfg, flash, onNew }) {
 }
 
 /* NEW GROUP */
-function NewGroup({ onBack, onSave }) {
+function NewGroup({ onBack, onSave, themeColor }) {
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState("🀄");
-  const [color, setColor] = useState("#e63946");
   const [openInvites, setOpenInvites] = useState(false);
+  const [customCode, setCustomCode] = useState("");
+  const [codeError, setCodeError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const autoCode = useRef(uid().slice(0, 5));
+
+  const handleSave = async () => {
+    const finalCode = customCode.trim() || autoCode.current;
+    setSaving(true);
+    setCodeError("");
+    try {
+      const snap = await getDocs(query(collection(db, "groups"), where("code", "==", finalCode)));
+      if (!snap.empty) {
+        setCodeError("That code is already taken. Try a different one.");
+        setSaving(false);
+        return;
+      }
+      onSave({ id: "G" + uid(), name: name.trim(), emoji, color: themeColor || "var(--primary)", code: finalCode, members: [{ id: "me", name: "You", avatar: "🐼", host: true }], games: [], openInvites });
+    } catch { setSaving(false); }
+  };
+
   return (
     <Shell title="New Group" onBack={onBack} color="var(--primary)">
       <Lbl>Group Name</Lbl>
@@ -3623,29 +4577,67 @@ function NewGroup({ onBack, onSave }) {
           <div key={e} onClick={() => setEmoji(e)} style={{ fontSize: 27, padding: 8, borderRadius: 12, cursor: "pointer", background: emoji === e ? "var(--input-selected-bg)" : "var(--input-unselected-bg)", border: `2px solid ${emoji === e ? "var(--primary)" : "transparent"}`, transition: "all .15s" }}>{e}</div>
         ))}
       </div>
-      <Lbl>Color</Lbl>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
-        {COLORS.map((c) => (
-          <div key={c} onClick={() => setColor(c)} style={{ width: 34, height: 34, borderRadius: 999, background: c, cursor: "pointer", boxShadow: color === c ? `0 0 0 3px #fff,0 0 0 5px ${c}` : "none", transition: "all .15s" }} />
-        ))}
+      <Lbl mt>Group Code</Lbl>
+      <Fld
+        value={customCode}
+        set={(v) => { setCustomCode(v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8)); setCodeError(""); }}
+        placeholder={autoCode.current}
+      />
+      <div style={{ fontSize: 12, color: codeError ? "var(--danger, #e05)" : "var(--text-muted)", fontFamily: "'Inter',sans-serif", marginTop: 5, marginBottom: 4 }}>
+        {codeError || `Leave blank to use auto-generated code: ${autoCode.current}`}
       </div>
       <OpenInvitesToggle value={openInvites} onChange={setOpenInvites} />
       <div style={{ marginTop: 24 }}>
-        <Btn full disabled={!name.trim()} onClick={() =>
-          onSave({ id: "G" + uid(), name: name.trim(), emoji, color, code: uid().slice(0, 5), members: [{ id: "me", name: "You", avatar: "🐼", host: true }], games: [], openInvites })
-        }>🎉 Create Group</Btn>
+        <Btn full disabled={!name.trim() || saving} onClick={handleSave}>🎉 Create Group</Btn>
       </div>
     </Shell>
   );
 }
 
 /* EDIT GROUP */
-function EditGroup({ group, onBack, onSave, onArchive }) {
+function ArchiveWithGamesDialog({ group, scheduledGames, onMoveAndArchive, onArchiveAll, onCancel }) {
+  const count = scheduledGames.length;
+  const gWord = count === 1 ? "game" : "games";
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div className="bIn" style={{ background: "linear-gradient(160deg,var(--bg-card-base) 0%,var(--bg-card-alt) 100%)", borderRadius: 24, padding: "28px 24px 22px", maxWidth: 340, width: "100%", boxShadow: "0 20px 56px rgba(var(--shadow-rgb),0.28), inset 0 1px 0 var(--shadow-inset)", border: "1px solid rgba(var(--border-light-rgb),0.5)", textAlign: "center" }}>
+        <div style={{ fontSize: 38, marginBottom: 12 }}>📦</div>
+        <h3 style={{ fontFamily: "var(--font-display)", fontSize: 20, color: "var(--text-heading)", marginBottom: 10, lineHeight: 1.3 }}>Archive Group?</h3>
+        <p style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 22 }}>
+          <strong style={{ color: "var(--text-body)" }}>"{group.name}"</strong> has {count} scheduled {gWord}. What would you like to do with {count === 1 ? "it" : "them"}?
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <Btn full onClick={onMoveAndArchive}>Move {count === 1 ? "Game" : "Games"} & Archive Group</Btn>
+          <Btn full onClick={onArchiveAll}>Archive Group & {count === 1 ? "Game" : "Games"}</Btn>
+          <Btn full outline onClick={onCancel}>Cancel</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditGroup({ group, onBack, onSave, onArchive, onArchiveAndMove, onArchiveAll }) {
   const [name, setName] = useState(group.name);
   const [emoji, setEmoji] = useState(group.emoji);
-  const [color, setColor] = useState(group.color);
   const [openInvites, setOpenInvites] = useState(group.openInvites ?? false);
-  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [scheduledGames, setScheduledGames] = useState([]);
+
+  const handleArchiveClick = async () => {
+    setArchiveLoading(true);
+    try {
+      const now = Date.now();
+      const snap = await getDocs(collection(db, "groups", group.id, "games"));
+      const upcoming = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(gm => gm.date >= now && gm.status !== "archived" && gm.status !== "completed" && gm.status !== "deleted");
+      setScheduledGames(upcoming);
+    } catch { setScheduledGames([]); }
+    setArchiveDialogOpen(true);
+    setArchiveLoading(false);
+  };
+
   return (
     <Shell title="Edit Group" onBack={onBack} color={group.color}>
       <Lbl>Group Name</Lbl>
@@ -3656,26 +4648,31 @@ function EditGroup({ group, onBack, onSave, onArchive }) {
           <div key={e} onClick={() => setEmoji(e)} style={{ fontSize: 27, padding: 8, borderRadius: 12, cursor: "pointer", background: emoji === e ? "var(--input-selected-bg)" : "var(--input-unselected-bg)", border: `2px solid ${emoji === e ? "var(--primary)" : "transparent"}`, transition: "all .15s" }}>{e}</div>
         ))}
       </div>
-      <Lbl>Color</Lbl>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
-        {COLORS.map((c) => (
-          <div key={c} onClick={() => setColor(c)} style={{ width: 34, height: 34, borderRadius: 999, background: c, cursor: "pointer", boxShadow: color === c ? `0 0 0 3px #fff,0 0 0 5px ${c}` : "none", transition: "all .15s" }} />
-        ))}
-      </div>
       <OpenInvitesToggle value={openInvites} onChange={setOpenInvites} />
       <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 10 }}>
         <Btn full disabled={!name.trim()} onClick={() =>
-          onSave({ name: name.trim(), emoji, color, openInvites })
+          onSave({ name: name.trim(), emoji, openInvites })
         }>Save Changes</Btn>
-        <Btn full outline danger onClick={() => setConfirmArchive(true)}>📦 Archive Group</Btn>
+        <Btn full outline danger disabled={archiveLoading} onClick={handleArchiveClick}>
+          {archiveLoading ? "Checking…" : "📦 Archive Group"}
+        </Btn>
       </div>
-      {confirmArchive && (
+      {archiveDialogOpen && scheduledGames.length === 0 && (
         <ConfirmDialog
           title="Archive Group?"
           message={`"${group.name}" will be moved to your archive. It won't count toward your plan limits and will be automatically removed after 60 days. You can still view it in the Archived tab.`}
           confirmLabel="Archive Group"
-          onConfirm={() => { setConfirmArchive(false); onArchive(); }}
-          onCancel={() => setConfirmArchive(false)}
+          onConfirm={() => { setArchiveDialogOpen(false); onArchive(); }}
+          onCancel={() => setArchiveDialogOpen(false)}
+        />
+      )}
+      {archiveDialogOpen && scheduledGames.length > 0 && (
+        <ArchiveWithGamesDialog
+          group={group}
+          scheduledGames={scheduledGames}
+          onMoveAndArchive={() => { setArchiveDialogOpen(false); onArchiveAndMove(scheduledGames); }}
+          onArchiveAll={() => { setArchiveDialogOpen(false); onArchiveAll(scheduledGames); }}
+          onCancel={() => setArchiveDialogOpen(false)}
         />
       )}
     </Shell>
@@ -3717,12 +4714,118 @@ function OpenInvitesToggle({ value, onChange }) {
 }
 
 /* JOIN GROUP */
+function QrScannerModal({ onDetected, onClose }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const rafRef = useRef(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      .then((stream) => {
+        if (!active) { stream.getTracks().forEach((t) => t.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+        }
+      })
+      .catch(() => setError("Camera access denied. Please allow camera permission and try again."));
+
+    return () => {
+      active = false;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
+  function handleVideoPlay() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+
+    function tick() {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const result = jsQR(imageData.data, imageData.width, imageData.height);
+        if (result) {
+          // Accept plain game codes or URLs with ?gameCode=
+          let gameCode = null;
+          try {
+            const url = new URL(result.data);
+            gameCode = url.searchParams.get("gameCode") || url.searchParams.get("joinCode") || null;
+          } catch {
+            // Not a URL — treat raw text as a game code if it looks like one
+            const raw = result.data.trim().toUpperCase();
+            if (/^[A-Z0-9]{3,12}$/.test(raw)) gameCode = raw;
+          }
+          if (gameCode) { onDetected(gameCode.toUpperCase()); return; }
+        }
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    }
+    rafRef.current = requestAnimationFrame(tick);
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9999,
+      background: "rgba(0,0,0,0.92)", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+    }}>
+      <div style={{ width: "100%", maxWidth: 400, padding: "0 20px", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+          <span style={{ color: "#fff", fontWeight: 800, fontSize: 20, fontFamily: "'Inter',sans-serif" }}>Scan QR Code</span>
+          <button onClick={onClose} style={{
+            background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 50,
+            width: 38, height: 38, fontSize: 20, color: "#fff", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>✕</button>
+        </div>
+
+        {error ? (
+          <div style={{ background: "rgba(255,60,60,0.18)", border: "1px solid rgba(255,60,60,0.4)", borderRadius: 16, padding: "20px 18px", color: "#ff9090", fontFamily: "'Inter',sans-serif", fontSize: 15, textAlign: "center" }}>
+            {error}
+          </div>
+        ) : (
+          <>
+            <div style={{ position: "relative", borderRadius: 20, overflow: "hidden", boxShadow: "0 0 0 3px rgba(var(--primary-rgb),0.6)" }}>
+              <video ref={videoRef} onPlay={handleVideoPlay} playsInline muted
+                style={{ width: "100%", display: "block", borderRadius: 20 }} />
+              {/* Aiming reticle */}
+              <div style={{
+                position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none",
+              }}>
+                <div style={{
+                  width: 200, height: 200, border: "2.5px solid rgba(255,255,255,0.7)", borderRadius: 18,
+                  boxShadow: "0 0 0 2000px rgba(0,0,0,0.35)",
+                }} />
+              </div>
+            </div>
+            <canvas ref={canvasRef} style={{ display: "none" }} />
+            <p style={{ color: "rgba(255,255,255,0.65)", textAlign: "center", fontSize: 14, marginTop: 18, fontFamily: "'Inter',sans-serif" }}>
+              Point at a Mahjong Club QR code
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function JoinGroup({ uid, groups, user, planCfg, onBack, onJoin, onJoinGame }) {
   const [mode, setMode] = useState(null); // null | "group" | "game"
   const [code, setCode] = useState("");
   const [groupMatch, setGroupMatch] = useState(null);
   const [gameMatch, setGameMatch] = useState(null);
   const [searching, setSearching] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const clean = code.trim().toUpperCase();
 
   // Reset code + results whenever mode changes
@@ -3747,26 +4850,41 @@ function JoinGroup({ uid, groups, user, planCfg, onBack, onJoin, onJoinGame }) {
     setGameMatch(null);
     if (clean.length < 3) return;
     setSearching(true);
-    getDoc(doc(db, "gameCodes", clean))
-      .then(async (codeSnap) => {
-        if (!codeSnap.exists() || codeSnap.data().date < Date.now()) {
-          setGameMatch(null); setSearching(false); return;
+    const variants = [...new Set([clean, clean.toLowerCase()])];
+    const doSearch = async () => {
+      // Tier 1: gameCodes index (fast, works for all properly-created games)
+      for (const v of variants) {
+        const codeSnap = await getDoc(doc(db, "gameCodes", v));
+        if (codeSnap.exists()) {
+          const { groupId, gameId } = codeSnap.data();
+          const gameRef = groupId ? doc(db, "groups", groupId, "games", gameId) : doc(db, "games", gameId);
+          const gameSnap = await getDoc(gameRef);
+          if (gameSnap.exists()) {
+            setGameMatch({ ...gameSnap.data(), id: gameId, groupId: groupId || null, isStandalone: !groupId });
+            return;
+          }
         }
-        const { groupId, gameId } = codeSnap.data();
-        const gameRef = groupId
-          ? doc(db, "groups", groupId, "games", gameId)
-          : doc(db, "games", gameId);
-        const gameSnap = await getDoc(gameRef);
-        if (!gameSnap.exists()) { setGameMatch(null); setSearching(false); return; }
-        setGameMatch({ ...gameSnap.data(), id: gameId, groupId: groupId || null, isStandalone: !groupId });
-        setSearching(false);
-      })
-      .catch(() => { setGameMatch(null); setSearching(false); });
+      }
+      // Tier 2: direct collectionGroup query — handles games where gameCodes entry was never created
+      const q = query(collectionGroup(db, "games"), where("joinCode", "in", variants));
+      const qSnap = await getDocs(q);
+      if (!qSnap.empty) {
+        const gameDoc = qSnap.docs[0];
+        const parts = gameDoc.ref.path.split("/");
+        const groupId = parts.length >= 4 ? parts[1] : null;
+        setGameMatch({ ...gameDoc.data(), id: gameDoc.id, groupId, isStandalone: !groupId });
+        return;
+      }
+      setGameMatch(null);
+    };
+    doSearch().catch(() => setGameMatch(null)).finally(() => setSearching(false));
   }, [clean, mode]);
 
   const alreadyInGroup = groupMatch && (groupMatch.memberIds || []).includes(uid);
   const alreadyInGame = gameMatch && (
-    (gameMatch.memberIds || []).includes(uid) || (gameMatch.guestIds || []).includes(uid)
+    (gameMatch.rsvps?.[uid] !== undefined) ||
+    (gameMatch.guestIds || []).includes(uid) ||
+    (gameMatch.memberIds || []).includes(uid)
   );
 
   const handleBack = mode !== null ? () => setMode(null) : onBack;
@@ -3845,27 +4963,50 @@ function JoinGroup({ uid, groups, user, planCfg, onBack, onJoin, onJoinGame }) {
 
   // ── Game code screen ───────────────────────────────────────────────────────
   return (
-    <Shell title="Join a Game" onBack={handleBack} color="var(--secondary-accent)">
-      <div style={{ textAlign: "center", fontSize: 49, margin: "8px 0 20px" }}>🀄</div>
-      <Lbl>Game Code</Lbl>
-      <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. TUES7PM"
-        autoFocus
-        style={{ width: "100%", padding: "14px 16px", background: "#fff", borderRadius: 14, fontSize: 23, fontWeight: 900, textAlign: "center", letterSpacing: 6, textTransform: "uppercase", marginBottom: 14, border: "2px solid var(--border-input)", color: "var(--text-body)", boxSizing: "border-box" }} />
-      {searching && <p style={{ color: "var(--secondary-accent)", fontWeight: 700, fontSize: 15, marginBottom: 14, textAlign: "center" }}>Searching…</p>}
-      {!searching && clean.length >= 3 && !gameMatch && <p style={{ color: "var(--primary)", fontWeight: 800, fontSize: 15, marginBottom: 14, textAlign: "center" }}>No game found with that code</p>}
-      {gameMatch && !alreadyInGame && (
-        <div className="bIn" style={{ background: "var(--bg-card)", border: "1.5px solid var(--border-card)", borderRadius: 16, padding: "16px 18px", marginBottom: 18, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08)" }}>
-          <div style={{ fontWeight: 800, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", marginBottom: 8 }}>{gameMatch.title}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            {gameMatch.date && <div style={{ fontSize: 14, color: "var(--text-muted)" }}>📅 {fmt(gameMatch.date)}{gameMatch.time ? ` · ${fmtT(gameMatch.time)}` : ""}</div>}
-            {gameMatch.location && <div style={{ fontSize: 14, color: "var(--text-muted)" }}>📍 {gameMatch.location}</div>}
-            {gameMatch.host && <div style={{ fontSize: 14, color: "var(--text-muted)" }}>🎯 Host: {gameMatch.host}</div>}
-          </div>
-        </div>
+    <>
+      {scanning && (
+        <QrScannerModal
+          onDetected={(detected) => { setCode(detected); setScanning(false); }}
+          onClose={() => setScanning(false)}
+        />
       )}
-      {alreadyInGame && <p style={{ color: "var(--secondary-accent)", fontWeight: 800, fontSize: 15, marginBottom: 14, textAlign: "center" }}>You're already in this game!</p>}
-      <Btn full disabled={!gameMatch || !!alreadyInGame} onClick={() => onJoinGame(gameMatch.groupId, gameMatch.id, gameMatch.isStandalone)}>Join Game</Btn>
-    </Shell>
+      <Shell title="Join a Game" onBack={handleBack} color="var(--secondary-accent)">
+        <div style={{ textAlign: "center", fontSize: 49, margin: "8px 0 20px" }}>🀄</div>
+        <Lbl>Game Code</Lbl>
+        <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. TUES7PM"
+          autoFocus
+          style={{ width: "100%", padding: "14px 16px", background: "#fff", borderRadius: 14, fontSize: 23, fontWeight: 900, textAlign: "center", letterSpacing: 6, textTransform: "uppercase", marginBottom: 12, border: "2px solid var(--border-input)", color: "var(--text-body)", boxSizing: "border-box" }} />
+        <button onClick={() => setScanning(true)} style={{
+          width: "100%", padding: "13px 16px", borderRadius: 14, border: "1.5px dashed var(--border-input)",
+          background: "linear-gradient(135deg,rgba(var(--primary-rgb),0.07),rgba(var(--primary-rgb),0.03))",
+          color: "var(--primary)", fontWeight: 700, fontSize: 15, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          fontFamily: "'Inter',sans-serif", marginBottom: 14,
+          transition: "opacity .14s",
+        }}
+          onMouseDown={(e) => { e.currentTarget.style.opacity = "0.7"; }}
+          onMouseUp={(e) => { e.currentTarget.style.opacity = "1"; }}
+          onTouchStart={(e) => { e.currentTarget.style.opacity = "0.7"; }}
+          onTouchEnd={(e) => { e.currentTarget.style.opacity = "1"; }}
+        >
+          <span style={{ fontSize: 20 }}>📷</span> Scan QR Code
+        </button>
+        {searching && <p style={{ color: "var(--secondary-accent)", fontWeight: 700, fontSize: 15, marginBottom: 14, textAlign: "center" }}>Searching…</p>}
+        {!searching && clean.length >= 3 && !gameMatch && <p style={{ color: "var(--primary)", fontWeight: 800, fontSize: 15, marginBottom: 14, textAlign: "center" }}>No game found with that code</p>}
+        {gameMatch && !alreadyInGame && (
+          <div className="bIn" style={{ background: "var(--bg-card)", border: "1.5px solid var(--border-card)", borderRadius: 16, padding: "16px 18px", marginBottom: 18, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.08)" }}>
+            <div style={{ fontWeight: 800, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", marginBottom: 8 }}>{gameMatch.title}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {gameMatch.date && <div style={{ fontSize: 14, color: "var(--text-muted)" }}>📅 {fmt(gameMatch.date)}{gameMatch.time ? ` · ${fmtT(gameMatch.time)}` : ""}</div>}
+              {gameMatch.location && <div style={{ fontSize: 14, color: "var(--text-muted)" }}>📍 {gameMatch.location}</div>}
+              {gameMatch.host && <div style={{ fontSize: 14, color: "var(--text-muted)" }}>🎯 Host: {gameMatch.host}</div>}
+            </div>
+          </div>
+        )}
+        {alreadyInGame && <p style={{ color: "var(--secondary-accent)", fontWeight: 800, fontSize: 15, marginBottom: 14, textAlign: "center" }}>You're already in this game!</p>}
+        <Btn full disabled={!gameMatch || !!alreadyInGame} onClick={() => onJoinGame(gameMatch.groupId, gameMatch.id, gameMatch.isStandalone)}>Join Game</Btn>
+      </Shell>
+    </>
   );
 }
 
@@ -3877,8 +5018,9 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [transferMode, setTransferMode] = useState(null); // null | "leave" | "standalone"
   const [selectedNewHost, setSelectedNewHost] = useState(null);
-  const upcoming = group.games.filter((g) => g.status !== "archived" && g.date > NOW).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
-  const completed = group.games.filter((g) => g.status !== "archived" && g.date <= NOW).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
+  const todayStart = startOfTodayInTz(user?.timezone);
+  const upcoming = group.games.filter((g) => g.status !== "archived" && g.date >= todayStart).sort((a, b) => a.date !== b.date ? a.date - b.date : (a.time || "").localeCompare(b.time || ""));
+  const completed = group.games.filter((g) => g.status !== "archived" && g.date < todayStart).sort((a, b) => a.date !== b.date ? b.date - a.date : (b.time || "").localeCompare(a.time || ""));
   const archivedGames = group.games.filter((g) => g.status === "archived").sort((a, b) => b.date - a.date);
   const gamesList = gamesTab === "upcoming" ? upcoming : gamesTab === "completed" ? completed : archivedGames;
   const isCreator = group.members.some((m) => m.id === uid && m.host);
@@ -3898,20 +5040,20 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
       <div style={{
         background: `linear-gradient(135deg,${group.color}f0,${group.color}bb)`,
         backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
-        padding: "max(52px, calc(env(safe-area-inset-top, 0px) + 8px)) 22px 28px", position: "relative", overflow: "hidden",
+        padding: `${HEADER_BTN_TOP}px 22px 28px`, position: "relative", overflow: "hidden",
         boxShadow: `0 8px 32px ${group.color}44`,
       }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(255,255,255,0.18) 0%,transparent 55%)", pointerEvents: "none" }} />
         {/* Back */}
-        <button onClick={() => go("groups")} style={{ position: "absolute", top: HEADER_BTN_TOP, left: 14, background: "rgba(255,255,255,.28)", border: "1px solid rgba(255,255,255,.4)", borderRadius: 999, width: 36, height: 36, fontSize: 19, color: "#fff", backdropFilter: "blur(8px)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+        <button onClick={() => go("groups")} aria-label="Back to Groups" style={{ position: "absolute", top: HEADER_BTN_TOP, left: 8, zIndex: 2, background: "none", border: "none", color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 2, padding: "8px 12px 8px 6px", cursor: "pointer", fontFamily: "'Inter',sans-serif", fontSize: 14, fontWeight: 500 }}>‹ Groups</button>
         {/* Action icons */}
-        <div style={{ position: "absolute", top: HEADER_BTN_TOP, right: 14, display: "flex", gap: 7 }}>
+        <div style={{ position: "absolute", top: HEADER_BTN_TOP, right: 14, display: "flex", gap: 7, zIndex: 2 }}>
           {isCreator && (
             <button onClick={() => go("editGroup", group.id)} title="Edit group" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>✏️</button>
           )}
           <button onClick={() => setChatOpen(true)} title="Group chat" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>💬</button>
           {canInvite && (
-            <button onClick={() => go("invite", group.id)} title="Invite" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>✉️</button>
+            <button onClick={() => go("invite", group.id)} title="Invite" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></button>
           )}
         </div>
         {/* Title */}
@@ -3940,10 +5082,10 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
                 <p style={{ fontSize: 14, marginTop: 4 }}>Be the first to schedule one.</p>
               </div>
             ) : upcoming.map((gm, i) => (
-              <div key={gm.id} className="sUp" style={{ animationDelay: `${i * 0.07}s`, cursor: "pointer" }}
-                onClick={() => go("game", group.id, gm.id)}>
-                <GCard game={gm} groupName={group.name} color={group.color} faded={false} />
-              </div>
+              <GameCard key={gm.id}
+                gm={{ ...gm, groupId: group.id, groupName: group.name, groupColor: group.color, groupEmoji: group.emoji }}
+                groups={groups} user={user} go={go} animDelay={i * 0.07}
+              />
             ))}
           </>
         )}
@@ -3951,7 +5093,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
           <>
             {group.members.map((m) => (
               <div key={m.id} style={{ background: "linear-gradient(135deg,var(--bg-card-base),var(--bg-card-alt))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 16, padding: "13px 15px", marginBottom: 10, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 4px 16px rgba(var(--shadow-rgb),0.09)", border: "1px solid var(--border-card)" }}>
-                <div style={{ width: 42, height: 42, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 23, boxShadow: "inset 0 1px 0 var(--border-card)" }}>{m.avatar}</div>
+                <div style={{ width: 42, height: 42, borderRadius: 999, background: avatarBg(m.avatar), overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.30)" }}><AvatarImg av={m.avatar} size={42}/></div>
                 <div style={{ flex: 1 }}>
                   <span style={{ fontWeight: 700, color: "var(--text-body)" }}>{m.name}</span>
                   {m.id === uid && <span style={{ marginLeft: 7, background: "linear-gradient(135deg,var(--primary),#a8426b)", color: "#fff", borderRadius: 999, padding: "1px 8px", fontSize: 12, fontWeight: 700 }}>You</span>}
@@ -4009,7 +5151,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
                     border: selected ? `1.5px solid ${group.color}55` : "1.5px solid rgba(var(--primary-rgb),0.12)",
                     boxShadow: selected ? `0 2px 10px ${group.color}22` : "none",
                   }}>
-                    <div style={{ width: 38, height: 38, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, border: selected ? `1.5px solid ${group.color}44` : "1.5px solid var(--border-card)", transition: "all .16s" }}>{m.avatar}</div>
+                    <div style={{ width: 38, height: 38, borderRadius: 999, background: avatarBg(m.avatar), overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", border: selected ? `1.5px solid ${group.color}44` : "1.5px solid var(--border-card)", transition: "all .16s" }}><AvatarImg av={m.avatar} size={38}/></div>
                     <span style={{ flex: 1, fontWeight: 600, fontSize: 15, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{m.name}</span>
                     <div style={{
                       width: 22, height: 22, borderRadius: 999, flexShrink: 0, transition: "all .16s",
@@ -4052,7 +5194,6 @@ function GroupChat({ group, uid, user, onClose }) {
   );
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
-  const knownMsgIds = useRef(null); // null = initialising
 
   // Lock background scroll while chat is open
   useEffect(() => {
@@ -4069,23 +5210,7 @@ function GroupChat({ group, uid, user, onClose }) {
       orderBy("createdAt", "asc")
     );
     const unsub = onSnapshot(q, (snap) => {
-      const msgs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-      // Notify about new messages from other members (skip initial load)
-      if (knownMsgIds.current !== null) {
-        msgs.forEach((msg) => {
-          if (!knownMsgIds.current.has(msg.id) && msg.uid !== uid) {
-            showBrowserNotif(
-              `${msg.name} in ${group.name}`,
-              msg.text,
-              `chat-${group.id}-${msg.id}`
-            );
-          }
-        });
-      }
-      knownMsgIds.current = new Set(msgs.map((m) => m.id));
-
-      setMessages(msgs);
+      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return unsub;
   }, [group.id]);
@@ -4214,7 +5339,7 @@ function GroupChat({ group, uid, user, onClose }) {
                 {/* Bubble row */}
                 <div style={{ display: "flex", gap: 8, flexDirection: isMe ? "row-reverse" : "row", alignItems: "flex-end" }}>
                   {!isMe && (
-                    <div style={{ width: 34, height: 34, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0, alignSelf: "flex-start", marginTop: 18 }}>{msg.avatar}</div>
+                    <div style={{ width: 34, height: 34, borderRadius: 999, background: avatarBg(msg.avatar), overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, alignSelf: "flex-start", marginTop: 18 }}><AvatarImg av={msg.avatar} size={34}/></div>
                   )}
                   <div style={{ maxWidth: "74%", display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
                     {!isMe && <div style={{ fontSize: 12, color: "#b08090", marginBottom: 3, fontWeight: 700, paddingLeft: 4 }}>{msg.name}</div>}
@@ -4309,7 +5434,7 @@ function GroupChat({ group, uid, user, onClose }) {
                   <div style={{ marginLeft: 42, marginTop: 8, borderLeft: `2px solid ${group.color}33`, paddingLeft: 10 }}>
                     {replies.map((r, ri) => (
                       <div key={ri} style={{ display: "flex", gap: 6, alignItems: "flex-start", marginBottom: 7 }}>
-                        <div style={{ width: 26, height: 26, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>{r.avatar}</div>
+                        <div style={{ width: 26, height: 26, borderRadius: 999, background: avatarBg(r.avatar), overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><AvatarImg av={r.avatar} size={26}/></div>
                         <div style={{ background: "var(--bg-card-base)", borderRadius: "12px 12px 12px 3px", padding: "6px 10px", flex: 1 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: group.color, marginBottom: 2 }}>{r.name}</div>
                           <div style={{ fontSize: 14, color: "var(--text-body)" }}>{r.text}</div>
@@ -4381,7 +5506,15 @@ function GameChat({ game, group, uid, user, onClose }) {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState({});
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
-  const knownMsgIds = useRef(null);
+
+  // Standalone games store messages under games/{gameId}/messages;
+  // group games store them under groups/{groupId}/games/{gameId}/messages.
+  const msgCollection = group.id
+    ? collection(db, "groups", group.id, "games", game.id, "messages")
+    : collection(db, "games", game.id, "messages");
+  const msgDoc = (msgId) => group.id
+    ? doc(db, "groups", group.id, "games", game.id, "messages", msgId)
+    : doc(db, "games", game.id, "messages", msgId);
 
   // Lock background scroll while chat is open
   useEffect(() => {
@@ -4393,21 +5526,9 @@ function GameChat({ game, group, uid, user, onClose }) {
   }, []);
 
   useEffect(() => {
-    const q = query(
-      collection(db, "groups", group.id, "games", game.id, "messages"),
-      orderBy("createdAt", "asc")
-    );
+    const q = query(msgCollection, orderBy("createdAt", "asc"));
     const unsub = onSnapshot(q, (snap) => {
-      const msgs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      if (knownMsgIds.current !== null) {
-        msgs.forEach((msg) => {
-          if (!knownMsgIds.current.has(msg.id) && msg.uid !== uid) {
-            showBrowserNotif(`${msg.name} · ${game.title}`, msg.text, `gchat-${game.id}-${msg.id}`);
-          }
-        });
-      }
-      knownMsgIds.current = new Set(msgs.map((m) => m.id));
-      setMessages(msgs);
+      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return unsub;
   }, [game.id]);
@@ -4421,7 +5542,7 @@ function GameChat({ game, group, uid, user, onClose }) {
     if (!t) return;
     setText("");
     inputRef.current?.focus();
-    await addDoc(collection(db, "groups", group.id, "games", game.id, "messages"), {
+    await addDoc(msgCollection, {
       uid, name: user.name, avatar: user.avatar,
       text: t, createdAt: serverTimestamp(),
       reactions: {}, replies: [],
@@ -4429,7 +5550,7 @@ function GameChat({ game, group, uid, user, onClose }) {
   };
 
   const toggleReaction = async (msg, emoji) => {
-    const ref = doc(db, "groups", group.id, "games", game.id, "messages", msg.id);
+    const ref = msgDoc(msg.id);
     const current = msg.reactions?.[emoji] || [];
     const already = current.includes(uid);
     await updateDoc(ref, {
@@ -4441,7 +5562,7 @@ function GameChat({ game, group, uid, user, onClose }) {
     const t = (replyTexts[msgId] || "").trim();
     if (!t) return;
     setReplyTexts((v) => ({ ...v, [msgId]: "" }));
-    const ref = doc(db, "groups", group.id, "games", game.id, "messages", msgId);
+    const ref = msgDoc(msgId);
     await updateDoc(ref, {
       replies: arrayUnion({ uid, name: user.name, avatar: user.avatar, text: t, createdAt: Date.now() }),
     });
@@ -4519,7 +5640,7 @@ function GameChat({ game, group, uid, user, onClose }) {
                 {/* Bubble row */}
                 <div style={{ display: "flex", gap: 8, flexDirection: isMe ? "row-reverse" : "row", alignItems: "flex-end" }}>
                   {!isMe && (
-                    <div style={{ width: 34, height: 34, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0, alignSelf: "flex-start", marginTop: 18 }}>{msg.avatar}</div>
+                    <div style={{ width: 34, height: 34, borderRadius: 999, background: avatarBg(msg.avatar), overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, alignSelf: "flex-start", marginTop: 18 }}><AvatarImg av={msg.avatar} size={34}/></div>
                   )}
                   <div style={{ maxWidth: "74%", display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
                     {!isMe && <div style={{ fontSize: 12, color: "#b08090", marginBottom: 3, fontWeight: 700, paddingLeft: 4 }}>{msg.name}</div>}
@@ -4612,7 +5733,7 @@ function GameChat({ game, group, uid, user, onClose }) {
                   <div style={{ marginLeft: 42, marginTop: 8, borderLeft: `2px solid ${group.color}33`, paddingLeft: 10 }}>
                     {replies.map((r, ri) => (
                       <div key={ri} style={{ display: "flex", gap: 6, alignItems: "flex-start", marginBottom: 7 }}>
-                        <div style={{ width: 26, height: 26, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>{r.avatar}</div>
+                        <div style={{ width: 26, height: 26, borderRadius: 999, background: avatarBg(r.avatar), overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><AvatarImg av={r.avatar} size={26}/></div>
                         <div style={{ background: "var(--bg-card-base)", borderRadius: "12px 12px 12px 3px", padding: "6px 10px", flex: 1 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: group.color, marginBottom: 2 }}>{r.name}</div>
                           <div style={{ fontSize: 14, color: "var(--text-body)" }}>{r.text}</div>
@@ -4718,44 +5839,12 @@ function AddToCalendar({ game, groupName, compact = false }) {
 const calMenuBtn = { display: "block", width: "100%", padding: "11px 16px", background: "none", border: "none", textAlign: "left", fontSize: 14, fontWeight: 700, color: "var(--text-body)", cursor: "pointer", fontFamily: "'Inter',sans-serif" };
 const calFullBtn = (color) => ({ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "12px 8px", borderRadius: 12, background: `${color}12`, border: `1.5px solid ${color}33`, cursor: "pointer", fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 700, color: "var(--text-body)" });
 
-function GCard({ game, groupName = "", color, faded }) {
-  return (
-<div style={{
-      background: faded ? "rgba(245,235,240,0.6)" : "linear-gradient(135deg,var(--bg-card-base),var(--bg-card-alt))",
-      backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
-      borderRadius: 18, padding: "15px 16px", marginBottom: 11,
-      opacity: faded ? 0.65 : 1,
-      boxShadow: faded ? "none" : "0 4px 18px rgba(var(--shadow-rgb),0.10), inset 0 1px 0 var(--shadow-inset)",
-      border: faded ? "1px solid rgba(200,180,190,0.3)" : "1px solid var(--border-card)",
-      borderLeft: `4px solid ${color}`,
-    }}>
-      <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", marginBottom: 3 }}>{game.title}</div>
-      {groupName && <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 4, fontFamily: "'Inter',sans-serif" }}>{groupName}</div>}
-      <div style={{ fontSize: 14, color: "#b08090", marginTop: 3 }}>📅 {fmt(game.date)}</div>
-      <div style={{ fontSize: 14, color: "#b08090", marginTop: 1 }}>🕐 {fmtRange(game.time, game.endTime)}</div>
-      <div style={{ fontSize: 14, color: "#b08090", marginTop: 1 }}>📍 {game.location}</div>
-      {(() => {
-        const yesCount = Object.values(game.rsvps).filter((v) => v === "yes").length;
-        const wl = game.waitlist || [];
-        const confirmedG = (game.guests || []).filter(g => !wl.includes(g.id)).length;
-        const filled = yesCount + confirmedG;
-        return (
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 10 }}>
-            <Chip color="var(--secondary-accent)">✅ {filled}</Chip>
-            <Chip color="#c4936e">🤔 {Object.values(game.rsvps).filter((v) => v === "maybe").length}</Chip>
-            <Chip color="#b08090">👤 {filled}/{game.seats}</Chip>
-            <div style={{ marginLeft: "auto" }}>
-              <AddToCalendar game={game} groupName={groupName} compact />
-            </div>
-          </div>
-        );
-      })()}
-    </div>
-  );
-}
 
 /* NEW GAME */
-function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
+function NewGame({ uid: myUid, user: myUser, group, groups = [], planCfg, onBack, onSave }) {
+  const hostedGroups = !group ? groups.filter(g => g.members?.some(m => m.id === myUid && m.host) && g.status !== "archived") : [];
+  const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const effectiveGroup = group || hostedGroups.find(g => g.id === selectedGroupId) || null;
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("19:00");
@@ -4784,7 +5873,7 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
 
   useEffect(() => { checkCode(joinCode); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const otherMembers = group ? group.members.filter((m) => m.id !== myUid) : [];
+  const otherMembers = effectiveGroup ? effectiveGroup.members.filter((m) => m.id !== myUid) : [];
   const allSelected = otherMembers.length > 0 && otherMembers.every((m) => selectedIds.has(m.id));
   const toggleMember = (id) => setSelectedIds((prev) => {
     const s = new Set(prev);
@@ -4825,7 +5914,7 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
     const coHostArr = [...coHostIds];
     if (!recurring) {
       const ts = new Date(`${date}T${time}`).getTime();
-      onSave({ id: "gm" + uid(), title: title.trim(), host: myUser.name, hostId: myUid, coHostIds: coHostArr, date: ts, time, endTime, location: loc.trim(), seats: tables * 4, rsvps, note, waitlist: [], joinCode: joinCode.trim().toUpperCase() });
+      onSave({ id: "gm" + uid(), title: title.trim(), host: myUser.name, hostId: myUid, coHostIds: coHostArr, date: ts, time, endTime, location: loc.trim(), seats: tables * 4, rsvps, note, waitlist: [], joinCode: joinCode.trim().toUpperCase() }, selectedGroupId);
     } else {
       const dates = previewDates();
       const games = dates.map((ts) => ({
@@ -4840,12 +5929,25 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
         recurring: freq,
         joinCode: generateGameCode(),
       }));
-      onSave(games);
+      onSave(games, selectedGroupId);
     }
   };
 
   return (
-    <Shell title="Schedule a Game" onBack={onBack} color={group?.color || "#7c3aed"}>
+    <Shell title="Schedule a Game" onBack={onBack} color={effectiveGroup?.color || "#7c3aed"}>
+      {!group && (
+        <>
+          <Lbl>Group (optional)</Lbl>
+          <select
+            value={selectedGroupId || ""}
+            onChange={(e) => { setSelectedGroupId(e.target.value || null); setSelectedIds(new Set()); setCoHostIds(new Set()); }}
+            style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-body)", fontSize: 14, fontFamily: "'Inter',sans-serif", marginBottom: 14, outline: "none" }}
+          >
+            <option value="">No group (standalone)</option>
+            {hostedGroups.map(g => <option key={g.id} value={g.id}>{g.emoji} {g.name}</option>)}
+          </select>
+        </>
+      )}
       <Lbl>Game Title</Lbl>
       <Fld value={title} set={setTitle} placeholder="e.g. Weekly Game Night" />
       <Lbl mt>Date</Lbl>
@@ -4906,11 +6008,11 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
                 }}>
                   <div style={{
                     width: 38, height: 38, borderRadius: 999, flexShrink: 0,
-                    background: selected ? `linear-gradient(135deg,${group.color}33,${group.color}18)` : "var(--avatar-bubble-bg)",
+                    background: avatarBg(m.avatar),
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 20, border: selected ? `1.5px solid ${group.color}44` : "1.5px solid var(--border-card)",
+                    overflow: "hidden", border: selected ? `1.5px solid ${group.color}44` : "1.5px solid var(--border-card)",
                     transition: "all .18s",
-                  }}>{m.avatar}</div>
+                  }}><AvatarImg av={m.avatar} size={38}/></div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 15, color: "var(--text-body)", fontFamily: "'Inter',sans-serif" }}>{m.name}</div>
                     {isCoHostMember && <div style={{ fontSize: 11, fontWeight: 700, color: "#b8860b", marginTop: 1, fontFamily: "'Inter',sans-serif" }}>👑 Co-host</div>}
@@ -5089,6 +6191,7 @@ function NewGame({ uid: myUid, user: myUser, group, planCfg, onBack, onSave }) {
 /* ── STANDALONE GAME VIEW (host or invited guest — no group context) ── */
 function StandaloneGameView({ uid, gameId, go, flash, user }) {
   const [game, setGame] = useState(null);
+  const [view, setView] = useState("game"); // "game" | "edit" | "invite"
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "games", gameId), (snap) => {
@@ -5109,8 +6212,45 @@ function StandaloneGameView({ uid, gameId, go, flash, user }) {
   // Stub group so the Game component works — host is always in members with host: true
   const stubGroup = { id: null, name: "Open Game", color: "#7c3aed", emoji: "🀄", members: isHost ? [{ id: uid, name: user?.name || "Host", avatar: user?.avatar || "🀄", host: true }] : [], openInvites: true, games: [game] };
 
+  // Intercept game-level navigation that requires a real group — handle inline instead
+  const wrappedGo = (page, g, gm) => {
+    if (page === "editGame" && isHost) { setView("edit"); return; }
+    if (page === "invite" && isHost) { setView("invite"); return; }
+    go(page, g, gm);
+  };
+
+  if (view === "edit" && isHost) {
+    return (
+      <EditGame uid={uid} game={game} group={stubGroup}
+        onBack={() => setView("game")}
+        onSave={async (updated) => {
+          const { id: gid, ...data } = updated;
+          try {
+            const oldCode = game.joinCode || null;
+            const newCode = data.joinCode || null;
+            if (newCode !== oldCode) {
+              const batch = writeBatch(db);
+              batch.update(doc(db, "games", gid), data);
+              if (oldCode) batch.delete(doc(db, "gameCodes", oldCode));
+              if (newCode) batch.set(doc(db, "gameCodes", newCode), { groupId: null, gameId: gid, date: data.date });
+              await batch.commit();
+            } else {
+              await updateDoc(doc(db, "games", gid), data);
+            }
+            setView("game"); flash("Game updated!", "✨");
+          } catch { flash("Error updating game", "❌"); }
+        }}
+        onTransferHost={null}
+      />
+    );
+  }
+
+  if (view === "invite" && isHost) {
+    return <Invite group={stubGroup} game={game} flash={flash} onBack={() => setView("game")} />;
+  }
+
   return (
-    <Game uid={uid} game={game} group={stubGroup} go={go} isGuestView={!isHost}
+    <Game uid={uid} game={game} group={stubGroup} go={wrappedGo} isGuestView={!isHost}
       onRsvp={async (ans) => {
         try {
           await updateDoc(doc(db, "games", gameId), { [`rsvps.${uid}`]: ans });
@@ -5143,6 +6283,10 @@ function StandaloneGameView({ uid, gameId, go, flash, user }) {
           go("home"); flash("You've left the game", "👋");
         } catch { flash("Error leaving game", "❌"); }
       } : null}
+      onSaveWinner={isHost ? async (winner) => {
+        await updateDoc(doc(db, "games", gameId), { winner });
+        flash("Winner saved!", "🏆");
+      } : null}
     />
   );
 }
@@ -5159,7 +6303,7 @@ function GuestGameView({ uid, user, groupId, gameId, go, flash }) {
     getDoc(doc(db, "groups", groupId)).then((gs) => {
       if (gs.exists()) {
         const d = gs.data();
-        setGroupMeta({ id: groupId, name: d.name, color: d.color, emoji: d.emoji, members: [], openInvites: false, games: [] });
+        setGroupMeta({ id: groupId, name: d.name, color: d.color, emoji: d.emoji, members: d.members || [], openInvites: false, games: [] });
       }
     }).catch(() => {});
     return unsub;
@@ -5241,7 +6385,7 @@ function generateSeating(playerIds, skillMap, tableSize = 4) {
 }
 
 /* GAME DETAIL — redesigned per spec */
-function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLeave, onBack, isGuestView = false }) {
+function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLeave, onBack, onSaveWinner, isGuestView = false }) {
   // ── Design tokens — mapped to active theme CSS variables ────────────────
   // Going / positive action
   const J9  = "var(--text-heading)";
@@ -5272,9 +6416,12 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
   const iconBtn = { width:38,height:38,borderRadius:12,background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.18)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#fff",fontSize:16,flexShrink:0 };
 
   // ── State ────────────────────────────────────────────────────────────────
-  const [showAllRsvp, setShowAllRsvp] = useState(false);
+  const [rsvpFilter, setRsvpFilter] = useState("yes");
+  const [rsvpExpanded, setRsvpExpanded] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [winnerPickerOpen, setWinnerPickerOpen] = useState(false);
+  const [savingWinner, setSavingWinner] = useState(false);
   const [seatingOpen, setSeatingOpen] = useState(false);
   const [seating, setSeating] = useState(() => {
     const raw = game.seating;
@@ -5296,12 +6443,24 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
     return () => { try { document.head.removeChild(link); } catch {} };
   }, []);
 
+  // Self-heal: ensure the gameCodes index document exists whenever the host opens a game
+  useEffect(() => {
+    if (!isHost || !game.joinCode || !game.id) return;
+    const codeRef = doc(db, "gameCodes", game.joinCode);
+    getDoc(codeRef).then(snap => {
+      if (!snap.exists()) {
+        setDoc(codeRef, { groupId: group.id || null, gameId: game.id, date: game.date || null }).catch(() => {});
+      }
+    }).catch(() => {});
+  }, [game.id]);
+
   // ── Computed ────────────────────────────────────────────────────────────
   const isCoHost = !isGuestView && (game.coHostIds || []).includes(uid);
   const isHost = !isGuestView && (game.hostId === uid || isCoHost);
-  const canInvite = !isGuestView && !!group.id;
+  // Allow invite for group games (group.id truthy) and standalone games where the user is host (join code exists)
+  const canInvite = !isGuestView && (!!group.id || (isHost && !!game.joinCode));
   const myRsvp = game.rsvps[uid] || "pending";
-  const past = game.date < NOW;
+  const past = game.date < startOfTodayInTz(user?.timezone);
   const allGuests = game.guests || [];
   const registeredGuests = game.registeredGuests || [];
   const rawWaitlist = game.waitlist || [];
@@ -5323,11 +6482,13 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
   const resolveName = (id) => {
     const m = group.members.find(m => m.id === id);
     if (m) return { name: m.name, avatar: m.avatar };
+    // Registered guests joined via invite link / QR / game code — real app users, no "Guest" badge
+    const rg = registeredGuests.find(g => g.id === id);
+    if (rg) return { name: rg.name, avatar: rg.avatar };
+    if ((game.guestIds || []).includes(id)) return { name: "Guest", avatar: "👤" };
+    // Manual guests added by host with no app account — show "Guest" badge
     const g = allGuests.find(g => g.id === id);
     if (g) return { name: g.name, avatar: g.avatar, isGuest: true };
-    const rg = registeredGuests.find(g => g.id === id);
-    if (rg) return { name: rg.name, avatar: rg.avatar, isGuest: true };
-    if ((game.guestIds || []).includes(id)) return { name: "Guest", avatar: "👤", isGuest: true };
     return null;
   };
 
@@ -5377,28 +6538,8 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
     return null;
   }).filter(Boolean);
 
-  // Pip cluster — all rsvp'd participants
-  const allPips = [...new Map([
-    ...goingList.map(p => [p.id, { ...p, status: "yes" }]),
-    ...maybeList.map(p => [p.id, { ...p, status: "maybe" }]),
-    ...noList.map(p => [p.id, { ...p, status: "no" }]),
-  ]).values()];
-  const MAX_PIPS = 9;
-  const visiblePips = allPips.slice(0, MAX_PIPS);
-  const overflowPips = allPips.length - MAX_PIPS;
-
-  const Pip = ({ id, name, status }) => {
-    const init = (name || "?")[0].toUpperCase();
-    const s = status === "yes"   ? { bg: J5,  col: "#fff", border: "none",   glyph: init }
-             : status === "maybe"? { bg: BM5, col: BM7,    border: "none",   glyph: init }
-             : status === "no"   ? { bg: "transparent", col: CL7, border: `1.5px dashed ${CL7}`, glyph: "×" }
-             :                     { bg: IV3, col: TXT3, border: `1.5px dashed ${BDD}`, glyph: "+" };
-    return (
-      <div title={name} style={{ width: 28, height: 28, borderRadius: "50%", background: s.bg, border: s.border || "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, fontFamily: FU, color: s.col, flexShrink: 0, boxShadow: id === uid ? `0 0 0 2px ${J5}` : "none", opacity: status === "empty" ? 0.45 : 1 }}>
-        {s.glyph}
-      </div>
-    );
-  };
+  // Stack players — going only (maybes/outs live in the tally grid below)
+  const stackPlayers = goingList.map(p => ({ id: p.id, name: p.name, state: "in" }));
 
   const hostInitials = (game.host || "H").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
   const { googleUrl } = buildCalendarLinks(game, group.name);
@@ -5408,7 +6549,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
     <div style={{ minHeight: "100%", background: IV2, fontFamily: FU }}>
 
       {/* ── HEADER ──────────────────────────────────────────────────────── */}
-      <div style={{ background: "var(--header-gradient2)", padding: "8px 16px 22px", position: "relative", overflow: "hidden" }}>
+      <div style={{ background: "var(--header-gradient2)", padding: `${HEADER_BTN_TOP}px 16px 22px`, position: "relative", overflow: "hidden" }}>
         {/* Decorative tile */}
         <div style={{ position: "absolute", top: -10, right: -22, fontSize: 130, opacity: 0.1, transform: "rotate(14deg)", pointerEvents: "none", userSelect: "none", lineHeight: 1 }}>🀄</div>
 
@@ -5419,8 +6560,8 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
           </button>
           <div style={{ display: "flex", gap: 8 }}>
             {isHost && <button onClick={() => go("editGame", group.id, game.id)} aria-label="Edit" style={iconBtn}>✏️</button>}
-            {group.id && <button onClick={() => setGameChatOpen(true)} aria-label="Group chat" style={iconBtn}>💬</button>}
-            {canInvite && <button onClick={() => go("invite", group.id, game.id)} aria-label="Invite" style={iconBtn}>📤</button>}
+            <button onClick={() => setGameChatOpen(true)} aria-label="Game chat" style={iconBtn}>💬</button>
+            {canInvite && <button onClick={() => go("invite", group.id, game.id)} aria-label="Invite" style={iconBtn}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></button>}
           </div>
         </div>
 
@@ -5513,56 +6654,130 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
 
         {/* d. Who's in + RSVP */}
         <div style={card}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          {/* Header row with expand toggle */}
+          <button onClick={() => setRsvpExpanded(v => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", padding: 0, marginBottom: 12, cursor: "pointer" }}>
             <span style={{ fontFamily: FD, fontSize: 18, color: J9 }}>Who's in</span>
-            {allPips.length > 0 && (
-              <button onClick={() => setShowAllRsvp(v => !v)} style={{ fontFamily: FU, fontSize: 12, fontWeight: 600, color: CL7, background: "none", border: "none", cursor: "pointer" }}>
-                {showAllRsvp ? "Less ▲" : "See all ›"}
-              </button>
-            )}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={TXT2} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{ transition: "transform .2s", transform: rsvpExpanded ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {/* Avatar stack — going only; tally grid below carries the maybe/out story */}
+          <div style={{ marginBottom: 14 }}>
+            <RsvpStack players={stackPlayers} max={5} size={30} onClick={() => { setRsvpFilter("yes"); setRsvpExpanded(true); }} />
           </div>
-          {/* Pips */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-            {visiblePips.map(p => <Pip key={p.id} id={p.id} name={p.name} status={p.status} />)}
-            {overflowPips > 0 && <div style={{ width: 28, height: 28, borderRadius: "50%", background: IV3, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, fontFamily: FU, color: TXT2 }}>+{overflowPips}</div>}
-            {allPips.length === 0 && <span style={{ fontFamily: FU, fontSize: 13, color: TXT3 }}>No one yet — be the first!</span>}
-          </div>
-          {/* Tally */}
+          {/* Tally — clickable filter tabs; tapping one expands the list */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
             {[
-              {label:"Going", count:yesCount+confirmedGuests.length, bg:"rgba(var(--primary-rgb),0.12)", color:J5},
-              {label:"Maybe", count:maybeCount,                      bg:BM1,                            color:BM7},
-              {label:"Out",   count:noCount,                         bg:"rgba(var(--primary-rgb),0.10)", color:CL7},
-            ].map(({label,count,bg,color}) => (
-              <div key={label} style={{ padding: "8px 10px", borderRadius: 10, background: bg, textAlign: "center" }}>
-                <div style={{ fontFamily: FD, fontSize: 20, color }}>{count}</div>
-                <div style={{ fontFamily: FU, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.8, color, opacity: 0.8, marginTop: 2 }}>{label}</div>
-              </div>
-            ))}
+              { key: "yes",   label: "Going", count: yesCount + confirmedGuests.length,
+                idleBg: "rgba(var(--primary-rgb),0.10)", activeBg: "rgba(var(--primary-rgb),0.20)",
+                border: J5, color: J5 },
+              { key: "maybe", label: "Maybe", count: maybeCount,
+                idleBg: "rgba(217,119,6,0.10)", activeBg: "rgba(217,119,6,0.20)",
+                border: BM7, color: BM7 },
+              { key: "no",    label: "Out",   count: noCount,
+                idleBg: "rgba(156,163,175,0.14)", activeBg: "rgba(156,163,175,0.28)",
+                border: "#9ca3af", color: "#6b7280" },
+            ].map(({ key, label, count, idleBg, activeBg, border, color }) => {
+              const active = rsvpFilter === key;
+              return (
+                <button key={key} onClick={() => { setRsvpFilter(key); setRsvpExpanded(true); }} style={{
+                  padding: "8px 10px", borderRadius: 10, textAlign: "center", cursor: "pointer",
+                  background: active ? activeBg : idleBg,
+                  border: active ? `1.5px solid ${border}` : "1.5px solid transparent",
+                  transition: "all .15s",
+                }}>
+                  <div style={{ fontFamily: FD, fontSize: 20, color }}>{count}</div>
+                  <div style={{ fontFamily: FU, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, color, opacity: active ? 1 : 0.7, marginTop: 2 }}>{label}</div>
+                </button>
+              );
+            })}
           </div>
-          {/* Expanded attendee list */}
-          {showAllRsvp && (
-            <div style={{ marginTop: 12, borderTop: `1px solid ${BDS}`, paddingTop: 10 }}>
-              {goingList.map(p => (
-                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0" }}>
-                  <span style={{ fontSize: 18 }}>{p.avatar}</span>
-                  <span style={{ fontFamily: FU, fontSize: 14, fontWeight: 600, color: J9, flex: 1 }}>{p.name}</span>
-                  {p.id === game.hostId && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: BM7, background: BM1, borderRadius: 999, padding: "2px 8px" }}>Host</span>}
-                  {(game.coHostIds||[]).includes(p.id) && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: BM7, background: BM1, borderRadius: 999, padding: "2px 8px" }}>Co-host</span>}
-                  {p.isGuest && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: TXT2, background: IV3, borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
-                  {p.id === uid && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: J5, background: J1, borderRadius: 999, padding: "2px 8px" }}>You</span>}
-                </div>
-              ))}
-              {maybeList.map(p => (
-                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0", opacity: 0.75 }}>
-                  <span style={{ fontSize: 18 }}>{p.avatar}</span>
-                  <span style={{ fontFamily: FU, fontSize: 14, fontWeight: 600, color: J9, flex: 1 }}>{p.name}</span>
-                  <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: BM7, background: BM1, borderRadius: 999, padding: "2px 8px" }}>Maybe</span>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Filtered attendee list — only shown when expanded */}
+          {rsvpExpanded && (() => {
+            const list = rsvpFilter === "yes" ? goingList : rsvpFilter === "maybe" ? maybeList : noList;
+            if (list.length === 0) return (
+              <div style={{ marginTop: 12, borderTop: `1px solid ${BDS}`, paddingTop: 10 }}>
+                <span style={{ fontFamily: FU, fontSize: 13, color: TXT3 }}>No one yet.</span>
+              </div>
+            );
+            return (
+              <div style={{ marginTop: 12, borderTop: `1px solid ${BDS}`, paddingTop: 10 }}>
+                {list.map(p => (
+                  <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 0", opacity: rsvpFilter === "no" ? 0.75 : 1 }}>
+                    <span style={{ fontSize: 18 }}>{p.avatar}</span>
+                    <span style={{ fontFamily: FU, fontSize: 14, fontWeight: 600, color: J9, flex: 1 }}>{p.name}</span>
+                    {p.id === game.hostId && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: BM7, background: BM1, borderRadius: 999, padding: "2px 8px" }}>Host</span>}
+                    {(game.coHostIds||[]).includes(p.id) && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: BM7, background: BM1, borderRadius: 999, padding: "2px 8px" }}>Co-host</span>}
+                    {p.isGuest && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: TXT2, background: IV3, borderRadius: 999, padding: "2px 8px" }}>Guest</span>}
+                    {rsvpFilter === "maybe" && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: BM7, background: BM1, borderRadius: 999, padding: "2px 8px" }}>Maybe</span>}
+                    {p.id === uid && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: J5, background: J1, borderRadius: 999, padding: "2px 8px" }}>You</span>}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
+
+        {/* Winner card — past games */}
+        {past && onSaveWinner && (
+          <div style={card}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: (game.winner && !winnerPickerOpen) ? 12 : 0 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: IV3, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🏆</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: FD, fontSize: 17, color: J9 }}>Winner</div>
+                {!game.winner && !winnerPickerOpen && <div style={{ fontFamily: FU, fontSize: 12, color: TXT3, marginTop: 2 }}>No winner recorded yet</div>}
+              </div>
+              {isHost && !winnerPickerOpen && (
+                <button onClick={() => setWinnerPickerOpen(true)} style={{ padding: "5px 12px", borderRadius: 999, background: J1, border: `1px solid rgba(var(--primary-rgb),0.2)`, color: J5, fontFamily: FU, fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                  {game.winner ? "Change" : "Select"}
+                </button>
+              )}
+            </div>
+            {game.winner && !winnerPickerOpen && (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, background: J1, borderRadius: 12, padding: "10px 14px" }}>
+                <div style={{ width:32,height:32,borderRadius:999,background:avatarBg(game.winner.avatar),overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{game.winner.avatar ? <AvatarImg av={game.winner.avatar} size={32}/> : <span style={{fontSize:18}}>🏆</span>}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: FD, fontSize: 18, color: J9 }}>
+                    {game.winner.uid === uid ? "You" : (game.winner.name || "").split(" ")[0]}
+                  </div>
+                  <div style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: J5, textTransform: "uppercase", letterSpacing: 1 }}>Winner</div>
+                </div>
+                <span style={{ fontSize: 22 }}>🏆</span>
+              </div>
+            )}
+            {winnerPickerOpen && isHost && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontFamily: FU, fontSize: 12, color: TXT2, marginBottom: 10 }}>Select the winner from players who attended:</div>
+                {goingList.length === 0 && (
+                  <div style={{ fontFamily: FU, fontSize: 13, color: TXT3, textAlign: "center", padding: "8px 0" }}>No confirmed players found.</div>
+                )}
+                {goingList.map(p => (
+                  <button key={p.id} disabled={savingWinner} onClick={async () => {
+                    setSavingWinner(true);
+                    try { await onSaveWinner({ uid: p.id, name: p.name, avatar: p.avatar || "👤" }); setWinnerPickerOpen(false); } catch {}
+                    setSavingWinner(false);
+                  }} style={{
+                    display: "flex", alignItems: "center", gap: 10, width: "100%",
+                    padding: "10px 12px", marginBottom: 6, borderRadius: 12,
+                    background: game.winner?.uid === p.id ? J1 : IV3,
+                    border: game.winner?.uid === p.id ? `1.5px solid ${J5}` : `1px solid ${BDS}`,
+                    cursor: savingWinner ? "default" : "pointer", textAlign: "left",
+                  }}>
+                    <span style={{ fontSize: 20, flexShrink: 0 }}>{p.avatar || "👤"}</span>
+                    <span style={{ fontFamily: FU, fontSize: 14, fontWeight: 600, color: J9, flex: 1 }}>
+                      {p.id === uid ? "You" : p.name}
+                    </span>
+                    {game.winner?.uid === p.id && <span style={{ fontFamily: FU, fontSize: 11, fontWeight: 700, color: J5 }}>Current</span>}
+                  </button>
+                ))}
+                <button onClick={() => setWinnerPickerOpen(false)} style={{ width: "100%", padding: "10px", borderRadius: 12, border: `1px solid ${BDS}`, background: "none", color: TXT2, fontFamily: FU, fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 4 }}>
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Your RSVP (non-hosts only, future games) */}
         {!past && !isHost && (
@@ -5675,7 +6890,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
     {confirmArchive && <ConfirmDialog title="Archive Game?" message={`"${game.title}" will be moved to your archive. It won't count toward your plan limits and will be removed after 60 days.`} confirmLabel="Archive Game" onConfirm={() => { setConfirmArchive(false); onArchive(); }} onCancel={() => setConfirmArchive(false)} />}
     {confirmLeave && <ConfirmDialog title="Leave Game?" message={`You'll be removed from "${game.title}". You can rejoin via invite link or QR code.`} confirmLabel="Leave Game" onConfirm={() => { setConfirmLeave(false); onLeave(); }} onCancel={() => setConfirmLeave(false)} />}
     {confirmReRandomize && <ConfirmDialog title="Re-randomize Tables?" message="Tables are already assigned. Randomizing again will overwrite the current order." confirmLabel="Randomize Again" onConfirm={doRandomize} onCancel={() => setConfirmReRandomize(false)} />}
-    {gameChatOpen && group.id && <GameChat game={game} group={group} uid={uid} user={user} onClose={() => setGameChatOpen(false)} />}
+    {gameChatOpen && <GameChat game={game} group={group} uid={uid} user={user} onClose={() => setGameChatOpen(false)} />}
     </>
   );
 }
@@ -5913,7 +7128,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
               const isCo = coHostIds.has(m.id);
               return (
                 <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>{m.avatar}</div>
+                  <div style={{ width: 38, height: 38, borderRadius: 999, background: avatarBg(m.avatar), overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><AvatarImg av={m.avatar} size={38}/></div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)" }}>{m.name}</div>
                     {isMe && <div style={{ fontSize: 12, color: "var(--primary)", fontWeight: 700 }}>Host · Always invited</div>}
@@ -5982,17 +7197,17 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
             </div>
           </div>
 
-          {/* Registered guests — joined via QR or invite link */}
+          {/* Registered guests — joined via QR, invite link, or game code */}
           {registeredGuests.length > 0 && (
             <div style={glassCard}>
-              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, color: "var(--section-title)", fontWeight: 700, marginBottom: 4 }}>Joined via QR / Link</div>
-              <div style={{ fontSize: 13, color: "#b08090", marginBottom: 12, fontFamily: "'Inter',sans-serif" }}>App users who scanned the QR code or used an invite link</div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, color: "var(--section-title)", fontWeight: 700, marginBottom: 4 }}>Joined via Invite</div>
+              <div style={{ fontSize: 13, color: "#b08090", marginBottom: 12, fontFamily: "'Inter',sans-serif" }}>App users who joined via QR code, invite link, or game code</div>
               {registeredGuests.map((rg) => (
                 <div key={rg.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>{rg.avatar}</div>
+                  <div style={{ width: 38, height: 38, borderRadius: 999, background: avatarBg(rg.avatar), overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><AvatarImg av={rg.avatar} size={38}/></div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-body)" }}>{rg.name}</div>
-                    <div style={{ fontSize: 11, color: "var(--secondary-accent)", fontWeight: 700, marginTop: 1 }}>Joined via link</div>
+                    <div style={{ fontSize: 11, color: "var(--secondary-accent)", fontWeight: 700, marginTop: 1 }}>Joined via invite</div>
                   </div>
                   <div onClick={() => removeRegisteredGuest(rg.id)} style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, background: "rgba(var(--primary-rgb),0.12)", border: "1px solid rgba(var(--primary-rgb),0.2)" }}>✕</div>
                 </div>
@@ -6039,7 +7254,7 @@ const GUEST_AVATARS = ["🌸","🦋","🌹","🍀","🦚","🌺","🎋","🐝","
                           background: selectedNewHost === m.id ? `linear-gradient(135deg,${group.color}22,${group.color}0f)` : "rgba(255,255,255,0.5)",
                           border: `2px solid ${selectedNewHost === m.id ? group.color : "transparent"}`,
                         }}>
-                          <div style={{ width: 36, height: 36, borderRadius: 999, background: "var(--avatar-bubble-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>{m.avatar}</div>
+                          <div style={{ width: 36, height: 36, borderRadius: 999, background: avatarBg(m.avatar), overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><AvatarImg av={m.avatar} size={36}/></div>
                           <div style={{ flex: 1, fontWeight: 700, fontSize: 15, color: "var(--text-body)" }}>{m.name}</div>
                           {selectedNewHost === m.id && <span style={{ fontSize: 17, color: group.color }}>⭐</span>}
                         </div>
@@ -6180,7 +7395,7 @@ function Shell({ title, onBack, color, children }) {
         background: headerBg,
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
-        padding: "max(50px, calc(env(safe-area-inset-top, 0px) + 6px)) 22px 22px",
+        padding: `${HEADER_BTN_TOP}px 22px 22px`,
         display: "flex", alignItems: "center", gap: 12,
         boxShadow: headerShadow,
         position: "relative", overflow: "hidden",
@@ -6280,8 +7495,8 @@ function AdminHub({ uid: adminUid, user: adminUser, go, flash, onImpersonate }) 
         <div style={{ fontSize: 11, fontWeight: 800, color: "#e8a0d0", background: "rgba(232,160,208,0.15)", borderRadius: 999, padding: "4px 12px", textTransform: "uppercase", letterSpacing: 1 }}>Admin</div>
       </div>
 
-      <div style={{ display: "flex", gap: 0, padding: "0 28px", borderBottom: "1px solid rgba(155,110,168,0.2)", marginTop: 8 }}>
-        {[["users","👥 Users"],["logs","📋 Logs"],["subscriptions","💳 Subscriptions"]].map(([key, label]) => (
+      <div style={{ display: "flex", gap: 0, padding: "0 28px", borderBottom: "1px solid rgba(155,110,168,0.2)", marginTop: 8, overflowX: "auto" }}>
+        {[["users","👥 Users"],["logs","📋 Logs"],["subscriptions","💳 Subscriptions"],["notifications","📣 Notification Templates"],["config","⚙️ Config"]].map(([key, label]) => (
           <button key={key} style={tabStyle(tab === key)} onClick={() => setTab(key)}>{label}</button>
         ))}
       </div>
@@ -6290,6 +7505,8 @@ function AdminHub({ uid: adminUid, user: adminUser, go, flash, onImpersonate }) 
         {tab === "users"          && <AdminUsers onImpersonate={onImpersonate} go={go} flash={flash} packages={adminPackages} adminUid={adminUid} />}
         {tab === "logs"           && <AdminLogs />}
         {tab === "subscriptions"  && <AdminSubscriptions flash={flash} packages={adminPackages} adminUid={adminUid} />}
+        {tab === "notifications"  && <AdminNotifications flash={flash} adminUid={adminUid} />}
+        {tab === "config"         && <AdminConfig flash={flash} adminUid={adminUid} />}
       </div>
     </div>
   );
@@ -6309,6 +7526,10 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
   const [planKey, setPlanKey] = useState("");
   const [planNote, setPlanNote] = useState("");
   const [savingPlan, setSavingPlan] = useState(false);
+  // Profile-edit state
+  const [profileEdit, setProfileEdit] = useState(false);
+  const [profileForm, setProfileForm] = useState({ name: "", avatar: "", skillLevel: "", email: "" });
+  const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
     getDocs(collection(db, "users"))
@@ -6329,6 +7550,42 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
     setPlanEdit(false);
     setPlanKey(u.subscription?.plan || "free");
     setPlanNote(u.subscription?.overrideNote || "");
+    setProfileEdit(false);
+    setProfileForm({ name: u.name || "", avatar: u.avatar || "", skillLevel: u.skillLevel || "", email: u.email || "" });
+  };
+
+  const saveProfile = async () => {
+    if (!selected) return;
+    if (!profileForm.name.trim()) { flash("Name is required.", "⚠️"); return; }
+    const newEmail = profileForm.email.trim().toLowerCase();
+    if (newEmail && !/\S+@\S+\.\S+/.test(newEmail)) {
+      flash("Invalid email address.", "⚠️"); return;
+    }
+    setSavingProfile(true);
+    try {
+      const patch = {
+        name:       profileForm.name.trim(),
+        avatar:     profileForm.avatar.trim() || "👤",
+        skillLevel: profileForm.skillLevel.trim(),
+      };
+
+      // Always write profile fields directly to Firestore
+      await updateDoc(doc(db, "users", selected.uid), patch);
+
+      // Only touch Firebase Auth when the email actually changed
+      const emailChanged = newEmail && newEmail !== (selected.email || "").toLowerCase();
+      if (emailChanged) {
+        const adminUpdateUser = hostingFn("adminUpdateUser");
+        await adminUpdateUser({ targetUid: selected.uid, email: newEmail });
+        patch.email = newEmail;
+      }
+
+      updateLocal(selected.uid, patch);
+      setSelected((p) => ({ ...p, ...patch }));
+      setProfileEdit(false);
+      flash("Profile updated.", "✅");
+    } catch (e) { flash(`Failed to save: ${e.message}`, "❌"); }
+    setSavingProfile(false);
   };
 
   const toggleAdmin = async () => {
@@ -6408,26 +7665,87 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
 
         {/* Profile card */}
         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "18px 20px", marginBottom: 14, border: "1px solid rgba(155,110,168,0.2)" }}>
-          <SecHd>Profile</SecHd>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
-            <span style={{ fontSize: 40 }}>{u.avatar || "👤"}</span>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <SecHd>Profile</SecHd>
+            {!profileEdit && (
+              <button onClick={() => { setProfileEdit(true); setProfileForm({ name: u.name || "", avatar: u.avatar || "", skillLevel: u.skillLevel || "", email: u.email || "" }); }} style={{ background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", borderRadius: 8, padding: "5px 13px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
+                Edit
+              </button>
+            )}
+          </div>
+
+          {!profileEdit ? (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+                <span style={{ fontSize: 40 }}>{u.avatar || "👤"}</span>
+                <div>
+                  <div style={{ fontSize: 17, fontWeight: 700, color: "#fff", fontFamily: "'Inter',sans-serif" }}>{u.name}</div>
+                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>{u.email}</div>
+                  {u.skillLevel && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{u.skillLevel}</div>}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={toggleAdmin} disabled={promoting} style={{ padding: "7px 14px", borderRadius: 10, background: u.isAdmin ? "rgba(232,160,208,0.15)" : "rgba(255,255,255,0.1)", border: `1px solid ${u.isAdmin ? "rgba(232,160,208,0.35)" : "rgba(255,255,255,0.2)"}`, color: u.isAdmin ? "#e8a0d0" : "#ccc", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: promoting ? 0.5 : 1 }}>
+                  {promoting ? "…" : u.isAdmin ? "Revoke Admin" : "Make Admin"}
+                </button>
+                <button onClick={() => { onImpersonate(u); go("home"); }} style={{ padding: "7px 14px", borderRadius: 10, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
+                  View as
+                </button>
+                <button onClick={() => setConfirmDelete(true)} disabled={deleting} style={{ padding: "7px 14px", borderRadius: 10, background: "rgba(220,60,60,0.15)", border: "1px solid rgba(220,60,60,0.35)", color: "#ff8080", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: deleting ? 0.5 : 1 }}>
+                  {deleting ? "Deleting…" : "Delete User"}
+                </button>
+              </div>
+            </>
+          ) : (
             <div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: "#fff", fontFamily: "'Inter',sans-serif" }}>{u.name}</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>{u.email}</div>
-              {u.skillLevel && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{u.skillLevel}</div>}
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(232,160,208,0.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontFamily: "'Inter',sans-serif" }}>Avatar</div>
+                  <input
+                    value={profileForm.avatar}
+                    onChange={e => setProfileForm(f => ({ ...f, avatar: e.target.value }))}
+                    maxLength={4}
+                    style={{ ...inp, width: 64, textAlign: "center", fontSize: 28, padding: "8px 4px" }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(232,160,208,0.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontFamily: "'Inter',sans-serif" }}>Display Name</div>
+                  <input
+                    value={profileForm.name}
+                    onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="Display name"
+                    style={inp}
+                  />
+                </div>
+              </div>
+              <div style={{ marginBottom: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(232,160,208,0.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontFamily: "'Inter',sans-serif" }}>Email</div>
+                <input
+                  type="email"
+                  value={profileForm.email}
+                  onChange={e => setProfileForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="user@example.com"
+                  style={inp}
+                />
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 5, fontFamily: "'Inter',sans-serif" }}>Changing email updates Firebase Auth — takes effect on next login.</div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(232,160,208,0.65)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, marginTop: 12, fontFamily: "'Inter',sans-serif" }}>Skill Level</div>
+                <input
+                  value={profileForm.skillLevel}
+                  onChange={e => setProfileForm(f => ({ ...f, skillLevel: e.target.value }))}
+                  placeholder="e.g. Beginner, Intermediate, Advanced"
+                  style={inp}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setProfileEdit(false)} style={{ flex: 1, padding: "9px", borderRadius: 10, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Cancel</button>
+                <button onClick={saveProfile} disabled={savingProfile} style={{ flex: 2, padding: "9px", borderRadius: 10, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: savingProfile ? 0.5 : 1 }}>
+                  {savingProfile ? "Saving…" : "Save Changes"}
+                </button>
+              </div>
             </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={toggleAdmin} disabled={promoting} style={{ padding: "7px 14px", borderRadius: 10, background: u.isAdmin ? "rgba(232,160,208,0.15)" : "rgba(255,255,255,0.1)", border: `1px solid ${u.isAdmin ? "rgba(232,160,208,0.35)" : "rgba(255,255,255,0.2)"}`, color: u.isAdmin ? "#e8a0d0" : "#ccc", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: promoting ? 0.5 : 1 }}>
-              {promoting ? "…" : u.isAdmin ? "Revoke Admin" : "Make Admin"}
-            </button>
-            <button onClick={() => { onImpersonate(u); go("home"); }} style={{ padding: "7px 14px", borderRadius: 10, background: "linear-gradient(135deg,#5a2d6b,#9b3fa0)", border: "none", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
-              View as
-            </button>
-            <button onClick={() => setConfirmDelete(true)} disabled={deleting} style={{ padding: "7px 14px", borderRadius: 10, background: "rgba(220,60,60,0.15)", border: "1px solid rgba(220,60,60,0.35)", color: "#ff8080", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: deleting ? 0.5 : 1 }}>
-              {deleting ? "Deleting…" : "Delete User"}
-            </button>
-          </div>
+          )}
         </div>
 
         {/* Subscription card */}
@@ -6550,10 +7868,12 @@ function AdminUsers({ onImpersonate, go, flash, packages, adminUid }) {
   );
 }
 
-/* Logs tab — activity log from Firestore `adminLogs` collection */
+/* Logs tab — activity log from Firestore `adminLogs` + log files from Storage */
 function AdminLogs() {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [logs, setLogs]           = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [logFiles, setLogFiles]   = useState([]);
+  const [filesLoading, setFilesLoading] = useState(true);
 
   useEffect(() => {
     const q = query(collection(db, "adminLogs"), orderBy("ts", "desc"));
@@ -6564,26 +7884,82 @@ function AdminLogs() {
     return unsub;
   }, []);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await listAll(storageRef(storage, "logs/"));
+        const files = await Promise.all(
+          result.items.map(async (item) => {
+            const meta = await getMetadata(item);
+            return { name: item.name, size: meta.size, created: meta.timeCreated, updated: meta.updated };
+          })
+        );
+        setLogFiles(files.sort((a, b) => new Date(b.updated) - new Date(a.updated)));
+      } catch (_) { /* no files yet */ }
+      setFilesLoading(false);
+    })();
+  }, []);
+
   const fmtTs = (ts) => {
     if (!ts) return "";
     const d = ts.toDate ? ts.toDate() : new Date(ts);
     return d.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
   };
+  const fmtDate = (iso) => {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  };
+  const fmtSize = (bytes) => {
+    if (bytes == null) return "—";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
 
-  const iconFor = (type) => ({ chat: "💬", game: "🀄", join: "👋", leave: "🚪", rsvp: "✅", admin: "🔐" }[type] || "📝");
+  const iconFor = (type) => ({ chat: "💬", game: "🀄", join: "👋", leave: "🚪", rsvp: "✅", admin: "🔐", email: "📧", error: "❌" }[type] || "📝");
+  const isError = (type) => type === "error";
+
+  const colHdr = { fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" };
 
   return (
     <div>
-      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, color: "#fff", marginBottom: 20 }}>Activity Logs</div>
+      {/* ── Log Files ─────────────────────────────────────────── */}
+      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, color: "#fff", marginBottom: 12 }}>Log Files</div>
+      {filesLoading && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, marginBottom: 24 }}>Loading…</div>}
+      {!filesLoading && logFiles.length === 0 && (
+        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, marginBottom: 24 }}>No log files yet.</div>
+      )}
+      {!filesLoading && logFiles.length > 0 && (
+        <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", marginBottom: 28, overflow: "hidden" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 90px 160px 160px", gap: "0 12px", padding: "8px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <span style={colHdr}>File</span>
+            <span style={{ ...colHdr, textAlign: "right" }}>Size</span>
+            <span style={colHdr}>Created</span>
+            <span style={colHdr}>Modified</span>
+          </div>
+          {logFiles.map((f) => (
+            <div key={f.name} style={{ display: "grid", gridTemplateColumns: "1fr 90px 160px 160px", gap: "0 12px", padding: "10px 16px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+              <span style={{ fontSize: 13, color: "#fff", fontFamily: "monospace" }}>{f.name}</span>
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", textAlign: "right" }}>{fmtSize(f.size)}</span>
+              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>{fmtDate(f.created)}</span>
+              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>{fmtDate(f.updated)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Activity Log ──────────────────────────────────────── */}
+      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, color: "#fff", marginBottom: 12 }}>Activity Log</div>
       {loading && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>Loading…</div>}
       {!loading && logs.length === 0 && (
         <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>No logs yet. Activity will appear here as users interact with the app.</div>
       )}
       {logs.map((log) => (
-        <div key={log.id} style={{ background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: "12px 16px", marginBottom: 8, border: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <div key={log.id} style={{ background: isError(log.type) ? "rgba(220,60,60,0.1)" : "rgba(255,255,255,0.05)", borderRadius: 12, padding: "12px 16px", marginBottom: 8, border: `1px solid ${isError(log.type) ? "rgba(220,60,60,0.3)" : "rgba(255,255,255,0.08)"}`, display: "flex", gap: 12, alignItems: "flex-start" }}>
           <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{iconFor(log.type)}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{log.message || log.action}</div>
+            <div style={{ fontSize: 14, color: isError(log.type) ? "#ff9090" : "#fff", fontWeight: 600 }}>{log.message || log.action}</div>
+            {log.subject && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2, fontStyle: "italic" }}>Subject: {log.subject}</div>}
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 3 }}>
               {log.actorName && <span style={{ marginRight: 8 }}>{log.actorName}</span>}
               {fmtTs(log.ts)}
@@ -6596,6 +7972,429 @@ function AdminLogs() {
 }
 
 /* Subscriptions tab — manage subscription tiers */
+/* ── ADMIN NOTIFICATIONS TAB ─────────────────────────────────────────────── */
+const DEFAULT_FORGOT_PASSWORD_TEMPLATE = {
+  type: "email_template",
+  key: "forgot_password",
+  isSystem: true,
+  title: "Forgot Password Email",
+  subject: "Reset your Mahjong Club password",
+  body: `<p>Hi {{name}},</p>
+<p>We received a request to reset your Mahjong Club password. Click the link below to choose a new one:</p>
+<p><a href="{{resetLink}}" style="color:#c9607a;font-weight:bold;">Reset my password →</a></p>
+<p style="font-size:12px;color:#888;">If the link above doesn't work, copy and paste this URL into your browser:<br>{{resetLink}}</p>
+<p>This link expires in 1 hour. If you didn't request a password reset, you can safely ignore this email — your account is secure.</p>
+<p>— The Mahjong Club Team</p>`,
+  status: "active",
+};
+
+function AdminNotifications({ flash, adminUid }) {
+  const [notifications, setNotifications] = useState([]);
+  const [view, setView] = useState("list"); // "list" | "create" | "editTemplate"
+  const [editingNotif, setEditingNotif] = useState(null);
+  const [form, setForm] = useState({ type: "announcement", title: "", subject: "", body: "", audience: "all", features: [], status: "draft" });
+  const [features, setFeatures] = useState([{ icon: "✨", title: "", description: "" }]);
+  const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(null);
+
+  // Test-send picker
+  const [testingNotif, setTestingNotif]   = useState(null);
+  const [allUsers, setAllUsers]           = useState([]);
+  const [usersLoading, setUsersLoading]   = useState(false);
+  const [userSearch, setUserSearch]       = useState("");
+  const [testSending, setTestSending]     = useState(false);
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      query(collection(db, "adminNotifications"), orderBy("createdAt", "desc")),
+      snap => setNotifications(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      () => {}
+    );
+    return unsub;
+  }, []);
+
+  // Seed the forgot-password template; auto-migrate if it still has the old button HTML
+  useEffect(() => {
+    getDocs(query(collection(db, "adminNotifications"), where("key", "==", "forgot_password")))
+      .then(snap => {
+        if (snap.empty) {
+          addDoc(collection(db, "adminNotifications"), { ...DEFAULT_FORGOT_PASSWORD_TEMPLATE, createdAt: serverTimestamp(), createdBy: adminUid });
+        } else if (snap.docs[0].data().body?.includes("display:inline-block")) {
+          updateDoc(snap.docs[0].ref, { body: DEFAULT_FORGOT_PASSWORD_TEMPLATE.body });
+        }
+      }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const adminS = {
+    card: { background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "18px 20px", border: "1px solid rgba(255,255,255,0.1)", marginBottom: 12 },
+    label: { fontSize: 11, fontWeight: 700, color: "rgba(232,160,208,0.8)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, display: "block", fontFamily: "'Inter',sans-serif" },
+    input: { width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14, fontFamily: "'Inter',sans-serif", outline: "none", boxSizing: "border-box" },
+    btn: (variant = "primary") => ({
+      padding: "10px 20px", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter',sans-serif", border: "none",
+      background: variant === "primary" ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : variant === "ghost" ? "rgba(255,255,255,0.08)" : "rgba(255,100,100,0.2)",
+      color: variant === "danger" ? "#ff8080" : "#fff",
+    }),
+  };
+
+  const typeLabel    = { push: "Push Notification", announcement: "App Announcement", email: "Email Blast", email_template: "Email Template" };
+  const typeIcon     = { push: "🔔", announcement: "📣", email: "📧", email_template: "✉️" };
+  const audienceLabel = { all: "All users", google: "Google sign-in users", free: "Free plan", basic: "Basic plan", pro: "Pro plan", club: "Club plan" };
+  const statusBadge  = { draft: ["#a0a0c0","Draft"], active: ["#60d0a0","Live"], queued: ["#f0b060","Sending…"], sent: ["#e8a0d0","Sent"], error: ["#ff6b6b","Error"] };
+
+  const resetForm = () => {
+    setForm({ type: "announcement", title: "", subject: "", body: "", audience: "all", features: [], status: "draft" });
+    setFeatures([{ icon: "✨", title: "", description: "" }]);
+    setEditingNotif(null);
+  };
+
+  const openEditTemplate = (notif) => {
+    setEditingNotif(notif);
+    setForm({ ...notif });
+    setView("editTemplate");
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!editingNotif) return;
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, "adminNotifications", editingNotif.id), {
+        subject: form.subject,
+        body: form.body,
+        updatedAt: serverTimestamp(),
+      });
+      flash("Template saved.", "✅");
+      setView("list");
+      resetForm();
+    } catch { flash("Save failed.", "❌"); }
+    setSaving(false);
+  };
+
+  const handleSave = async (status) => {
+    if (!form.title.trim()) { flash("Title is required.", "⚠️"); return; }
+    if (form.type === "email" && !form.subject.trim()) { flash("Subject is required for emails.", "⚠️"); return; }
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        status,
+        features: form.type === "announcement" ? features.filter(f => f.title.trim()) : [],
+        createdBy: adminUid,
+        createdAt: serverTimestamp(),
+        ...(status === "active" ? { publishedAt: serverTimestamp() } : {}),
+      };
+      await addDoc(collection(db, "adminNotifications"), payload);
+      flash(status === "active" ? "Announcement published!" : "Saved as draft.", "✅");
+      resetForm();
+      setView("list");
+    } catch { flash("Save failed.", "❌"); }
+    setSaving(false);
+  };
+
+  const handlePublish   = async (n) => { try { await updateDoc(doc(db, "adminNotifications", n.id), { status: "active", publishedAt: serverTimestamp() }); flash("Live!", "✅"); } catch { flash("Failed.", "❌"); } };
+  const handleUnpublish = async (n) => { try { await updateDoc(doc(db, "adminNotifications", n.id), { status: "draft" }); flash("Unpublished.", "✅"); } catch { flash("Failed.", "❌"); } };
+  const handleDelete    = async (n) => { try { await deleteDoc(doc(db, "adminNotifications", n.id)); flash("Deleted.", "✅"); } catch { flash("Failed.", "❌"); } };
+
+  const handleSendPush = async (n) => {
+    setSending(n.id);
+    try { await updateDoc(doc(db, "adminNotifications", n.id), { status: "queued" }); flash("Push queued — sending now.", "🔔"); }
+    catch (e) { flash(`Failed: ${e.message}`, "❌"); }
+    setSending(null);
+  };
+
+  const handleSendEmail = async (n) => {
+    setSending(n.id);
+    try { await updateDoc(doc(db, "adminNotifications", n.id), { status: "queued" }); flash("Email blast queued — sending now.", "📧"); }
+    catch (e) { flash(`Failed: ${e.message}`, "❌"); }
+    setSending(null);
+  };
+
+  const openTestPicker = async (n) => {
+    setTestingNotif(n);
+    setUserSearch("");
+    if (allUsers.length === 0) {
+      setUsersLoading(true);
+      try {
+        const snap = await getDocs(collection(db, "users"));
+        setAllUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => u.email));
+      } catch {}
+      setUsersLoading(false);
+    }
+  };
+
+  const handleSendTest = async (user) => {
+    if (!testingNotif || testSending) return;
+    setTestSending(true);
+    const n = testingNotif;
+    try {
+      if (n.type === "push") {
+        await addDoc(collection(db, "adminNotifications"), {
+          type: "push", title: n.title, body: n.body,
+          audience: "_test_single_uid", testUid: user.id,
+          status: "queued", createdBy: adminUid, createdAt: serverTimestamp(),
+        });
+      } else {
+        const body = (n.body || "")
+          .replace(/\{\{name\}\}/g, user.name || user.email.split("@")[0])
+          .replace(/\{\{email\}\}/g, user.email)
+          .replace(/\{\{resetLink\}\}/g, "[test — no real link in test mode]");
+        await addDoc(collection(db, "adminNotifications"), {
+          type: "email", title: `[Test] ${n.title}`,
+          subject: n.subject, body,
+          audience: "_test_single", testRecipient: user.email,
+          logResults: true, status: "queued",
+          createdBy: adminUid, createdAt: serverTimestamp(),
+        });
+      }
+      flash(`Test sent to ${user.name || user.email}`, "✅");
+      setTestingNotif(null);
+    } catch (e) { flash(`Failed: ${e.message}`, "❌"); }
+    setTestSending(false);
+  };
+
+  // ── Edit email template view ──────────────────────────────────────────────
+  if (view === "editTemplate") {
+    const isSystem = editingNotif?.isSystem;
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <button style={adminS.btn("ghost")} onClick={() => { resetForm(); setView("list"); }}>← Back</button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: "#fff" }}>{editingNotif?.title}</div>
+            {isSystem && <div style={{ fontSize: 12, color: "rgba(232,160,208,0.7)", marginTop: 2 }}>System template — used automatically by the app</div>}
+          </div>
+        </div>
+
+        <div style={adminS.card}>
+          <label style={adminS.label}>Email subject</label>
+          <input style={adminS.input} value={form.subject || ""} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="Subject line" />
+        </div>
+
+        <div style={adminS.card}>
+          <label style={adminS.label}>Email body (HTML)</label>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 8, fontFamily: "'Inter',sans-serif" }}>
+            Available placeholders: <code style={{ background: "rgba(255,255,255,0.1)", borderRadius: 4, padding: "1px 5px" }}>{"{{name}}"}</code>
+            {editingNotif?.key === "forgot_password" && <> <code style={{ background: "rgba(255,255,255,0.1)", borderRadius: 4, padding: "1px 5px" }}>{"{{resetLink}}"}</code> <code style={{ background: "rgba(255,255,255,0.1)", borderRadius: 4, padding: "1px 5px" }}>{"{{email}}"}</code></>}
+          </div>
+          <textarea style={{ ...adminS.input, resize: "vertical", minHeight: 260, fontFamily: "monospace", fontSize: 12 }} value={form.body || ""} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} placeholder="HTML email body" />
+        </div>
+
+        <button style={{ ...adminS.btn("primary"), width: "100%" }} disabled={saving} onClick={handleSaveTemplate}>{saving ? "Saving…" : "Save Template"}</button>
+      </div>
+    );
+  }
+
+  // ── Create notification view ──────────────────────────────────────────────
+  if (view === "create") {
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <button style={adminS.btn("ghost")} onClick={() => { resetForm(); setView("list"); }}>← Back</button>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: "#fff" }}>New Notification</div>
+        </div>
+
+        <div style={adminS.card}>
+          <label style={adminS.label}>Type</label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {[["announcement","📣 App Announcement"],["push","🔔 Push"],["email","📧 Email"]].map(([t, l]) => (
+              <button key={t} onClick={() => setForm(f => ({ ...f, type: t }))} style={{ ...adminS.btn(form.type === t ? "primary" : "ghost"), flex: 1, minWidth: 120 }}>{l}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={adminS.card}>
+          <label style={adminS.label}>Title{form.type === "email" ? " (internal label)" : ""}</label>
+          <input style={adminS.input} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            placeholder={form.type === "announcement" ? "What's New in Mahjong Club" : form.type === "email" ? "e.g. May newsletter" : "Notification title"} />
+          {form.type === "email" && <>
+            <label style={{ ...adminS.label, marginTop: 14 }}>Email subject</label>
+            <input style={adminS.input} value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="Subject line recipients will see" />
+          </>}
+          <label style={{ ...adminS.label, marginTop: 14 }}>
+            {form.type === "announcement" ? "Subtitle (optional)" : form.type === "email" ? "Email body (HTML)" : "Message body"}
+          </label>
+          <textarea
+            style={{ ...adminS.input, resize: "vertical", minHeight: form.type === "email" ? 200 : 72, ...(form.type === "email" ? { fontFamily: "monospace", fontSize: 12 } : {}) }}
+            value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+            placeholder={form.type === "email" ? "<p>Hi {{name}},</p><p>Your message here…</p>" : form.type === "announcement" ? "A short description" : "The notification message"}
+          />
+          {form.type === "email" && (
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 6, fontFamily: "'Inter',sans-serif" }}>
+              Placeholders: <code style={{ background: "rgba(255,255,255,0.1)", borderRadius: 4, padding: "1px 5px" }}>{"{{name}}"}</code> <code style={{ background: "rgba(255,255,255,0.1)", borderRadius: 4, padding: "1px 5px" }}>{"{{email}}"}</code>
+            </div>
+          )}
+        </div>
+
+        {(form.type === "push" || form.type === "email") && (
+          <div style={adminS.card}>
+            <label style={adminS.label}>Audience</label>
+            <select style={adminS.input} value={form.audience} onChange={e => setForm(f => ({ ...f, audience: e.target.value }))}>
+              {Object.entries(audienceLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+        )}
+
+        {form.type === "announcement" && (
+          <div style={adminS.card}>
+            <label style={adminS.label}>Feature highlights</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {features.map((f, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <input style={{ ...adminS.input, width: 52, textAlign: "center", fontSize: 22, padding: "8px 4px", flexShrink: 0 }} value={f.icon} onChange={e => setFeatures(fs => fs.map((x, j) => j === i ? { ...x, icon: e.target.value } : x))} maxLength={4} />
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                    <input style={adminS.input} value={f.title} onChange={e => setFeatures(fs => fs.map((x, j) => j === i ? { ...x, title: e.target.value } : x))} placeholder="Feature name" />
+                    <input style={adminS.input} value={f.description} onChange={e => setFeatures(fs => fs.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} placeholder="Short description" />
+                  </div>
+                  {features.length > 1 && <button onClick={() => setFeatures(fs => fs.filter((_, j) => j !== i))} style={{ ...adminS.btn("danger"), padding: "8px 12px", flexShrink: 0 }}>✕</button>}
+                </div>
+              ))}
+              <button onClick={() => setFeatures(fs => [...fs, { icon: "✨", title: "", description: "" }])} style={{ ...adminS.btn("ghost"), alignSelf: "flex-start" }}>+ Add Feature</button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button style={{ ...adminS.btn("ghost"), flex: 1 }} disabled={saving} onClick={() => handleSave("draft")}>{saving ? "Saving…" : "Save Draft"}</button>
+          <button style={{ ...adminS.btn("primary"), flex: 1 }} disabled={saving} onClick={() => handleSave(form.type === "announcement" ? "active" : "draft")}>
+            {saving ? "…" : form.type === "announcement" ? "Publish Now" : "Save"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── User picker modal ────────────────────────────────────────────────────
+  const filteredUsers = allUsers.filter(u => {
+    const q = userSearch.toLowerCase();
+    return !q || (u.name || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q);
+  });
+
+  const TestPickerModal = testingNotif ? (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }} onClick={() => setTestingNotif(null)}>
+      <div style={{ background: "#1e1230", border: "1px solid rgba(232,160,208,0.3)", borderRadius: 18, padding: 24, width: "100%", maxWidth: 420, maxHeight: "70vh", display: "flex", flexDirection: "column", gap: 16 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, fontWeight: 700, color: "#fff" }}>Send Notification Test</div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>"{testingNotif.title}"</div>
+          </div>
+          <button style={{ ...adminS.btn("ghost"), padding: "6px 12px", fontSize: 16 }} onClick={() => setTestingNotif(null)}>✕</button>
+        </div>
+        <input
+          style={{ ...adminS.input, flexShrink: 0 }}
+          placeholder="Search users…"
+          value={userSearch}
+          onChange={e => setUserSearch(e.target.value)}
+          autoFocus
+        />
+        <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+          {usersLoading && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, textAlign: "center", padding: 16 }}>Loading users…</div>}
+          {!usersLoading && filteredUsers.length === 0 && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, textAlign: "center", padding: 16 }}>No users found.</div>}
+          {filteredUsers.map(u => (
+            <button
+              key={u.id}
+              disabled={testSending}
+              onClick={() => handleSendTest(u)}
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 14px", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 2, opacity: testSending ? 0.5 : 1 }}
+            >
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#fff", fontFamily: "'Inter',sans-serif" }}>{u.name || "(no name)"}</span>
+              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>{u.email}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  // ── List view ─────────────────────────────────────────────────────────────
+  const systemEntries  = notifications.filter(n => n.isSystem);
+  const regularEntries = notifications.filter(n => !n.isSystem);
+
+  return (
+    <div>
+      {TestPickerModal}
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: "#fff" }}>Notification Templates</div>
+        <button style={adminS.btn("primary")} onClick={() => setView("create")}>+ New</button>
+      </div>
+
+      {/* System templates section */}
+      {systemEntries.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(232,160,208,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontFamily: "'Inter',sans-serif" }}>System Templates</div>
+          {systemEntries.map(n => (
+            <div key={n.id} style={{ ...adminS.card, borderColor: "rgba(232,160,208,0.2)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ fontSize: 28, lineHeight: 1 }}>✉️</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, fontWeight: 700, color: "#fff" }}>{n.title}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#e8a0d0", background: "rgba(232,160,208,0.15)", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: 0.5 }}>System</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 3, fontFamily: "'Inter',sans-serif" }}>
+                    {n.subject && `Subject: ${n.subject}`}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                <button style={{ ...adminS.btn("ghost"), fontSize: 13, padding: "7px 14px" }} onClick={() => openEditTemplate(n)}>Edit Template</button>
+                <button style={{ ...adminS.btn("ghost"), fontSize: 13, padding: "7px 14px" }} onClick={() => openTestPicker(n)}>Send Test</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Regular notifications */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(232,160,208,0.6)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontFamily: "'Inter',sans-serif" }}>Notifications & Announcements</div>
+      {regularEntries.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "40px 20px", background: "rgba(255,255,255,0.03)", borderRadius: 16, border: "1px dashed rgba(255,255,255,0.12)" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📣</div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 8 }}>No notifications yet</div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginBottom: 20 }}>Create a push notification, email blast, or app announcement.</div>
+          <button style={adminS.btn("primary")} onClick={() => setView("create")}>Create First Notification</button>
+        </div>
+      ) : (
+        regularEntries.map(n => {
+          const [badgeColor, badgeText] = statusBadge[n.status] || ["#a0a0c0", n.status];
+          return (
+            <div key={n.id} style={adminS.card}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <div style={{ fontSize: 28, lineHeight: 1 }}>{typeIcon[n.type] || "📣"}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, fontWeight: 700, color: "#fff" }}>{n.title}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: badgeColor, background: `${badgeColor}22`, borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: 0.5 }}>{badgeText}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 3, fontFamily: "'Inter',sans-serif" }}>
+                    {typeLabel[n.type] || n.type}
+                    {(n.type === "push" || n.type === "email") && ` · ${audienceLabel[n.audience] || n.audience}`}
+                    {n.recipientCount != null && ` · ${n.recipientCount} recipients`}
+                    {n.emailsSent != null && ` · ${n.emailsSent} emails sent`}
+                    {n.createdAt && ` · ${new Date(n.createdAt.toMillis()).toLocaleDateString()}`}
+                  </div>
+                  {n.type === "email" && n.subject && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginTop: 4, fontFamily: "'Inter',sans-serif" }}>Subject: {n.subject}</div>}
+                  {n.type === "announcement" && n.features?.length > 0 && (
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{n.features.length} feature{n.features.length !== 1 ? "s" : ""}: {n.features.map(f => f.title).filter(Boolean).join(", ")}</div>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+                {n.type === "push"  && n.status !== "sent" && n.status !== "queued" && <button style={{ ...adminS.btn("primary"), fontSize: 13, padding: "7px 14px" }} disabled={sending === n.id} onClick={() => handleSendPush(n)}>{sending === n.id ? "Sending…" : "Send Push"}</button>}
+                {n.type === "email" && n.status !== "sent" && n.status !== "queued" && <button style={{ ...adminS.btn("primary"), fontSize: 13, padding: "7px 14px" }} disabled={sending === n.id} onClick={() => handleSendEmail(n)}>{sending === n.id ? "Sending…" : "Send Email"}</button>}
+                {n.type === "announcement" && n.status === "draft"  && <button style={{ ...adminS.btn("primary"), fontSize: 13, padding: "7px 14px" }} onClick={() => handlePublish(n)}>Publish</button>}
+                {n.type === "announcement" && n.status === "active" && <button style={{ ...adminS.btn("ghost"),   fontSize: 13, padding: "7px 14px" }} onClick={() => handleUnpublish(n)}>Unpublish</button>}
+                {(n.type === "push" || n.type === "email") && <button style={{ ...adminS.btn("ghost"), fontSize: 13, padding: "7px 14px" }} onClick={() => openTestPicker(n)}>Send Test</button>}
+                <button style={{ ...adminS.btn("danger"), fontSize: 13, padding: "7px 14px" }} onClick={() => handleDelete(n)}>Delete</button>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
 function AdminSubscriptions({ flash, packages, adminUid }) {
   const [loading] = useState(false);
   const [view, setView] = useState("list"); // "list" | "detail" | "edit" | "new"
@@ -6997,6 +8796,218 @@ function AdminSubscriptions({ flash, packages, adminUid }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* ── ADMIN CONFIG ────────────────────────────────────────────────────────── */
+function AdminConfig({ flash, adminUid }) {
+  const EMPTY = { host: "", port: "587", user: "", pass: "", fromEmail: "", fromName: "Mahjong Club" };
+  const [form, setForm]         = useState(EMPTY);
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [testing, setTesting]   = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [testEmail, setTestEmail]   = useState("");
+  const [logResults, setLogResults] = useState(false);
+  const [testResult, setTestResult] = useState(null); // { ok, message, detail }
+
+  useEffect(() => {
+    getDoc(doc(db, "adminConfig", "smtp")).then(d => {
+      if (d.exists()) setForm(f => ({ ...EMPTY, ...d.data() }));
+    }).catch(() => {}).finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSave = async () => {
+    if (!form.host || !form.user || !form.pass) {
+      flash("Host, username, and password are required."); return;
+    }
+    setSaving(true);
+    try {
+      await setDoc(doc(db, "adminConfig", "smtp"), {
+        host:      form.host.trim(),
+        port:      form.port.trim() || "587",
+        user:      form.user.trim(),
+        pass:      form.pass,
+        fromEmail: form.fromEmail.trim() || form.user.trim(),
+        fromName:  form.fromName.trim() || "Mahjong Club",
+        updatedAt: serverTimestamp(),
+        updatedBy: adminUid,
+      });
+      flash("Email settings saved.");
+    } catch (e) {
+      flash("Save failed: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    const to = testEmail.trim();
+    if (!to || !/\S+@\S+\.\S+/.test(to)) { flash("Enter a valid email address to send the test to."); return; }
+    if (!form.host || !form.user || !form.pass) { flash("Save email settings first before sending a test."); return; }
+    setTesting(true);
+    setTestResult(null);
+    const diag = [];
+    try {
+      diag.push(`UID: ${auth.currentUser?.uid || "none"}`);
+      diag.push(`Origin: ${window.location.origin}`);
+
+      // Try direct Cloud Run URL first (bypasses hosting proxy)
+      diag.push("Calling logImpersonation via Firebase SDK…");
+      const fn = httpsCallable(getFunctions(), "logImpersonation");
+      const result = await fn({ action: "_testSmtp", to, logResults });
+      diag.push(`Result: ${JSON.stringify(result.data)}`);
+
+      if (result.data?.success) {
+        setTestResult({ ok: true, message: `Email delivered to ${to}. Check your inbox.` });
+      } else {
+        setTestResult({ ok: false, message: "Function returned unexpected result", detail: diag.join("\n") });
+      }
+    } catch (e) {
+      const allProps = Object.getOwnPropertyNames(e).reduce((acc, k) => {
+        try { acc[k] = e[k]; } catch {}
+        return acc;
+      }, {});
+      diag.push(`code: ${e.code}`);
+      diag.push(`message: ${e.message}`);
+      diag.push(`details: ${JSON.stringify(e.details)}`);
+      diag.push(`httpErrorCode: ${e.httpErrorCode?.status ?? "none"}`);
+      diag.push(`all props: ${JSON.stringify(allProps)}`);
+      const smtpResp = e.details?.smtpResponse || "";
+      setTestResult({ ok: false, message: e.message || e.code || "Unknown error", detail: [smtpResp, diag.join("\n")].filter(Boolean).join("\n---\n") });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const s = {
+    card:  { background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "20px 22px", border: "1px solid rgba(255,255,255,0.1)", marginBottom: 16 },
+    label: { fontSize: 11, fontWeight: 700, color: "rgba(232,160,208,0.8)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, display: "block", fontFamily: "'Inter',sans-serif" },
+    input: { width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, padding: "10px 12px", color: "#fff", fontSize: 14, fontFamily: "'Inter',sans-serif", outline: "none", boxSizing: "border-box" },
+    row2:  { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 },
+    hint:  { fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 4, fontFamily: "'Inter',sans-serif" },
+    btn:   (v = "primary") => ({
+      padding: "10px 22px", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer",
+      fontFamily: "'Inter',sans-serif", border: "none",
+      background: v === "primary" ? "linear-gradient(135deg,#c9607a,#9b6ea8)" : "rgba(255,255,255,0.1)",
+      color: "#fff", opacity: saving || testing ? 0.6 : 1,
+    }),
+  };
+
+  if (loading) return <div style={{ color: "rgba(255,255,255,0.5)", padding: 32, textAlign: "center" }}>Loading…</div>;
+
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "#fff", fontFamily: "'Inter',sans-serif" }}>System Configuration</div>
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginTop: 4, fontFamily: "'Inter',sans-serif" }}>
+          Settings saved here take effect immediately for all email sending.
+        </div>
+      </div>
+
+      {/* ── Email / SMTP ── */}
+      <div style={s.card}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "#e8a0d0", marginBottom: 16, fontFamily: "'Inter',sans-serif" }}>📧 Email Settings (SMTP)</div>
+
+        <div style={s.row2}>
+          <div>
+            <span style={s.label}>SMTP Host</span>
+            <input style={s.input} value={form.host} onChange={e => set("host", e.target.value)} placeholder="smtp.example.com" />
+          </div>
+          <div>
+            <span style={s.label}>Port</span>
+            <input style={s.input} type="number" value={form.port} onChange={e => set("port", e.target.value)} placeholder="587" />
+            <div style={s.hint}>587 = TLS (recommended) · 465 = SSL · 25 = plain</div>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <span style={s.label}>SMTP Username</span>
+          <input style={s.input} value={form.user} onChange={e => set("user", e.target.value)} placeholder="your@email.com" autoComplete="off" />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <span style={s.label}>SMTP Password</span>
+          <div style={{ position: "relative" }}>
+            <input
+              style={{ ...s.input, paddingRight: 44 }}
+              type={showPass ? "text" : "password"}
+              value={form.pass}
+              onChange={e => set("pass", e.target.value)}
+              placeholder="••••••••"
+              autoComplete="new-password"
+            />
+            <button
+              onClick={() => setShowPass(v => !v)}
+              style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.5)", fontSize: 14 }}
+            >{showPass ? "Hide" : "Show"}</button>
+          </div>
+          <div style={s.hint}>Stored encrypted in Firestore · only admins can read this document</div>
+        </div>
+
+        <div style={s.row2}>
+          <div>
+            <span style={s.label}>From Email</span>
+            <input style={s.input} value={form.fromEmail} onChange={e => set("fromEmail", e.target.value)} placeholder="noreply@yourapp.com" />
+            <div style={s.hint}>Defaults to SMTP username if blank</div>
+          </div>
+          <div>
+            <span style={s.label}>From Name</span>
+            <input style={s.input} value={form.fromName} onChange={e => set("fromName", e.target.value)} placeholder="Mahjong Club" />
+          </div>
+        </div>
+
+        <button onClick={handleSave} disabled={saving} style={s.btn("primary")}>
+          {saving ? "Saving…" : "Save Settings"}
+        </button>
+      </div>
+
+      {/* ── Test ── */}
+      <div style={s.card}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "#e8a0d0", marginBottom: 4, fontFamily: "'Inter',sans-serif" }}>🧪 Send Test Email</div>
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginBottom: 14, fontFamily: "'Inter',sans-serif" }}>
+          Save your settings first, then send a test to verify everything is working.
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
+          <input
+            style={{ ...s.input, flex: 1 }}
+            value={testEmail}
+            onChange={e => { setTestEmail(e.target.value); setTestResult(null); }}
+            placeholder="test@example.com"
+            type="email"
+          />
+          <button onClick={handleTest} disabled={testing} style={{ ...s.btn("ghost"), whiteSpace: "nowrap", opacity: testing ? 0.6 : 1 }}>
+            {testing ? "Sending…" : "Send Test"}
+          </button>
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}>
+          <input
+            type="checkbox"
+            checked={logResults}
+            onChange={e => setLogResults(e.target.checked)}
+            style={{ width: 15, height: 15, accentColor: "#e8a0d0", cursor: "pointer" }}
+          />
+          <span style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", fontFamily: "'Inter',sans-serif" }}>
+            Log results in Logs tab and error file
+          </span>
+        </label>
+        {testResult && (
+          <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: 10, background: testResult.ok ? "rgba(60,200,120,0.1)" : "rgba(220,60,60,0.12)", border: `1px solid ${testResult.ok ? "rgba(60,200,120,0.3)" : "rgba(220,60,60,0.3)"}` }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: testResult.ok ? "#60d090" : "#ff9090", fontFamily: "'Inter',sans-serif" }}>
+              {testResult.ok ? "✅ Success" : "❌ Failed"} — {testResult.message}
+            </div>
+            {testResult.detail && (
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 6, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                {testResult.detail}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

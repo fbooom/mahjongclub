@@ -78,7 +78,8 @@ service cloud.firestore {
         allow read: if isSignedIn() && (
           isAdmin() ||
           request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds ||
-          request.auth.uid in resource.data.get('guestIds', [])
+          request.auth.uid in resource.data.get('guestIds', []) ||
+          resource.data.get('joinCode', '') != ''
         );
 
         allow create: if isSignedIn() &&
@@ -87,10 +88,10 @@ service cloud.firestore {
         allow update: if isSignedIn() && (
           isAdmin() ||
           request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds ||
-          // Non-members joining via game invite: may only write guestIds and their own rsvp entry
+          // Non-members joining via game invite: may only write guestIds, their own rsvp entry, and registeredGuests
           (
             request.auth.uid in request.resource.data.get('guestIds', []) &&
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestIds', 'rsvps'])
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestIds', 'rsvps', 'registeredGuests'])
           )
         );
 
@@ -122,7 +123,8 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         isAdmin() ||
         request.auth.uid == resource.data.hostId ||
-        request.auth.uid in resource.data.get('guestIds', [])
+        request.auth.uid in resource.data.get('guestIds', []) ||
+        resource.data.get('joinCode', '') != ''
       );
 
       allow create: if isSignedIn() && request.auth.uid == request.resource.data.hostId;
@@ -130,10 +132,10 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         isAdmin() ||
         request.auth.uid == resource.data.hostId ||
-        // Guests joining via invite: may only write guestIds and their own rsvp entry
+        // Guests joining via invite: may only write guestIds, their own rsvp entry, and registeredGuests
         (
           request.auth.uid in request.resource.data.get('guestIds', []) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestIds', 'rsvps', 'waitlist'])
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestIds', 'rsvps', 'waitlist', 'registeredGuests'])
         )
       );
 
@@ -145,6 +147,37 @@ service cloud.firestore {
     match /adminLogs/{logId} {
       allow read: if isAdmin();
       allow write: if isAdmin();
+    }
+
+    // ── Admin configuration (SMTP, etc.) ─────────────────────────────────────
+    match /adminConfig/{configId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── Admin Notifications / Announcements ───────────────────────────────────
+    // Admins: full read/write.
+    // Signed-in users: read-only (needed to fetch active announcements at login).
+    match /adminNotifications/{notifId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── Admin SMTP test requests ─────────────────────────────────────────────
+    // Admins create a request; the Cloud Function writes back the result.
+    // Only the requesting admin can read/delete their own request.
+    match /adminTestRequests/{reqId} {
+      allow create: if isAdmin();
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ── Password Reset Requests ───────────────────────────────────────────────
+    // Anyone (including unauthenticated) can create a request — needed on the
+    // login screen before the user is signed in. The Cloud Function deletes
+    // the doc immediately after processing so no data lingers.
+    // Nobody can read or list them (the function uses Admin SDK).
+    match /passwordResetRequests/{reqId} {
+      allow create: if true;
+      allow read, update, delete: if false;
     }
 
     match /subscriptionPackages/{pkgId} {

@@ -1,7 +1,8 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, initializeAuth, indexedDBLocalPersistence, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getMessaging, isSupported } from "firebase/messaging";
+import { getStorage } from "firebase/storage";
 import { Capacitor } from "@capacitor/core";
 
 const firebaseConfig = {
@@ -22,7 +23,15 @@ export const auth = Capacitor.isNativePlatform()
   ? initializeAuth(app, { persistence: indexedDBLocalPersistence })
   : getAuth(app);
 
-export const db = getFirestore(app);
+// Offline persistence: data loads from IndexedDB cache instantly on every open
+// after the first, instead of waiting for a network round trip.
+// experimentalAutoDetectLongPolling: falls back to long polling if WebSocket
+// is unreliable (common on iOS Capacitor WKWebView).
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+  experimentalAutoDetectLongPolling: true,
+});
+export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 
 // Messaging — resolves to the Messaging instance, or null if unsupported

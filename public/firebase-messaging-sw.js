@@ -58,6 +58,36 @@ self.addEventListener('fetch', (e) => {
   );
 });
 
+// ── Notification click: navigate to the relevant group or game ───────────────
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const data = event.notification.data || {};
+  const { type, groupId, gameId } = data;
+
+  // Build a cold-start URL with nav params so the app can route after login.
+  // These params are distinct from the ?joinGroup/?gameCode join-invite params.
+  let url = "/";
+  if ((type === "chat" || type === "reply") && groupId) {
+    url = `/?navGroup=${groupId}`;
+  } else if ((type === "gameChat" || type === "game" || type === "gameReminder") && groupId && gameId) {
+    url = `/?navGroup=${groupId}&navGame=${gameId}`;
+  } else if (type === "gameChat" && !groupId && gameId) {
+    url = `/?navGame=${gameId}`;
+  }
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      const existing = clientList.find((c) => c.url.includes(self.location.origin) && "focus" in c);
+      if (existing) {
+        // App is already open — tell it to navigate without a page reload.
+        existing.postMessage({ type: "NAVIGATE", data });
+        return existing.focus();
+      }
+      return clients.openWindow(url);
+    })
+  );
+});
+
 // ── Firebase Cloud Messaging ──────────────────────────────────────────────────
 importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js");

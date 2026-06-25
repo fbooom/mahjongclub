@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["Y5U5Z9GYNS.ourmahjong.club.app"],
+        "components": [
+          {
+            "/": "/*",
+            "comment": "Match all paths — app is the entire experience at this domain"
+          }
+        ]
+      }
+    ]
+  }
+}

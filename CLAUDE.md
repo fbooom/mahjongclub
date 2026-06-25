@@ -8,27 +8,27 @@
 
 ## Deploying
 
-Run:
+After every code change, always run BOTH commands:
 ```
-npm run deploy
+npm run deploy && npm run sync
 ```
 
-This builds with Vite and pushes to Firebase Hosting. The deploy script explicitly unsets `FIREBASE_TOKEN` before running so stale session tokens never block deploys.
+- `npm run deploy` — builds with Vite and pushes to Firebase Hosting (web app)
+- `npm run sync` — builds with Vite and copies assets into the iOS bundle (`ios/App/App/public/`)
+
+Both must run together so web and iOS are never out of sync. After `npm run sync`, tell the user to do **Shift+Cmd+K (Clean Build Folder)** in Xcode, then rebuild.
 
 **Auth:** Firebase CLI uses OAuth credentials stored in `~/.config/firebase/` (set via `firebase login`). If deploy fails with an auth error, the user must run `firebase login --reauth` once. Do not claim an auth fix is in place until a real deploy is confirmed successful.
 
 **Do not:**
-- Tell the user a fix is working before running `npm run deploy` and confirming it succeeds
+- Run only `npm run deploy` without also running `npm run sync` — iOS will miss the change
+- Tell the user a fix is working before running both commands and confirming deploy succeeds
 - Assume `GOOGLE_APPLICATION_CREDENTIALS` is sufficient — the stored OAuth credentials from `firebase login` are what Firebase CLI actually uses for this project
 
 ## iOS deploy workflow
-After every commit that touches native or web code, run:
-```
-npm run deploy:ios
-```
-This builds Vite, syncs to Capacitor, builds the Xcode project, installs to the connected iPhone (UDID `00008120-001155543E98201E`), and launches the app — no manual Xcode interaction needed. The iPhone must be connected via USB and unlocked.
+**Do not run `npm run deploy:ios` or any xcodebuild/xcrun commands.** CLI-based Xcode deploys corrupt margins on device. The user deploys to iOS manually via a full rebuild in Xcode.
 
-For web-only changes, `npm run deploy` (Firebase Hosting) is sufficient — no iOS deploy needed.
+After running `npm run sync`, tell the user to Clean Build Folder (Shift+Cmd+K) in Xcode and rebuild.
 
 ## General rules
 - When adding, updating, or removing files, clean up after yourself — remove stale references, orphaned build inputs, duplicate files, and dead imports left behind by the change

@@ -48,6 +48,9 @@ export const sakura = {
   bgMsgOther:          "rgba(255,255,255,0.90)",  // other user's chat bubble
   bgPopup:             "rgba(255,255,255,0.97)",  // dropdowns / overlays
 
+  // Date block on game cards — warm parchment, distinct from pink card + pink shell
+  dateBlockBg:         "#ede8e0",
+
   // Input selection states
   inputSelectedBg:     "#fce4ee",
   inputUnselectedBg:   "#f9f0f3",
@@ -115,7 +118,7 @@ export const forest = {
   primaryMuted:        "#3a7a50",
   primarySubtle:       "#6aab80",
   primaryFaint:        "#a8ccb4",
-  secondaryAccent:     "#c47c28",   // warm amber — lantern glow through leaves
+  secondaryAccent:     "#2a8080",   // teal jade — mist and water through bamboo
 
   primaryRgb:          "46,125,79",
   shadowRgb:           "20,72,44",
@@ -136,6 +139,9 @@ export const forest = {
   bgMsgOther:          "rgba(238,252,243,0.93)",
   bgPopup:             "rgba(244,253,247,0.97)",
 
+  // Date block on game cards — warm sand, distinct from green card + green shell
+  dateBlockBg:         "#e6dfd0",
+
   inputSelectedBg:     "#cce8d8",
   inputUnselectedBg:   "#e8f5ed",
 
@@ -154,10 +160,10 @@ export const forest = {
   shadowBtn:           "#2e7d4f55",
   shadowInset:         "rgba(255,255,255,0.82)",
 
-  // Gradients — deep forest into warm canopy glow
-  headerGradient:      "linear-gradient(135deg,rgba(20,72,44,0.95),rgba(196,124,40,0.82))",
-  headerGradient2:     "linear-gradient(150deg,rgba(10,30,18,0.99) 0%,rgba(26,92,56,0.97) 52%,rgba(160,96,20,0.90) 100%)",
-  activeTabGradient:   "linear-gradient(135deg,#2e7d4f,#c47c28)",
+  // Gradients — deep forest into teal jade mist
+  headerGradient:      "linear-gradient(135deg,rgba(20,72,44,0.95),rgba(42,128,128,0.82))",
+  headerGradient2:     "linear-gradient(150deg,rgba(10,30,18,0.99) 0%,rgba(26,92,56,0.97) 52%,rgba(30,100,100,0.90) 100%)",
+  activeTabGradient:   "linear-gradient(135deg,#2e7d4f,#2a8080)",
   avatarBubbleBg:      "linear-gradient(135deg,#cce8d8,#b8d8c4)",
   chatSheetBg:         "linear-gradient(170deg,#ecf6f0 0%,#d8ecdf 50%,#c8e0d0 100%)",
 
@@ -180,65 +186,76 @@ export const forest = {
   scrollbarThumb:      "rgba(46,125,79,0.28)",
 };
 
-// ── Theme: Dragons (dark) ────────────────────────────────────────────────────
-// Inspired by the Dragon tiles (中發白) and the traditional jade mahjong set —
-// deep obsidian backgrounds lit by warm gold and amethyst accents.
+// ── Theme: Dragons (dark luxury) ─────────────────────────────────────────────
+// Midnight navy-plum shell, elevated indigo-plum cards, rich gold and peacock
+// teal accents — luxury jewel-tone aesthetic for a sophisticated social club.
 export const jadeDragon = {
   id: "jadeDragon",
   name: "Dragons",
   emoji: "🐉",
 
-  primary:             "#d4a843",   // warm gold — lit mahjong tile
-  primaryDark:         "#b88a2a",
-  primaryMuted:        "#c49a38",
-  primarySubtle:       "#8a7040",
-  primaryFaint:        "#4e3e1c",
-  secondaryAccent:     "#8a6bc9",   // amethyst — dragon tile purple
+  primary:             "#d4a843",   // rich warm gold
+  primaryDark:         "#a8841e",
+  primaryMuted:        "#c4983a",
+  primarySubtle:       "#8a6c22",
+  primaryFaint:        "#4a380e",
+  secondaryAccent:     "#1ec8b8",   // peacock teal
 
   primaryRgb:          "212,168,67",
-  shadowRgb:           "180,140,50",
-  borderLightRgb:      "212,168,67",
-  cardAltRgb:          "32,28,52",
+  shadowRgb:           "160,120,40",
+  borderLightRgb:      "170,110,255",
+  cardAltRgb:          "44,28,76",
 
-  bgBody:              "#080810",
-  bgShellStart:        "#12121f",
-  bgShellMid:          "#181828",
-  bgShellEnd:          "#0e0e1c",
-  bgNav:               "#0c0c18",
-  bgInput:             "#1c1c2e",
-  bgCard:              "rgba(22,22,38,0.92)",
-  bgCardAlt:           "rgba(30,26,50,0.85)",
-  bgCardBase:          "rgba(24,22,42,0.94)",
-  bgSurface:           "rgba(28,26,48,0.80)",
-  bgMsgOther:          "rgba(26,22,46,0.96)",
-  bgPopup:             "rgba(16,14,30,0.98)",
+  // Shell — deep midnight with plum undertone; distinctly darker than cards
+  bgBody:              "#08051a",
+  bgShellStart:        "#130c28",
+  bgShellMid:          "#0e0920",
+  bgShellEnd:          "#09061a",
+  bgNav:               "#0b0820",
+  bgInput:             "#1e1540",   // sunken below card surface
 
-  inputSelectedBg:     "#2a2048",
-  inputUnselectedBg:   "#1a1830",
+  // Cards — elevated indigo-plum; ~20pt lightness jump above the shell
+  bgCard:              "rgba(52,36,90,0.88)",
+  bgCardAlt:           "rgba(42,28,76,0.84)",
+  bgCardBase:          "rgba(62,44,102,0.90)",  // gradient bright end — satin sheen
+  bgSurface:           "rgba(46,32,80,0.72)",
+  bgMsgOther:          "rgba(54,38,90,0.96)",
+  bgPopup:             "rgba(16,10,36,0.98)",
 
-  borderInput:         "#2e2a4a",
-  borderNav:           "rgba(212,168,67,0.22)",
-  borderCard:          "rgba(212,168,67,0.14)",
+  // Date block — warm gold tint, stands out on indigo-plum card
+  dateBlockBg:         "rgba(212,168,67,0.22)",
 
-  textBody:            "#ddd8f0",
-  textHeading:         "#f0ecff",
-  textMuted:           "#7870a0",
-  textSubtle:          "#4e4870",
-  sectionTitle:        "#d4a843",   // gold headings on dark
+  inputSelectedBg:     "#2e205a",
+  inputUnselectedBg:   "#1a1238",
 
-  shadowPrimary:       "rgba(212,168,67,0.20)",
-  shadowCard:          "rgba(0,0,0,0.40)",
-  shadowBtn:           "#d4a84355",
-  shadowInset:         "rgba(255,255,255,0.05)",  // barely visible on dark
+  borderInput:         "#3a2870",
+  borderNav:           "rgba(212,168,67,0.28)",
+  // Subtle amethyst/plum edge glow — elevates cards like ambient studio lighting
+  borderCard:          "rgba(170,110,255,0.26)",
 
-  headerGradient:      "linear-gradient(135deg,rgba(14,12,28,0.97),rgba(38,28,72,0.95))",
-  headerGradient2:     "linear-gradient(150deg,rgba(12,10,24,0.98) 0%,rgba(30,22,58,0.96) 50%,rgba(50,32,80,0.93) 100%)",
-  activeTabGradient:   "linear-gradient(135deg,#d4a843,#8a6bc9)",
-  avatarBubbleBg:      "linear-gradient(135deg,#2a2048,#1c1638)",
-  chatSheetBg:         "linear-gradient(170deg,#0c0c18 0%,#141428 50%,#0c0c1e 100%)",
+  textBody:            "#e6e2f8",   // warm white with slight violet
+  textHeading:         "#f5f2ff",   // near-white, barely-there lavender
+  textMuted:           "#8a7ab8",   // muted lavender-gray
+  textSubtle:          "#524878",   // deep muted lavender
+  sectionTitle:        "#d4a843",
 
-  adminDeep:           "#0c0a1c",
-  adminMid:            "#1e1840",
+  shadowPrimary:       "rgba(212,168,67,0.24)",
+  // Deep ambient shadow — critical for card elevation feel
+  shadowCard:          "rgba(0,0,18,0.62)",
+  shadowBtn:           "#d4a84362",
+  // Violet shimmer on the top edge of cards — satin catch-light
+  shadowInset:         "rgba(200,160,255,0.12)",
+
+  // Header: deep midnight plum bloom; premium, not harsh
+  headerGradient:      "linear-gradient(135deg,rgba(10,6,28,0.97),rgba(46,24,84,0.95))",
+  headerGradient2:     "linear-gradient(150deg,rgba(6,3,18,0.99) 0%,rgba(28,14,60,0.97) 50%,rgba(54,22,86,0.94) 100%)",
+  // CTA: gold → peacock teal — jewel-tone luxury
+  activeTabGradient:   "linear-gradient(135deg,#d4a843,#1ec8b8)",
+  avatarBubbleBg:      "linear-gradient(135deg,#2e1a5c,#1e1044)",
+  chatSheetBg:         "linear-gradient(170deg,#120a28 0%,#0e0820 50%,#090618 100%)",
+
+  adminDeep:           "#080420",
+  adminMid:            "#1e1448",
   adminLight:          "#8a6bc9",
   adminMuted:          "#6a50a8",
 
@@ -246,14 +263,14 @@ export const jadeDragon = {
   fontDisplay:         "'Inter', sans-serif",
   googleFontUrl:       "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Shippori+Mincho:wght@700&display=swap",
 
-  radiusInput:         "12px",
-  radiusCard:          "18px",
-  radiusCardSm:        "14px",
+  radiusInput:         "14px",   // slightly softer for premium feel
+  radiusCard:          "20px",
+  radiusCardSm:        "16px",
   radiusBtn:           "999px",
-  radiusBtnSm:         "12px",
-  radiusSheet:         "26px",
+  radiusBtnSm:         "14px",
+  radiusSheet:         "28px",
 
-  scrollbarThumb:      "rgba(212,168,67,0.30)",
+  scrollbarThumb:      "rgba(212,168,67,0.34)",
 };
 
 // ── Theme: Tiles ─────────────────────────────────────────────────────────────
@@ -290,6 +307,9 @@ export const tiles = {
   bgSurface:           "rgba(228,241,255,0.60)",
   bgMsgOther:          "rgba(255,255,255,0.93)",
   bgPopup:             "rgba(255,255,255,0.97)",
+
+  // Date block on game cards — warm parchment, distinct from blue-white card + blue shell
+  dateBlockBg:         "#ede8e0",
 
   inputSelectedBg:     "#d4e8ff",
   inputUnselectedBg:   "#edf4fc",
