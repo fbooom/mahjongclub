@@ -1072,7 +1072,9 @@ export default function App() {
       if (chatMsgUnsubsRef.current[chatId]) return;
       const q = query(colRef, orderBy("createdAt", "desc"), limit(100));
       chatMsgUnsubsRef.current[chatId] = onSnapshot(q, (snap) => {
-        chatMsgTsRef.current[chatId] = snap.docs.map((d) => d.data().createdAt?.toMillis?.() || 0);
+        chatMsgTsRef.current[chatId] = snap.docs
+          .filter((d) => d.data().uid !== effectiveUid)
+          .map((d) => d.data().createdAt?.toMillis?.() || 0);
         recompute(chatId);
       }, () => {});
     });
@@ -3870,7 +3872,6 @@ function GameCard({ gm, groups, user, go, animDelay = 0, unreadCounts = {} }) {
       <div style={{ background: "var(--bg-card-base)", borderRadius: 16, border: "1px solid var(--border-card)", overflow: "hidden", boxShadow: "0 2px 10px rgba(var(--shadow-rgb),0.06)" }}>
         <div style={{ display: "flex", gap: 12, padding: "12px 14px 10px", alignItems: "center" }}>
           <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: 54, minWidth: 54, padding: "6px 4px", background: "var(--date-block-bg)", border: "1px solid rgba(var(--primary-rgb),0.20)", borderRadius: 10, flexShrink: 0 }}>
-            <Badge count={unread} />
             <span style={{ fontSize: 9, fontWeight: 700, color: "var(--primary)", letterSpacing: 1.2, fontFamily: "'Inter',sans-serif" }}>{monAbbr}</span>
             <span style={{ fontSize: 24, fontWeight: 700, color: "var(--text-body)", fontFamily: "'Inter',sans-serif", lineHeight: 1.1 }}>{dayNum}</span>
             <span style={{ fontSize: 9, fontWeight: 700, color: "var(--primary)", letterSpacing: 1.2, fontFamily: "'Inter',sans-serif" }}>{dowAbbr}</span>
@@ -3907,6 +3908,12 @@ function GameCard({ gm, groups, user, go, animDelay = 0, unreadCounts = {} }) {
               : <>{yesCount > 0 && `${yesCount} in`}{yesCount > 0 && maybeCount > 0 ? " · " : ""}{maybeCount > 0 && `${maybeCount} maybe`}{yesCount === 0 && maybeCount === 0 && "No responses yet"}</>
             }
           </span>
+          {unread > 0 && (
+            <div style={{ position: "relative", display: "inline-flex" }}>
+              <span style={{ fontSize: 16 }}>💬</span>
+              <Badge count={unread} />
+            </div>
+          )}
           <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "'Inter',sans-serif", fontWeight: 600, flexShrink: 0 }}># {gameNum}</span>
         </div>
       </div>
