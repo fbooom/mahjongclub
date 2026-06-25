@@ -1862,7 +1862,7 @@ const handleSignOut = async () => {
             }} />
         )}
         {page === "game" && game && group && (
-          <Game uid={uid} user={displayUser} game={game} group={group} go={go}
+          <Game uid={uid} user={displayUser} game={game} group={group} go={go} unreadCounts={unreadCounts}
             onBack={() => GAMES_PAGES.includes(prevPageRef.current) ? go("games") : go("group", group.id)}
             onRsvp={async (ans) => {
               try {
@@ -1944,7 +1944,7 @@ const handleSignOut = async () => {
           <Invite group={group} game={game} flash={flash} onBack={() => go(game ? "game" : "group", group.id, gmid)} />
         )}
         {page === "guestGame" && gid && gmid && (
-          <GuestGameView uid={uid} user={displayUser} groupId={gid} gameId={gmid} go={go} flash={flash} />
+          <GuestGameView uid={uid} user={displayUser} groupId={gid} gameId={gmid} go={go} flash={flash} unreadCounts={unreadCounts} />
         )}
         {page === "newStandaloneGame" && (
           <NewGame uid={uid} user={user} group={null} groups={groups} planCfg={userPlanCfg} onBack={() => go("home")}
@@ -1980,7 +1980,7 @@ const handleSignOut = async () => {
             }} />
         )}
         {page === "standaloneGame" && gmid && (
-          <StandaloneGameView uid={uid} gameId={gmid} go={go} flash={flash} user={displayUser} />
+          <StandaloneGameView uid={uid} gameId={gmid} go={go} flash={flash} user={displayUser} unreadCounts={unreadCounts} />
         )}
         {page === "managePlan" && (
           <ManagePlan uid={uid} user={displayUser} setUser={setUser} planConfigs={planConfigs} go={go} flash={flash} />
@@ -5146,6 +5146,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
   const isCreator = group.members.some((m) => m.id === uid && m.host);
   const canInvite = isCreator || (group.openInvites ?? false);
   const otherMembers = group.members.filter((m) => m.id !== uid);
+  const groupUnread = group.status !== "archived" ? (unreadCounts[group.id] || 0) : 0;
 
   const handleLeaveClick = () => {
     if (isCreator && otherMembers.length > 0) {
@@ -5171,7 +5172,7 @@ function Group({ uid, group, go, flash, onLeave, onTransferAndLeave, onTransferH
           {isCreator && (
             <button onClick={() => go("editGroup", group.id)} title="Edit group" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>✏️</button>
           )}
-          <button onClick={() => setChatOpen(true)} title="Group chat" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>💬</button>
+          <button onClick={() => setChatOpen(true)} title="Group chat" style={{ position: "relative", width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>💬<Badge count={groupUnread} /></button>
           {canInvite && (
             <button onClick={() => go("invite", group.id)} title="Invite" style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,.22)", border: "1px solid rgba(255,255,255,.38)", backdropFilter: "blur(8px)", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></button>
           )}
@@ -6309,7 +6310,7 @@ function NewGame({ uid: myUid, user: myUser, group, groups = [], planCfg, onBack
 
 /* GUEST GAME VIEW — fetches game + group directly, no listener dependency */
 /* ── STANDALONE GAME VIEW (host or invited guest — no group context) ── */
-function StandaloneGameView({ uid, gameId, go, flash, user }) {
+function StandaloneGameView({ uid, gameId, go, flash, user, unreadCounts = {} }) {
   const [game, setGame] = useState(null);
   const [view, setView] = useState("game"); // "game" | "edit" | "invite"
 
@@ -6370,7 +6371,7 @@ function StandaloneGameView({ uid, gameId, go, flash, user }) {
   }
 
   return (
-    <Game uid={uid} game={game} group={stubGroup} go={wrappedGo} isGuestView={!isHost}
+    <Game uid={uid} game={game} group={stubGroup} go={wrappedGo} isGuestView={!isHost} unreadCounts={unreadCounts}
       onRsvp={async (ans) => {
         try {
           await updateDoc(doc(db, "games", gameId), { [`rsvps.${uid}`]: ans });
@@ -6411,7 +6412,7 @@ function StandaloneGameView({ uid, gameId, go, flash, user }) {
   );
 }
 
-function GuestGameView({ uid, user, groupId, gameId, go, flash }) {
+function GuestGameView({ uid, user, groupId, gameId, go, flash, unreadCounts = {} }) {
   const [game, setGame] = useState(null);
   const [groupMeta, setGroupMeta] = useState(null);
 
@@ -6437,7 +6438,7 @@ function GuestGameView({ uid, user, groupId, gameId, go, flash }) {
   );
 
   return (
-    <Game uid={uid} user={user} game={game} group={groupMeta} go={go} isGuestView
+    <Game uid={uid} user={user} game={game} group={groupMeta} go={go} isGuestView unreadCounts={unreadCounts}
       onRsvp={async (ans) => {
         try {
           await updateDoc(doc(db, "groups", groupId, "games", gameId), { [`rsvps.${uid}`]: ans });
@@ -6505,7 +6506,7 @@ function generateSeating(playerIds, skillMap, tableSize = 4) {
 }
 
 /* GAME DETAIL — redesigned per spec */
-function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLeave, onBack, onSaveWinner, isGuestView = false }) {
+function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLeave, onBack, onSaveWinner, isGuestView = false, unreadCounts = {} }) {
   // ── Design tokens — mapped to active theme CSS variables ────────────────
   // Going / positive action
   const J9  = "var(--text-heading)";
@@ -6581,6 +6582,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
   const canInvite = !isGuestView && (!!group.id || (isHost && !!game.joinCode));
   const myRsvp = game.rsvps[uid] || "pending";
   const past = game.date < startOfTodayInTz(user?.timezone);
+  const gameUnread = (game.status !== "archived" && !past) ? (unreadCounts[game.id] || 0) : 0;
   const allGuests = game.guests || [];
   const registeredGuests = game.registeredGuests || [];
   const rawWaitlist = game.waitlist || [];
@@ -6680,7 +6682,7 @@ function Game({ uid, user, game, group, go, onRsvp, onWaitlist, onArchive, onLea
           </button>
           <div style={{ display: "flex", gap: 8 }}>
             {isHost && <button onClick={() => go("editGame", group.id, game.id)} aria-label="Edit" style={iconBtn}>✏️</button>}
-            <button onClick={() => setGameChatOpen(true)} aria-label="Game chat" style={iconBtn}>💬</button>
+            <button onClick={() => setGameChatOpen(true)} aria-label="Game chat" style={{ ...iconBtn, position: "relative" }}>💬<Badge count={gameUnread} /></button>
             {canInvite && <button onClick={() => go("invite", group.id, game.id)} aria-label="Invite" style={iconBtn}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></button>}
           </div>
         </div>
