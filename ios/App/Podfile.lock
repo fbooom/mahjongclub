@@ -5,10 +5,10 @@ PODS:
   - AppAuth/Core (1.7.6)
   - AppAuth/ExternalUserAgent (1.7.6):
     - AppAuth/Core
-  - Capacitor (8.3.1):
+  - Capacitor (8.4.1):
     - CapacitorCordova
-  - CapacitorCordova (8.3.1)
-  - CapacitorPushNotifications (8.0.3):
+  - CapacitorCordova (8.4.1)
+  - CapacitorPushNotifications (8.1.1):
     - Capacitor
   - Firebase/CoreOnly (12.13.0):
     - FirebaseCore (~> 12.13.0)
@@ -115,9 +115,9 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   AppAuth: d4f13a8fe0baf391b2108511793e4b479691fb73
-  Capacitor: 46dbaa89c1d1cd121b9fc2dc839c1f39cc49e326
-  CapacitorCordova: 9010447fe25e869705fcf525e5f490facde87608
-  CapacitorPushNotifications: e4437b4ec1b2070685bf032c210f346432214c5f
+  Capacitor: 35242afe195b1e53c58ca1b827d1b444c5e6602b
+  CapacitorCordova: eebe6bcf807b1b06f3f48237650f96bbcd0eef09
+  CapacitorPushNotifications: ec08d589c226a2c0db7c032ec1bf5b044ec85f8e
   Firebase: 7d62445aeabdaea36f7d372f33052fed9a72514f
   FirebaseCore: 58905958aa00a061397a0fd759ae4b55bddb3576
   FirebaseCoreInternal: 37bee58388fc6d183f0ab1b32d69ae44f2cf8aad
@@ -132,6 +132,6 @@ SPEC CHECKSUMS:
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   SouthdevsCapacitorGoogleAuth: 6488c21faed47c2cf72404bfbfc0fe0e9af766bc
 
-PODFILE CHECKSUM: 00b4bb31d327aae65195ccccb932c474004cafc3
+PODFILE CHECKSUM: d979aeeea24fa04ee88aa139e1468e49e8459741
 
 COCOAPODS: 1.16.2
