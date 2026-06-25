@@ -16,7 +16,12 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          # Pinned to 24.16.0: Node 22.23.0/24.17.0+ ship a security patch that
+          # breaks HTTP keep-alive, causing firebase-tools OAuth token fetches to
+          # fail with "Premature close" (firebase/firebase-tools#10692, unfixed
+          # in latest npm release as of 2026-06-25). Revert once a patched
+          # firebase-tools release ships.
+          node-version: '24.16.0'
           cache: 'npm'
 
       - name: Install dependencies
